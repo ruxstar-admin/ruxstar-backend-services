@@ -15,7 +15,6 @@ app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
 
-// connect DB AFTER server starts
 db.connect()
   .then(() => console.log("DB connected"))
   .catch((err) => {
