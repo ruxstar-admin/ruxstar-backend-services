@@ -1,11 +1,3 @@
-// Attempt to load .env (works in development and when present in other environments)
-try {
-  require('dotenv').config();
-  console.log('.env loaded (if present)');
-} catch (e) {
-  console.warn('dotenv not installed — .env not loaded. Run `npm install` to install devDependencies.');
-}
-
 const express = require('express');
 const db = require('./lib/db');
 const routes = require('./routes');
