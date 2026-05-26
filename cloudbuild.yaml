@@ -32,7 +32,7 @@ steps:
       - --port=8080
       - --allow-unauthenticated
       - --service-account=${_RUNTIME_SA}
-      - --set-secrets=MONGODB_URI=mongodb-uri-prod:latest
+      - --set-secrets=MONGODB_URI=mongodb-uri:latest
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}:$SHORT_SHA
