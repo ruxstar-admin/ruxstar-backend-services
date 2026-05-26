@@ -1,42 +1,41 @@
-substitutions:
-  _REGION: us-central1
-  _AR_REPO: ruxstar-backend
-  _SERVICE_NAME: ruxstar-backend-services
-  _RUNTIME_SA: backend-service-account@ruxstar-platform.iam.gserviceaccount.com
-
 steps:
+  # ── BUILD IMAGE ─────────────────────────────
   - name: gcr.io/cloud-builders/docker
+    id: build-backend
     args:
       - build
       - -t
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}:$SHORT_SHA
-      - -t
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}:latest
+      - us-central1-docker.pkg.dev/$PROJECT_ID/ruxstar-backend/ruxstar-backend-services:$BUILD_ID
       - .
 
+  # ── PUSH IMAGE ───────────────────────────────
   - name: gcr.io/cloud-builders/docker
+    id: push-backend
+    waitFor: [build-backend]
     args:
       - push
-      - --all-tags
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}
+      - us-central1-docker.pkg.dev/$PROJECT_ID/ruxstar-backend/ruxstar-backend-services:$BUILD_ID
 
+  # ── DEPLOY TO CLOUD RUN ──────────────────────
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: deploy-backend
+    waitFor: [push-backend]
     entrypoint: gcloud
     args:
       - run
       - deploy
-      - ${_SERVICE_NAME}
-      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}:$SHORT_SHA
-      - --region=${_REGION}
+      - ruxstar-backend-services
+      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/ruxstar-backend/ruxstar-backend-services:$BUILD_ID
+      - --region=us-central1
       - --platform=managed
       - --port=8080
       - --allow-unauthenticated
-      - --service-account=${_RUNTIME_SA}
+      - --service-account=backend-service-account@ruxstar-platform.iam.gserviceaccount.com
       - --set-secrets=MONGODB_URI=mongodb-uri:latest
+      - --quiet
 
 images:
-  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}:$SHORT_SHA
-  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}:latest
+  - us-central1-docker.pkg.dev/$PROJECT_ID/ruxstar-backend/ruxstar-backend-services:$BUILD_ID
 
 options:
   logging: CLOUD_LOGGING_ONLY
