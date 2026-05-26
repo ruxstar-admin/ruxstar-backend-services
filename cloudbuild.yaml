@@ -1,6 +1,6 @@
 substitutions:
   _REGION: us-central1
-  _AR_REPO: ruxstar
+  _AR_REPO: ruxstar-backend
   _SERVICE_NAME: ruxstar-backend-services
   _RUNTIME_SA: backend-service-account@ruxstar-platform.iam.gserviceaccount.com
 
