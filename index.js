@@ -18,5 +18,5 @@ app.listen(port, () => {
 db.connect()
   .then(() => console.log("DB connected"))
   .catch((err) => {
-    console.error("DB connection failed:", err.message);
+    console.error("DB connection failed:", err);
   });
