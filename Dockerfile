@@ -7,6 +7,8 @@ RUN npm ci --omit=dev
 
 COPY index.js lib/ routes/
 
+RUN chown -R node:node /app
+
 ENV NODE_ENV=production
 
 USER node
