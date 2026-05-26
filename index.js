@@ -1,5 +1,7 @@
-require('dotenv').config();
 const express = require('express');
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config();
+}
 const db = require('./lib/db');
 const routes = require('./routes');
 
