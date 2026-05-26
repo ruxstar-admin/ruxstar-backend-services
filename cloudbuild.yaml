@@ -2,6 +2,7 @@ substitutions:
   _REGION: us-central1
   _AR_REPO: ruxstar
   _SERVICE_NAME: ruxstar-backend-services
+  _RUNTIME_SA: backend-service-account@ruxstar-platform.iam.gserviceaccount.com
 
 steps:
   - name: gcr.io/cloud-builders/docker
@@ -29,6 +30,8 @@ steps:
       - --region=${_REGION}
       - --platform=managed
       - --port=8080
+      - --allow-unauthenticated
+      - --service-account=${_RUNTIME_SA}
       - --set-secrets=MONGODB_URI=mongodb-uri:latest
 
 images:
