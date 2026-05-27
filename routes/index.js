@@ -3,7 +3,7 @@ const { Router } = require('express');
 const router = Router();
 
 router.get('/health', async (req, res) => {
- res.json({ status: 'okay!' });
+ res.json({ status: 'okay' });
 });
 
 router.get('/', async (req, res) => {
