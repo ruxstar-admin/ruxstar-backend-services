@@ -4,4 +4,5 @@ module.exports = {
   EMPLOYEE: 'employee',
   DELIVERY: 'delivery',
   CUSTOMER: 'customer',
+  
 };
