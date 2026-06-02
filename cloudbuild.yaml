@@ -20,7 +20,6 @@ steps:
       - --all-tags
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}
 
-  # Env var names in code ← Secret Manager secret ids (all :latest)
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -34,7 +33,7 @@ steps:
       - --allow-unauthenticated
       - --service-account=${_RUNTIME_SA}
       - --set-env-vars=NODE_ENV=production
-      - --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest,MSG91_AUTH_KEY=msg91-auth-key:latest,MSG91_SENDER_ID=msg91-sender-id:latest,MSG91_TEMPLATE_ID=msg91-template-id:latest,OTP_EXPIRY_MINUTES=otp-expiry-minutes:latest
+      - --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest,MSG91_AUTH_KEY=msg91-auth-key:latest,MSG91_SENDER_ID=msg91-sender-id:latest,MSG91_TEMPLATE_ID=msg91-template-id:latest
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}:$SHORT_SHA
