@@ -1,12 +1,14 @@
 {
   "info": {
     "name": "Ruxstar Backend",
-    "description": "Auth, admin and vendor APIs. Set `baseUrl` and run signup flow — dev returns OTP in send-otp response.",
+    "description": "Auth, admin, user and vendor APIs.\n\n**Variables:** Set `baseUrl` (local or Cloud Run). Use `mobile` for auth flows.\n\n**Signup:** send-otp → verify-otp → complete (sets password).\n\n**Login:** either OTP (send-otp → verify-otp) or password (`POST /auth/login`).\n\nIn non-production, OTP is returned in send-otp responses for testing.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "prodBaseUrl", "value": "https://ruxstar-backend-services-391710984982.us-central1.run.app" },
     { "key": "mobile", "value": "9876543210" },
+    { "key": "password", "value": "secret12" },
     { "key": "otp", "value": "" },
     { "key": "token", "value": "" },
     { "key": "signupToken", "value": "" },
@@ -36,6 +38,7 @@
     },
     {
       "name": "Auth - Signup",
+      "description": "Register a new user. Mobile must not already exist.",
       "item": [
         {
           "name": "1. Send OTP",
@@ -60,7 +63,8 @@
               "mode": "raw",
               "raw": "{\n  \"mobile\": \"{{mobile}}\"\n}"
             },
-            "url": "{{baseUrl}}/auth/signup/send-otp"
+            "url": "{{baseUrl}}/auth/signup/send-otp",
+            "description": "Sends OTP to mobile. Returns 409 if mobile is already registered."
           }
         },
         {
@@ -85,7 +89,8 @@
               "mode": "raw",
               "raw": "{\n  \"mobile\": \"{{mobile}}\",\n  \"otp\": \"{{otp}}\"\n}"
             },
-            "url": "{{baseUrl}}/auth/signup/verify-otp"
+            "url": "{{baseUrl}}/auth/signup/verify-otp",
+            "description": "Verifies OTP and returns a short-lived signupToken."
           }
         },
         {
@@ -110,7 +115,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"signupToken\": \"{{signupToken}}\",\n  \"name\": \"Test User\",\n  \"password\": \"secret12\",\n  \"role\": \"customer\"\n}"
+              "raw": "{\n  \"signupToken\": \"{{signupToken}}\",\n  \"name\": \"Test User\",\n  \"password\": \"{{password}}\",\n  \"role\": \"customer\"\n}"
             },
             "url": "{{baseUrl}}/auth/signup/complete"
           }
@@ -122,7 +127,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"signupToken\": \"{{signupToken}}\",\n  \"name\": \"Test Vendor\",\n  \"password\": \"secret12\",\n  \"role\": \"vendor\"\n}"
+              "raw": "{\n  \"signupToken\": \"{{signupToken}}\",\n  \"name\": \"Test Vendor\",\n  \"password\": \"{{password}}\",\n  \"role\": \"vendor\"\n}"
             },
             "url": "{{baseUrl}}/auth/signup/complete"
           }
@@ -134,7 +139,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"signupToken\": \"{{signupToken}}\",\n  \"name\": \"Test Delivery\",\n  \"password\": \"secret12\",\n  \"role\": \"delivery\"\n}"
+              "raw": "{\n  \"signupToken\": \"{{signupToken}}\",\n  \"name\": \"Test Delivery\",\n  \"password\": \"{{password}}\",\n  \"role\": \"delivery\"\n}"
             },
             "url": "{{baseUrl}}/auth/signup/complete"
           }
@@ -143,98 +148,121 @@
     },
     {
       "name": "Auth - Login",
+      "description": "Login with OTP or password. User must already exist.",
       "item": [
         {
-          "name": "1. Send Login OTP",
-          "event": [
+          "name": "Login via OTP",
+          "item": [
             {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  const json = pm.response.json();",
-                  "  if (json.otp) pm.collectionVariables.set('otp', json.otp);",
-                  "}"
-                ],
-                "type": "text/javascript"
+              "name": "1. Send Login OTP",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const json = pm.response.json();",
+                      "  if (json.otp) pm.collectionVariables.set('otp', json.otp);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"mobile\": \"{{mobile}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login/send-otp",
+                "description": "Sends OTP to a registered mobile. Returns 404 if user not found."
+              }
+            },
+            {
+              "name": "2. Verify Login OTP",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const json = pm.response.json();",
+                      "  pm.collectionVariables.set('token', json.token);",
+                      "  if (json.user && json.user._id) pm.collectionVariables.set('userId', json.user._id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"mobile\": \"{{mobile}}\",\n  \"otp\": \"{{otp}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login/verify-otp",
+                "description": "Verifies OTP and returns JWT token + user."
               }
             }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"mobile\": \"{{mobile}}\"\n}"
-            },
-            "url": "{{baseUrl}}/auth/login/send-otp"
-          }
+          ]
         },
         {
-          "name": "2. Verify Login OTP",
-          "event": [
+          "name": "Login via Password",
+          "item": [
             {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  pm.collectionVariables.set('token', pm.response.json().token);",
-                  "}"
-                ],
-                "type": "text/javascript"
+              "name": "Login",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const json = pm.response.json();",
+                      "  pm.collectionVariables.set('token', json.token);",
+                      "  if (json.user && json.user._id) pm.collectionVariables.set('userId', json.user._id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"mobile\": \"{{mobile}}\",\n  \"password\": \"{{password}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login",
+                "description": "Login with mobile and password."
               }
             }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"mobile\": \"{{mobile}}\",\n  \"otp\": \"{{otp}}\"\n}"
-            },
-            "url": "{{baseUrl}}/auth/login/verify-otp"
-          }
+          ]
         },
         {
-          "name": "Login (password)",
-          "event": [
+          "name": "Session",
+          "item": [
             {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  pm.collectionVariables.set('token', pm.response.json().token);",
-                  "}"
-                ],
-                "type": "text/javascript"
+              "name": "Me",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+                "url": "{{baseUrl}}/auth/me"
+              }
+            },
+            {
+              "name": "Logout",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+                "url": "{{baseUrl}}/auth/logout"
               }
             }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"mobile\": \"{{mobile}}\",\n  \"password\": \"secret12\"\n}"
-            },
-            "url": "{{baseUrl}}/auth/login"
-          }
-        },
-        {
-          "name": "Me",
-          "request": {
-            "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-            "url": "{{baseUrl}}/auth/me"
-          }
-        },
-        {
-          "name": "Logout",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-            "url": "{{baseUrl}}/auth/logout"
-          }
+          ]
         }
       ]
     },
@@ -264,7 +292,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"mobile\": \"9123456789\",\n  \"name\": \"Staff User\",\n  \"password\": \"secret12\",\n  \"role\": \"employee\"\n}"
+              "raw": "{\n  \"mobile\": \"9123456789\",\n  \"name\": \"Staff User\",\n  \"password\": \"{{password}}\",\n  \"role\": \"employee\"\n}"
             },
             "url": "{{baseUrl}}/admin/users"
           }
@@ -399,7 +427,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"mobile\": \"9123456780\",\n  \"name\": \"Vendor Customer\",\n  \"password\": \"secret12\"\n}"
+              "raw": "{\n  \"mobile\": \"9123456780\",\n  \"name\": \"Vendor Customer\",\n  \"password\": \"{{password}}\"\n}"
             },
             "url": "{{baseUrl}}/vendor/users"
           }
