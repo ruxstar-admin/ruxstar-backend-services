@@ -1,7 +1,7 @@
 if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
-
+console.log("Mongo URI:", process.env.MONGODB_URI);
 const app = require('./app');
 const db = require('./config/database');
 
