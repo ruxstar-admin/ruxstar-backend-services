@@ -67,6 +67,34 @@ exports.signupComplete = async (req, res) => {
   }
 };
 
+exports.loginSendOtp = async (req, res) => {
+  const { mobile } = req.body;
+  if (!mobile) return res.status(400).json({ message: 'mobile required' });
+  const user = await authService.findByMobile(mobile);
+  if (!user || user.status === 'disabled') {
+    return res.status(404).json({ message: 'user not found' });
+  }
+  try {
+    const otp = await sms.sendOtp(mobile);
+    res.json({ message: 'OTP sent', ...(otp && { otp }) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.loginVerifyOtp = async (req, res) => {
+  const { mobile, otp } = req.body;
+  if (!mobile || !otp) return res.status(400).json({ message: 'mobile and otp required' });
+  const user = await authService.findByMobile(mobile);
+  if (!user || user.status === 'disabled') {
+    return res.status(401).json({ message: 'invalid credentials' });
+  }
+  if (!(await sms.verifyOtp(mobile, otp))) {
+    return res.status(401).json({ message: 'invalid or expired OTP' });
+  }
+  res.json({ token: signToken(user), user: authService.sanitize(user) });
+};
+
 exports.login = async (req, res) => {
   const { mobile, password } = req.body;
   if (!mobile || !password) return res.status(400).json({ message: 'mobile and password required' });
