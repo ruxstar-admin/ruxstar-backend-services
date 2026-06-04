@@ -7,12 +7,17 @@ const db = require('./config/database');
 
 const port = process.env.PORT || 8080;
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
-
-db.connect()
-  .then(() => console.log('DB connected'))
-  .catch((err) => {
+const start = async () => {
+  try {
+    await db.connect();
+    console.log('DB connected');
+    app.listen(port, () => {
+      console.log(`Server running on port ${port}`);
+    });
+  } catch (err) {
     console.error('DB connection failed:', err);
-  });
+    process.exit(1);
+  }
+};
+
+start();

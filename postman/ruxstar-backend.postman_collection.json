@@ -1,0 +1,446 @@
+{
+  "info": {
+    "name": "Ruxstar Backend",
+    "description": "Auth, admin, user and vendor APIs.\n\n**Variables:** Set `baseUrl` (local or Cloud Run). Use `mobile` for auth flows.\n\n**Signup:** send-otp → verify-otp → complete (sets password).\n\n**Login:** either OTP (send-otp → verify-otp) or password (`POST /auth/login`).\n\nIn non-production, OTP is returned in send-otp responses for testing.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "prodBaseUrl", "value": "https://ruxstar-backend-services-391710984982.us-central1.run.app" },
+    { "key": "mobile", "value": "9876543210" },
+    { "key": "password", "value": "secret12" },
+    { "key": "otp", "value": "" },
+    { "key": "token", "value": "" },
+    { "key": "signupToken", "value": "" },
+    { "key": "userId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "General",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          }
+        },
+        {
+          "name": "Welcome",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth - Signup",
+      "description": "Register a new user. Mobile must not already exist.",
+      "item": [
+        {
+          "name": "1. Send OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.otp) pm.collectionVariables.set('otp', json.otp);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile\": \"{{mobile}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/signup/send-otp",
+            "description": "Sends OTP to mobile. Returns 409 if mobile is already registered."
+          }
+        },
+        {
+          "name": "2. Verify OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set('signupToken', pm.response.json().signupToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile\": \"{{mobile}}\",\n  \"otp\": \"{{otp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/signup/verify-otp",
+            "description": "Verifies OTP and returns a short-lived signupToken."
+          }
+        },
+        {
+          "name": "3. Complete Signup (customer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('token', json.token);",
+                  "  if (json.user && json.user._id) pm.collectionVariables.set('userId', json.user._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signupToken\": \"{{signupToken}}\",\n  \"name\": \"Test User\",\n  \"password\": \"{{password}}\",\n  \"role\": \"customer\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/signup/complete"
+          }
+        },
+        {
+          "name": "3. Complete Signup (vendor)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signupToken\": \"{{signupToken}}\",\n  \"name\": \"Test Vendor\",\n  \"password\": \"{{password}}\",\n  \"role\": \"vendor\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/signup/complete"
+          }
+        },
+        {
+          "name": "3. Complete Signup (delivery)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signupToken\": \"{{signupToken}}\",\n  \"name\": \"Test Delivery\",\n  \"password\": \"{{password}}\",\n  \"role\": \"delivery\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/signup/complete"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth - Login",
+      "description": "Login with OTP or password. User must already exist.",
+      "item": [
+        {
+          "name": "Login via OTP",
+          "item": [
+            {
+              "name": "1. Send Login OTP",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const json = pm.response.json();",
+                      "  if (json.otp) pm.collectionVariables.set('otp', json.otp);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"mobile\": \"{{mobile}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login/send-otp",
+                "description": "Sends OTP to a registered mobile. Returns 404 if user not found."
+              }
+            },
+            {
+              "name": "2. Verify Login OTP",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const json = pm.response.json();",
+                      "  pm.collectionVariables.set('token', json.token);",
+                      "  if (json.user && json.user._id) pm.collectionVariables.set('userId', json.user._id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"mobile\": \"{{mobile}}\",\n  \"otp\": \"{{otp}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login/verify-otp",
+                "description": "Verifies OTP and returns JWT token + user."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login via Password",
+          "item": [
+            {
+              "name": "Login",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const json = pm.response.json();",
+                      "  pm.collectionVariables.set('token', json.token);",
+                      "  if (json.user && json.user._id) pm.collectionVariables.set('userId', json.user._id);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"mobile\": \"{{mobile}}\",\n  \"password\": \"{{password}}\"\n}"
+                },
+                "url": "{{baseUrl}}/auth/login",
+                "description": "Login with mobile and password."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Session",
+          "item": [
+            {
+              "name": "Me",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+                "url": "{{baseUrl}}/auth/me"
+              }
+            },
+            {
+              "name": "Logout",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+                "url": "{{baseUrl}}/auth/logout"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?role=employee",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"],
+              "query": [{ "key": "role", "value": "employee" }]
+            }
+          }
+        },
+        {
+          "name": "Create User (admin/employee)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile\": \"9123456789\",\n  \"name\": \"Staff User\",\n  \"password\": \"{{password}}\",\n  \"role\": \"employee\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/users"
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"active\",\n  \"roles\": [\"employee\"]\n}"
+            },
+            "url": "{{baseUrl}}/admin/users/{{userId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "User (customer)",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/user/profile"
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\"\n}"
+            },
+            "url": "{{baseUrl}}/user/profile"
+          }
+        },
+        {
+          "name": "Become Vendor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set('token', pm.response.json().token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessName\": \"My Shop\"\n}"
+            },
+            "url": "{{baseUrl}}/user/become-vendor"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Vendor",
+      "item": [
+        {
+          "name": "Become Customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set('token', pm.response.json().token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/vendor/become-customer"
+          }
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/vendor/profile"
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessName\": \"Ruxstar Store\",\n  \"address\": \"Hyderabad\",\n  \"phone\": \"9876543210\"\n}"
+            },
+            "url": "{{baseUrl}}/vendor/profile"
+          }
+        },
+        {
+          "name": "Create Customer User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile\": \"9123456780\",\n  \"name\": \"Vendor Customer\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{baseUrl}}/vendor/users"
+          }
+        },
+        {
+          "name": "List My Customers",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/vendor/users"
+          }
+        }
+      ]
+    }
+  ]
+}
