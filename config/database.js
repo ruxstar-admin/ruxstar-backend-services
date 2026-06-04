@@ -6,7 +6,10 @@ let db;
 const getClient = () => {
   if (!client) {
     if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI is not set');
-    client = new MongoClient(process.env.MONGODB_URI);
+    client = new MongoClient(process.env.MONGODB_URI, {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 10000,
+    });
   }
   return client;
 };
