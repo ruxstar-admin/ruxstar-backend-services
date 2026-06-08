@@ -18,14 +18,14 @@ exports.status = async (req, res) => {
 };
 
 exports.startAadhaar = async (req, res) => {
-  const redirectUrl = req.body.redirectUrl || process.env.KYC_REDIRECT_URL;
+  const redirectUrl = req.body?.redirectUrl || process.env.KYC_REDIRECT_URL;
   if (!redirectUrl?.startsWith('https://')) {
     return res.status(400).json({ message: 'redirectUrl required (must start with https)' });
   }
   try {
     const result = await kycService.startAadhaar(req.user.id, {
       redirectUrl,
-      userFlow: req.body.userFlow,
+      userFlow: req.body?.userFlow,
     });
     res.json(result);
   } catch (err) {
@@ -44,7 +44,7 @@ exports.syncAadhaar = async (req, res) => {
 
 exports.verifyPan = async (req, res) => {
   try {
-    const result = await kycService.verifyPan(req.user.id, req.body);
+    const result = await kycService.verifyPan(req.user.id, req.body || {});
     res.json(result);
   } catch (err) {
     res.status(err.status || 500).json({ message: err.message, details: err.data });
@@ -53,7 +53,7 @@ exports.verifyPan = async (req, res) => {
 
 exports.verifyFace = async (req, res) => {
   try {
-    const result = await kycService.verifyFace(req.user.id, req.body.image);
+    const result = await kycService.verifyFace(req.user.id, req.body?.image);
     res.json(result);
   } catch (err) {
     res.status(err.status || 500).json({ message: err.message, details: err.details || err.data });
