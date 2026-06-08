@@ -13,7 +13,7 @@
     { "key": "token", "value": "" },
     { "key": "signupToken", "value": "" },
     { "key": "userId", "value": "" },
-    { "key": "kycRedirectUrl", "value": "https://example.com/kyc/done" },
+    { "key": "kycRedirectUrl", "value": "https://ruxstar.com/kyc/done" },
     { "key": "vendorUserId", "value": "" }
   ],
   "item": [
@@ -124,6 +124,24 @@
         },
         {
           "name": "3. Complete Signup (vendor)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('token', json.token);",
+                  "  if (json.user && json.user._id) {",
+                  "    pm.collectionVariables.set('userId', json.user._id);",
+                  "    pm.collectionVariables.set('vendorUserId', json.user._id);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -541,7 +559,8 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-            "url": "{{baseUrl}}/vendor/profile"
+            "url": "{{baseUrl}}/vendor/profile",
+            "description": "Requires KYC status verified (admin approved). Returns 403 kyc_required otherwise."
           }
         },
         {
@@ -556,7 +575,8 @@
               "mode": "raw",
               "raw": "{\n  \"businessName\": \"Ruxstar Store\",\n  \"address\": \"Hyderabad\",\n  \"phone\": \"9876543210\"\n}"
             },
-            "url": "{{baseUrl}}/vendor/profile"
+            "url": "{{baseUrl}}/vendor/profile",
+            "description": "Requires KYC verified."
           }
         },
         {
@@ -571,7 +591,8 @@
               "mode": "raw",
               "raw": "{\n  \"mobile\": \"9123456780\",\n  \"name\": \"Vendor Customer\",\n  \"password\": \"{{password}}\"\n}"
             },
-            "url": "{{baseUrl}}/vendor/users"
+            "url": "{{baseUrl}}/vendor/users",
+            "description": "Requires KYC verified."
           }
         },
         {
@@ -579,7 +600,8 @@
           "request": {
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-            "url": "{{baseUrl}}/vendor/users"
+            "url": "{{baseUrl}}/vendor/users",
+            "description": "Requires KYC verified."
           }
         }
       ]
