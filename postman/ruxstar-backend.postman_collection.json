@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Ruxstar Backend",
-    "description": "Auth, admin, user and vendor APIs.\n\n**Variables:** Set `baseUrl` (local or Cloud Run). Use `mobile` for auth flows.\n\n**Signup:** send-otp → verify-otp → complete (sets password).\n\n**Login:** either OTP (send-otp → verify-otp) or password (`POST /auth/login`).\n\nIn non-production, OTP is returned in send-otp responses for testing.",
+    "description": "Auth, admin, user, vendor and vendor KYC APIs.\n\n**Variables:** Set `baseUrl` (local or Cloud Run). Use `mobile` for auth flows.\n\n**Signup:** send-otp → verify-otp → complete (sets password).\n\n**Login:** either OTP (send-otp → verify-otp) or password (`POST /auth/login`).\n\n**Vendor KYC:** aadhaar/start → user completes DigiLocker → aadhaar/sync → pan → face → admin approves.\n\nIn non-production, OTP is returned in send-otp responses for testing.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -12,7 +12,9 @@
     { "key": "otp", "value": "" },
     { "key": "token", "value": "" },
     { "key": "signupToken", "value": "" },
-    { "key": "userId", "value": "" }
+    { "key": "userId", "value": "" },
+    { "key": "kycRedirectUrl", "value": "https://example.com/kyc/done" },
+    { "key": "vendorUserId", "value": "" }
   ],
   "item": [
     {
@@ -311,6 +313,61 @@
             },
             "url": "{{baseUrl}}/admin/users/{{userId}}"
           }
+        },
+        {
+          "name": "List Vendor KYC",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/admin/kyc?status=pending_review",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "kyc"],
+              "query": [{ "key": "status", "value": "pending_review", "description": "pending | in_progress | pending_review | verified | rejected" }]
+            },
+            "description": "List vendors with KYC data. Omit status query to list all vendors with KYC."
+          }
+        },
+        {
+          "name": "Get Vendor KYC",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/admin/kyc/{{vendorUserId}}",
+            "description": "Get one vendor's KYC details."
+          }
+        },
+        {
+          "name": "Approve Vendor KYC",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/kyc/{{vendorUserId}}",
+            "description": "Approve vendor after all KYC steps complete (status must be pending_review)."
+          }
+        },
+        {
+          "name": "Reject Vendor KYC",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"reject\",\n  \"reason\": \"Documents mismatch\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/kyc/{{vendorUserId}}",
+            "description": "Reject vendor KYC submission."
+          }
         }
       ]
     },
@@ -373,6 +430,91 @@
     {
       "name": "Vendor",
       "item": [
+        {
+          "name": "KYC",
+          "description": "Complete in order: Aadhaar → PAN → Face. After all steps, status becomes pending_review until admin approves.",
+          "item": [
+            {
+              "name": "KYC Status",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+                "url": "{{baseUrl}}/vendor/kyc/status"
+              }
+            },
+            {
+              "name": "Start Aadhaar (DigiLocker)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const json = pm.response.json();",
+                      "  if (json.url) console.log('Open DigiLocker URL:', json.url);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{token}}" },
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"redirectUrl\": \"{{kycRedirectUrl}}\",\n  \"userFlow\": \"signin\"\n}"
+                },
+                "url": "{{baseUrl}}/vendor/kyc/aadhaar/start",
+                "description": "Returns DigiLocker URL. User completes OTP + consent in browser, then call Sync Aadhaar."
+              }
+            },
+            {
+              "name": "Sync Aadhaar",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+                "url": "{{baseUrl}}/vendor/kyc/aadhaar/sync",
+                "description": "Poll after DigiLocker completion until status is verified."
+              }
+            },
+            {
+              "name": "Verify PAN",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{token}}" },
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"pan\": \"ABCPV1234D\"\n}"
+                },
+                "url": "{{baseUrl}}/vendor/kyc/pan",
+                "description": "Name optional — defaults to Aadhaar name. Use Cashfree sandbox test PAN in sandbox."
+              }
+            },
+            {
+              "name": "Verify Face",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{token}}" },
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"image\": \"<base64-jpeg-string>\"\n}"
+                },
+                "url": "{{baseUrl}}/vendor/kyc/face",
+                "description": "Send selfie as base64 JPEG. After success, KYC status becomes pending_review."
+              }
+            }
+          ]
+        },
         {
           "name": "Become Customer",
           "event": [

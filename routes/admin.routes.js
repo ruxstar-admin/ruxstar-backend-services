@@ -12,4 +12,8 @@ router.get('/users', adminController.listUsers);
 router.post('/users', adminController.createUser);
 router.patch('/users/:id', adminController.updateUser);
 
+router.get('/kyc', adminController.listKyc);
+router.get('/kyc/:userId', adminController.getKyc);
+router.patch('/kyc/:userId', adminController.reviewKyc);
+
 module.exports = router;

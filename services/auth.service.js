@@ -16,7 +16,7 @@ const createUser = async ({ mobile, name, password, role, vendorId }) => {
     status: 'active',
     createdAt: new Date(),
     ...(vendorId ? { vendorId: new ObjectId(String(vendorId)) } : {}),
-    ...(role === ROLES.VENDOR ? { vendorProfile: { businessName: name } } : {}),
+    ...(role === ROLES.VENDOR ? { vendorProfile: { businessName: name, kyc: { status: 'pending' } } } : {}),
   });
 };
 

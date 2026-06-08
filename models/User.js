@@ -41,7 +41,7 @@ const becomeVendor = (userId, name) =>
     {
       $set: {
         roles: [ROLES.VENDOR],
-        vendorProfile: { businessName: name },
+        vendorProfile: { businessName: name, kyc: { status: 'pending' } },
         updatedAt: new Date(),
       },
     },

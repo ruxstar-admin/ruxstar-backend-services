@@ -1,4 +1,5 @@
 const authService = require('../services/auth.service');
+const kycService = require('../services/vendor.kyc.service');
 const ROLES = require('../constants/roles');
 
 const ADMIN_CREATE_ROLES = [ROLES.ADMIN, ROLES.EMPLOYEE];
@@ -34,4 +35,26 @@ exports.updateUser = async (req, res) => {
   const user = await authService.updateUser(req.params.id, patch);
   if (!user) return res.status(404).json({ message: 'user not found' });
   res.json({ user: authService.sanitize(user) });
+};
+
+exports.listKyc = async (req, res) => {
+  const vendors = await kycService.listForAdmin(req.query.status);
+  res.json({ vendors });
+};
+
+exports.getKyc = async (req, res) => {
+  const vendor = await kycService.getForAdmin(req.params.userId);
+  if (!vendor) return res.status(404).json({ message: 'vendor not found' });
+  res.json({ vendor });
+};
+
+exports.reviewKyc = async (req, res) => {
+  const { action, reason } = req.body;
+  if (!action) return res.status(400).json({ message: 'action required (approve or reject)' });
+  try {
+    const kyc = await kycService.review(req.params.userId, { action, reason });
+    res.json({ kyc });
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message });
+  }
 };
