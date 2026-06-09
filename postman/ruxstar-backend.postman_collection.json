@@ -528,7 +528,7 @@
                   "raw": "{\n  \"image\": \"<base64-jpeg-string>\"\n}"
                 },
                 "url": "{{baseUrl}}/vendor/kyc/face",
-                "description": "Send selfie as base64 JPEG. After success, KYC status becomes pending_review."
+                "description": "Send live selfie as base64 JPEG (max 5MB). Accepts raw base64 or data:image/jpeg;base64,... prefix. After success, KYC status becomes pending_review."
               }
             }
           ]

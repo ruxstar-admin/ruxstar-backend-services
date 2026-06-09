@@ -3,6 +3,21 @@ const cashfree = require('../utils/cashfree');
 
 const vid = (userId, step) => `kyc_${String(userId).slice(-8)}_${step}_${Date.now()}`;
 
+const MAX_SELFIE_BYTES = 5 * 1024 * 1024; // Cashfree face-match limit per image
+
+const parseSelfie = (imageBase64) => {
+  const raw = String(imageBase64).replace(/^data:image\/\w+;base64,/, '').trim();
+  if (!raw) throw Object.assign(new Error('image required (base64 JPEG)'), { status: 400 });
+  const buffer = Buffer.from(raw, 'base64');
+  if (!buffer.length) throw Object.assign(new Error('invalid image data'), { status: 400 });
+  if (buffer.length > MAX_SELFIE_BYTES) {
+    throw Object.assign(new Error('selfie too large (max 5MB); reduce camera resolution or JPEG quality'), {
+      status: 413,
+    });
+  }
+  return buffer;
+};
+
 const defaultKyc = () => ({ status: 'pending', aadhaar: {}, pan: {}, face: {} });
 
 const getKyc = async (userId) => {
@@ -136,8 +151,6 @@ const verifyPan = async (userId, { pan, name }) => {
 };
 
 const verifyFace = async (userId, imageBase64) => {
-  if (!imageBase64) throw Object.assign(new Error('image required (base64)'), { status: 400 });
-
   const kyc = await getKyc(userId);
   if (kyc.aadhaar?.status !== 'verified' || !kyc.aadhaar.photoBase64) {
     throw Object.assign(new Error('complete aadhaar verification first'), { status: 400 });
@@ -146,7 +159,7 @@ const verifyFace = async (userId, imageBase64) => {
     throw Object.assign(new Error('complete PAN verification first'), { status: 400 });
   }
 
-  const selfie = Buffer.from(imageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+  const selfie = parseSelfie(imageBase64);
   const aadhaarPhoto = Buffer.from(kyc.aadhaar.photoBase64, 'base64');
   const verificationId = vid(userId, 'face');
 

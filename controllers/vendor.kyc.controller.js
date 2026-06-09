@@ -53,7 +53,14 @@ exports.verifyPan = async (req, res) => {
 
 exports.verifyFace = async (req, res) => {
   try {
-    const result = await kycService.verifyFace(req.user.id, req.body?.image);
+    const image = req.body?.image;
+    if (!image) {
+      return res.status(400).json({
+        message: 'image required',
+        hint: 'Send live selfie as base64 JPEG: { "image": "data:image/jpeg;base64,..." }',
+      });
+    }
+    const result = await kycService.verifyFace(req.user.id, image);
     res.json(result);
   } catch (err) {
     res.status(err.status || 500).json({ message: err.message, details: err.details || err.data });
