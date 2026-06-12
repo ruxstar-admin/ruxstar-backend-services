@@ -5,6 +5,8 @@ const ROLES = require('../constants/roles');
 
 const SIGNUP_ROLES = ROLES.SIGNUP_ROLES;
 
+const ACCOUNT_DISABLED_MESSAGE = 'Account disabled. Please contact admin.';
+
 const signToken = (user) =>
   jwt.sign({ id: String(user._id), roles: user.roles }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
@@ -71,8 +73,9 @@ exports.loginSendOtp = async (req, res) => {
   const { mobile } = req.body;
   if (!mobile) return res.status(400).json({ message: 'mobile required' });
   const user = await authService.findByMobile(mobile);
-  if (!user || user.status === 'disabled') {
-    return res.status(404).json({ message: 'user not found' });
+  if (!user) return res.status(404).json({ message: 'user not found' });
+  if (user.status === 'disabled') {
+    return res.status(403).json({ message: ACCOUNT_DISABLED_MESSAGE });
   }
   try {
     const otp = await sms.sendOtp(mobile);
@@ -86,11 +89,12 @@ exports.loginVerifyOtp = async (req, res) => {
   const { mobile, otp } = req.body;
   if (!mobile || !otp) return res.status(400).json({ message: 'mobile and otp required' });
   const user = await authService.findByMobile(mobile);
-  if (!user || user.status === 'disabled') {
-    return res.status(401).json({ message: 'invalid credentials' });
-  }
+  if (!user) return res.status(401).json({ message: 'invalid credentials' });
   if (!(await sms.verifyOtp(mobile, otp))) {
     return res.status(401).json({ message: 'invalid or expired OTP' });
+  }
+  if (user.status === 'disabled') {
+    return res.status(403).json({ message: ACCOUNT_DISABLED_MESSAGE });
   }
   res.json({ token: signToken(user), user: authService.sanitize(user) });
 };
@@ -101,6 +105,9 @@ exports.login = async (req, res) => {
 
   const user = await authService.login(mobile, password);
   if (!user) return res.status(401).json({ message: 'invalid credentials' });
+  if (user.status === 'disabled') {
+    return res.status(403).json({ message: ACCOUNT_DISABLED_MESSAGE });
+  }
 
   res.json({ token: signToken(user), user: authService.sanitize(user) });
 };

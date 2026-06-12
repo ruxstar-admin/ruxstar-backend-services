@@ -20,9 +20,11 @@ const createUser = async ({ mobile, name, password, role, vendorId }) => {
   });
 };
 
+// Validates credentials only. Caller decides what to do with a disabled account
+// so we can show "account disabled" instead of "invalid credentials".
 const login = async (mobile, password) => {
   const user = await User.findByMobile(mobile);
-  if (!user || user.status === 'disabled') return null;
+  if (!user) return null;
   if (!(await bcrypt.compare(password, user.passwordHash))) return null;
   return user;
 };
