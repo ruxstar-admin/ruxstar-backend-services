@@ -20,7 +20,5 @@ router.post('/become-customer', vendorController.becomeCustomer);
 router.use(requireKyc);
 router.get('/profile', vendorController.getProfile);
 router.patch('/profile', vendorController.updateProfile);
-router.post('/users', vendorController.createUser);
-router.get('/users', vendorController.listUsers);
 
 module.exports = router;
