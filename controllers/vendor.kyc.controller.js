@@ -17,6 +17,17 @@ exports.status = async (req, res) => {
   res.json({ kyc: publicKyc(kyc) });
 };
 
+exports.card = async (req, res) => {
+  const result = await kycService.getCard(req.user.id);
+  if (!result) return res.status(404).json({ message: 'vendor not found' });
+  if (!result.card) {
+    return res
+      .status(403)
+      .json({ message: 'ruxstar card unlocks after kyc verification', status: result.status });
+  }
+  res.json({ card: result.card });
+};
+
 exports.startAadhaar = async (req, res) => {
   const redirectUrl = req.body?.redirectUrl || process.env.KYC_REDIRECT_URL;
   if (!redirectUrl?.startsWith('https://')) {

@@ -242,4 +242,38 @@ const review = async (userId, { action, reason }) => {
   return sanitizeKyc(kyc);
 };
 
-module.exports = { getKyc, startAadhaar, syncAadhaar, verifyPan, verifyFace, listForAdmin, getForAdmin, review, sanitizeKyc };
+const ruxstarIdFor = (userId) => {
+  const hex = String(userId).replace(/[^a-f0-9]/gi, '').toUpperCase();
+  const tail = hex.slice(-8).padStart(8, '0');
+  return `RUX-${tail.slice(0, 4)}-${tail.slice(4, 8)}`;
+};
+
+const maskAadhaar = (uid) =>
+  typeof uid === 'string' && uid.length >= 4 ? `XXXX XXXX ${uid.slice(-4)}` : null;
+
+const maskPan = (pan) =>
+  typeof pan === 'string' && pan.length >= 4 ? `${pan.slice(0, 2)}XXXX${pan.slice(-2)}` : null;
+
+// Ruxstar Card payload — only meaningful once KYC is verified.
+const getCard = async (userId) => {
+  const user = await User.findById(userId);
+  if (!user) return null;
+
+  const kyc = user.vendorProfile?.kyc;
+  if (!kyc || kyc.status !== 'verified') {
+    return { status: kyc?.status || 'pending', card: null };
+  }
+
+  return {
+    status: 'verified',
+    card: {
+      ruxstarId: ruxstarIdFor(userId),
+      name: kyc.aadhaar?.name || kyc.pan?.registeredName || user.name || null,
+      aadhaar: maskAadhaar(kyc.aadhaar?.uid),
+      pan: maskPan(kyc.pan?.pan),
+      memberSince: kyc.reviewedAt || kyc.aadhaar?.verifiedAt || null,
+    },
+  };
+};
+
+module.exports = { getKyc, startAadhaar, syncAadhaar, verifyPan, verifyFace, listForAdmin, getForAdmin, review, sanitizeKyc, getCard };

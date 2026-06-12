@@ -11,6 +11,7 @@ const router = Router();
 router.use(authenticate, requireRole(ROLES.VENDOR));
 
 router.get('/kyc/status', vendorKycController.status);
+router.get('/card', vendorKycController.card);
 router.post('/kyc/aadhaar/start', vendorKycController.startAadhaar);
 router.get('/kyc/aadhaar/sync', vendorKycController.syncAadhaar);
 router.post('/kyc/pan', vendorKycController.verifyPan);
