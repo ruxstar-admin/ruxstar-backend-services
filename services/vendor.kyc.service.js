@@ -269,9 +269,14 @@ const getCard = async (userId) => {
     card: {
       ruxstarId: ruxstarIdFor(userId),
       name: kyc.aadhaar?.name || kyc.pan?.registeredName || user.name || null,
+      mobile: user.mobile || null,
       aadhaar: maskAadhaar(kyc.aadhaar?.uid),
       pan: maskPan(kyc.pan?.pan),
-      memberSince: kyc.reviewedAt || kyc.aadhaar?.verifiedAt || null,
+      memberSince: kyc.reviewedAt
+        ? new Date(kyc.reviewedAt).toISOString()
+        : kyc.aadhaar?.verifiedAt
+          ? new Date(kyc.aadhaar.verifiedAt).toISOString()
+          : null,
     },
   };
 };
