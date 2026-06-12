@@ -11,8 +11,20 @@ exports.getProfile = async (req, res) => {
   res.json({ profile: user.vendorProfile || {} });
 };
 
+const VENDOR_PROFILE_FIELDS = ['businessName', 'category', 'description', 'phone', 'address'];
+
 exports.updateProfile = async (req, res) => {
-  const user = await authService.updateVendorProfile(req.user.id, req.body);
+  const patch = {};
+  for (const field of VENDOR_PROFILE_FIELDS) {
+    if (req.body[field] !== undefined) patch[field] = req.body[field];
+  }
+  if (!patch.businessName && patch.businessName !== undefined) {
+    return res.status(400).json({ message: 'businessName cannot be empty' });
+  }
+  if (Object.keys(patch).length === 0) {
+    return res.status(400).json({ message: 'no profile fields to update' });
+  }
+  const user = await authService.updateVendorProfile(req.user.id, patch);
   if (!user) return res.status(404).json({ message: 'vendor not found' });
   res.json({ profile: user.vendorProfile });
 };

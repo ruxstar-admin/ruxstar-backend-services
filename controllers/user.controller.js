@@ -20,7 +20,8 @@ exports.updateProfile = async (req, res) => {
 exports.becomeVendor = async (req, res) => {
   const user = await authService.findById(req.user.id);
   if (!user) return res.status(404).json({ message: 'user not found' });
-  const businessName = req.body.businessName || user.name;
+  const businessName =
+    req.body.businessName || user.vendorProfile?.businessName || user.name;
   const updated = await authService.becomeVendor(req.user.id, businessName);
   if (!updated) return res.status(400).json({ message: 'only customers can become vendor' });
   res.json({ token: signToken(updated), user: authService.sanitize(updated) });

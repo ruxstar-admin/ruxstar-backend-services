@@ -26,35 +26,48 @@ const updateById = (id, patch) =>
     { returnDocument: 'after' },
   );
 
-const updateVendorProfile = (userId, profile) =>
-  collection().findOneAndUpdate(
+// Merge vendor profile fields without clobbering kyc or other existing keys.
+const updateVendorProfile = (userId, patch) => {
+  const set = { updatedAt: new Date() };
+  for (const [key, value] of Object.entries(patch)) {
+    if (key === 'kyc') continue; // kyc is owned by the KYC service, never by the client
+    set[`vendorProfile.${key}`] = value;
+  }
+  return collection().findOneAndUpdate(
     { _id: new ObjectId(userId), roles: { $in: [ROLES.VENDOR] } },
-    { $set: { vendorProfile: profile, updatedAt: new Date() } },
+    { $set: set },
     { returnDocument: 'after' },
   );
+};
 
 const updateProfile = (userId, patch) => updateById(userId, patch);
 
+// Keep existing kyc if the user was a vendor before (switched away and back).
 const becomeVendor = (userId, name) =>
   collection().findOneAndUpdate(
     { _id: new ObjectId(userId), roles: { $in: [ROLES.CUSTOMER] } },
-    {
-      $set: {
-        roles: [ROLES.VENDOR],
-        vendorProfile: { businessName: name, kyc: { status: 'pending' } },
-        updatedAt: new Date(),
+    [
+      {
+        $set: {
+          roles: [ROLES.VENDOR],
+          'vendorProfile.businessName': {
+            $ifNull: ['$vendorProfile.businessName', name],
+          },
+          'vendorProfile.kyc': {
+            $ifNull: ['$vendorProfile.kyc', { status: 'pending' }],
+          },
+          updatedAt: new Date(),
+        },
       },
-    },
+    ],
     { returnDocument: 'after' },
   );
 
+// Keep vendorProfile (incl. verified kyc) so switching back is seamless.
 const becomeCustomer = (userId) =>
   collection().findOneAndUpdate(
     { _id: new ObjectId(userId), roles: { $in: [ROLES.VENDOR] } },
-    {
-      $set: { roles: [ROLES.CUSTOMER], updatedAt: new Date() },
-      $unset: { vendorProfile: '' },
-    },
+    { $set: { roles: [ROLES.CUSTOMER], updatedAt: new Date() } },
     { returnDocument: 'after' },
   );
 

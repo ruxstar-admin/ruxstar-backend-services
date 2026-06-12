@@ -5,6 +5,10 @@ const notFound = require('./middlewares/notFound');
 const app = express();
 
 app.use(express.json({ limit: '10mb' }));
+app.use((req, _res, next) => {
+  if (req.body === undefined) req.body = {};
+  next();
+});
 app.use(routes);
 app.use((err, _req, res, next) => {
   if (err.type === 'entity.too.large') {
