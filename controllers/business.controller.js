@@ -163,3 +163,13 @@ exports.unblockSlot = handle(async (req, res) => {
   const payload = await slotsService.unblockSlot(req.params.id, req.user.id, req.body);
   res.json(payload);
 });
+
+exports.setSlotPrice = handle(async (req, res) => {
+  const payload = await slotsService.setSlotPrice(req.params.id, req.user.id, req.body);
+  res.json(payload);
+});
+
+exports.clearSlotPrice = handle(async (req, res) => {
+  const payload = await slotsService.clearSlotPrice(req.params.id, req.user.id, req.body);
+  res.json(payload);
+});

@@ -28,6 +28,7 @@ const listInRange = async (businessId, from, to) => {
     endAt: row.endAt.toISOString(),
     status: row.status,
     booking: row.booking,
+    pricePerSlot: typeof row.pricePerSlot === 'number' ? row.pricePerSlot : undefined,
   }));
 };
 
@@ -44,6 +45,7 @@ const findOne = async (businessId, resourceId, startAt) => {
     endAt: doc.endAt.toISOString(),
     status: doc.status,
     booking: doc.booking,
+    pricePerSlot: typeof doc.pricePerSlot === 'number' ? doc.pricePerSlot : undefined,
   };
 };
 
@@ -113,6 +115,64 @@ const removeBooked = async (businessId, resourceId, startAt) => {
   return deletedCount > 0;
 };
 
+const upsertPriceOverride = async (businessId, { resourceId, startAt, endAt, pricePerSlot }) => {
+  const price = Math.round(Number(pricePerSlot));
+  if (!Number.isFinite(price) || price < 0) {
+    throw Object.assign(new Error('price must be zero or greater'), { status: 400 });
+  }
+
+  const filter = {
+    businessId: toObjectId(businessId),
+    resourceId: String(resourceId),
+    startAt: new Date(startAt),
+  };
+  const existing = await collection().findOne(filter);
+  if (existing?.status === 'booked') {
+    throw Object.assign(new Error('cannot change price on a booked slot'), { status: 409 });
+  }
+  if (existing?.status === 'blocked') {
+    throw Object.assign(new Error('unblock the slot before setting a demand price'), { status: 400 });
+  }
+
+  const now = new Date();
+  await collection().updateOne(
+    filter,
+    {
+      $set: {
+        endAt: new Date(endAt),
+        pricePerSlot: price,
+        updatedAt: now,
+      },
+      $setOnInsert: {
+        businessId: toObjectId(businessId),
+        resourceId: String(resourceId),
+        startAt: new Date(startAt),
+        createdAt: now,
+      },
+    },
+    { upsert: true },
+  );
+};
+
+const clearPriceOverride = async (businessId, resourceId, startAt) => {
+  const filter = {
+    businessId: toObjectId(businessId),
+    resourceId: String(resourceId),
+    startAt: new Date(startAt),
+  };
+  const existing = await collection().findOne(filter);
+  if (!existing || existing.pricePerSlot == null) return false;
+  if (existing.status === 'booked') {
+    throw Object.assign(new Error('cannot change price on a booked slot'), { status: 409 });
+  }
+  if (existing.status === 'blocked') {
+    await collection().updateOne(filter, { $unset: { pricePerSlot: '' }, $set: { updatedAt: new Date() } });
+    return true;
+  }
+  const { deletedCount } = await collection().deleteOne(filter);
+  return deletedCount > 0;
+};
+
 module.exports = {
   ensureIndexes,
   listInRange,
@@ -121,4 +181,6 @@ module.exports = {
   removeBlocked,
   insertBooked,
   removeBooked,
+  upsertPriceOverride,
+  clearPriceOverride,
 };

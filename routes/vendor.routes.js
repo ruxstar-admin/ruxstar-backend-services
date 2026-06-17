@@ -34,6 +34,8 @@ router.post('/businesses/:id/setup/complete', businessController.completeSetup);
 router.get('/businesses/:id/slots', businessController.listSlots);
 router.post('/businesses/:id/slots/block', businessController.blockSlot);
 router.post('/businesses/:id/slots/unblock', businessController.unblockSlot);
+router.post('/businesses/:id/slots/price', businessController.setSlotPrice);
+router.post('/businesses/:id/slots/price/clear', businessController.clearSlotPrice);
 router.get('/businesses/:id', businessController.get);
 router.patch('/businesses/:id', businessController.update);
 router.delete('/businesses/:id', businessController.remove);

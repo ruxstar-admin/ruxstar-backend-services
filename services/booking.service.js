@@ -7,7 +7,7 @@ const setupService = require('./businessSetup.service');
 const {
   getLiveBusiness,
   buildSlotsPayload,
-  assertSlotExists,
+  assertSlotForBooking,
 } = require('./businessSlots.service');
 
 const formatPublicBusiness = (business) => {
@@ -76,7 +76,7 @@ const createBooking = async (customerUserId, body) => {
   if (!user) throw Object.assign(new Error('user not found'), { status: 404 });
 
   const business = await getLiveBusiness(businessId);
-  const slot = assertSlotExists(business, resourceId, startAt);
+  const slot = await assertSlotForBooking(businessId, business, resourceId, startAt);
 
   if (new Date(slot.startAt).getTime() <= Date.now()) {
     throw Object.assign(new Error('cannot book a past slot'), { status: 400 });

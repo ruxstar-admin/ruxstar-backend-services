@@ -135,11 +135,26 @@ const mergeStates = (slots, states) => {
   return slots.map((slot) => {
     const state = map.get(slot.id);
     if (!state) return slot;
-    return {
-      ...slot,
-      status: state.status === 'booked' ? 'booked' : state.status,
-      booking: state.booking,
-    };
+
+    const basePricePerSlot = slot.pricePerSlot;
+    let next = { ...slot, basePricePerSlot };
+
+    if (state.status === 'booked') {
+      next.status = 'booked';
+      next.booking = state.booking;
+      if (state.pricePerSlot != null) next.pricePerSlot = state.pricePerSlot;
+      return next;
+    }
+
+    if (state.status === 'blocked') {
+      next.status = 'blocked';
+      return next;
+    }
+
+    if (state.pricePerSlot != null) {
+      next.pricePerSlot = state.pricePerSlot;
+    }
+    return next;
   });
 };
 
@@ -238,6 +253,21 @@ const assertSlotExists = (business, resourceId, startAt) => {
   return slot;
 };
 
+const assertSlotForBooking = async (businessId, business, resourceId, startAt) => {
+  const slot = assertSlotExists(business, resourceId, startAt);
+  const state = await BusinessSlotState.findOne(businessId, resourceId, slot.startAt);
+  if (state?.status === 'blocked') {
+    throw Object.assign(new Error('slot is not available'), { status: 409 });
+  }
+  if (state?.status === 'booked') {
+    throw Object.assign(new Error('slot is no longer available'), { status: 409 });
+  }
+  return {
+    ...slot,
+    pricePerSlot: state?.pricePerSlot ?? slot.pricePerSlot,
+  };
+};
+
 const listSlots = async (businessId, vendorId, query) => {
   const business = await getOwnedLive(businessId, vendorId);
   return buildSlotsPayload(business, query, { publicView: false });
@@ -286,6 +316,52 @@ const unblockSlot = async (businessId, vendorId, body) => {
   return { ok: true };
 };
 
+const setSlotPrice = async (businessId, vendorId, body) => {
+  const business = await getOwnedLive(businessId, vendorId);
+  const resourceId = String(body.resourceId ?? '').trim();
+  const startAt = String(body.startAt ?? '').trim();
+  const pricePerSlot = body.pricePerSlot;
+  if (!resourceId || !startAt || pricePerSlot === undefined) {
+    throw Object.assign(new Error('resourceId, startAt and pricePerSlot required'), { status: 400 });
+  }
+
+  const slot = assertSlotExists(business, resourceId, startAt);
+  const base = Number(business.setup.pricePerSlot) || 0;
+  const price = Math.round(Number(pricePerSlot));
+  if (price < base) {
+    throw Object.assign(new Error('demand price must be at least the base slot price'), { status: 400 });
+  }
+
+  if (price === base) {
+    await BusinessSlotState.clearPriceOverride(businessId, resourceId, slot.startAt);
+    return { ok: true, pricePerSlot: base };
+  }
+
+  await BusinessSlotState.upsertPriceOverride(businessId, {
+    resourceId,
+    startAt: slot.startAt,
+    endAt: slot.endAt,
+    pricePerSlot: price,
+  });
+
+  return { ok: true, pricePerSlot: price };
+};
+
+const clearSlotPrice = async (businessId, vendorId, body) => {
+  const business = await getOwnedLive(businessId, vendorId);
+  const resourceId = String(body.resourceId ?? '').trim();
+  const startAt = String(body.startAt ?? '').trim();
+  if (!resourceId || !startAt) {
+    throw Object.assign(new Error('resourceId and startAt required'), { status: 400 });
+  }
+
+  const slot = assertSlotExists(business, resourceId, startAt);
+  const ok = await BusinessSlotState.clearPriceOverride(businessId, resourceId, slot.startAt);
+  if (!ok) throw Object.assign(new Error('slot has no demand price set'), { status: 404 });
+
+  return { ok: true };
+};
+
 const ensureIndexes = () => BusinessSlotState.ensureIndexes();
 
 module.exports = {
@@ -293,7 +369,10 @@ module.exports = {
   getLiveBusiness,
   buildSlotsPayload,
   assertSlotExists,
+  assertSlotForBooking,
   listSlots,
   blockSlot,
   unblockSlot,
+  setSlotPrice,
+  clearSlotPrice,
 };
