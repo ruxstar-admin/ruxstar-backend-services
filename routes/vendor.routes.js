@@ -27,6 +27,7 @@ router.get('/businesses', businessController.list);
 router.post('/businesses', businessController.create);
 router.get('/businesses/:id/setup', businessController.getSetup);
 router.patch('/businesses/:id/setup', businessController.updateSetup);
+router.post('/businesses/:id/setup/photos/sync', businessController.syncSetupPhotos);
 router.post('/businesses/:id/setup/photos', businessController.addSetupPhoto);
 router.delete('/businesses/:id/setup/photos/:photoId', businessController.removeSetupPhoto);
 router.post('/businesses/:id/setup/complete', businessController.completeSetup);

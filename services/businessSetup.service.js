@@ -229,16 +229,7 @@ const updateSetup = async (businessId, vendorId, body) => {
   return formatBusinessForClient(updated);
 };
 
-const addPhoto = async (businessId, vendorId, imageBase64) => {
-  const business = await getOwned(businessId, vendorId);
-  assertAppointmentsModule(business);
-
-  const current = business.setup ?? defaultSetup();
-  const photos = Array.isArray(current.photos) ? [...current.photos] : [];
-  if (photos.length >= MAX_PHOTOS) {
-    throw Object.assign(new Error(`maximum ${MAX_PHOTOS} photos allowed`), { status: 400 });
-  }
-
+const buildPhotoDoc = async (businessId, imageBase64) => {
   const { mimeType, data } = parseImage(imageBase64);
   const buffer = Buffer.from(data, 'base64');
   const photoId = randomUUID();
@@ -251,7 +242,7 @@ const addPhoto = async (businessId, vendorId, imageBase64) => {
     mimeType,
   );
 
-  const photoDoc = {
+  return {
     id: photoId,
     mimeType,
     createdAt,
@@ -259,6 +250,19 @@ const addPhoto = async (businessId, vendorId, imageBase64) => {
     ...(storageKey ? { storageKey } : {}),
     ...(photoStorage.isEnabled() ? {} : { data }),
   };
+};
+
+const addPhoto = async (businessId, vendorId, imageBase64) => {
+  const business = await getOwned(businessId, vendorId);
+  assertAppointmentsModule(business);
+
+  const current = business.setup ?? defaultSetup();
+  const photos = Array.isArray(current.photos) ? [...current.photos] : [];
+  if (photos.length >= MAX_PHOTOS) {
+    throw Object.assign(new Error(`maximum ${MAX_PHOTOS} photos allowed`), { status: 400 });
+  }
+
+  const photoDoc = await buildPhotoDoc(businessId, imageBase64);
 
   photos.push(photoDoc);
 
@@ -289,6 +293,45 @@ const removePhoto = async (businessId, vendorId, photoId) => {
   return formatBusinessForClient(updated);
 };
 
+/** Apply photo adds/removes in one request — parallel GCS uploads, single DB write. */
+const syncPhotos = async (businessId, vendorId, { images = [], removeIds = [] } = {}) => {
+  const business = await getOwned(businessId, vendorId);
+  assertAppointmentsModule(business);
+
+  const current = business.setup ?? defaultSetup();
+  let photos = Array.isArray(current.photos) ? [...current.photos] : [];
+  const removeSet = new Set(removeIds.map(String));
+
+  const toRemove = photos.filter((p) => removeSet.has(String(p.id)));
+  photos = photos.filter((p) => !removeSet.has(String(p.id)));
+
+  if (toRemove.length) {
+    await Promise.all(
+      toRemove
+        .filter((p) => p.storageKey)
+        .map((p) => photoStorage.deleteBusinessPhoto(p.storageKey)),
+    );
+  }
+
+  const incoming = Array.isArray(images) ? images : [];
+  const slotsLeft = MAX_PHOTOS - photos.length;
+  if (incoming.length > slotsLeft) {
+    throw Object.assign(new Error(`maximum ${MAX_PHOTOS} photos allowed`), { status: 400 });
+  }
+
+  if (incoming.length) {
+    const newDocs = await Promise.all(
+      incoming.map((image) => buildPhotoDoc(businessId, image)),
+    );
+    photos.push(...newDocs);
+  }
+
+  const updated = await Business.updateForVendor(businessId, vendorId, {
+    setup: { ...current, photos },
+  });
+  return formatBusinessForClient(updated);
+};
+
 const completeSetup = async (businessId, vendorId) => {
   const business = await getOwned(businessId, vendorId);
   assertAppointmentsModule(business);
@@ -311,5 +354,6 @@ module.exports = {
   updateSetup,
   addPhoto,
   removePhoto,
+  syncPhotos,
   completeSetup,
 };

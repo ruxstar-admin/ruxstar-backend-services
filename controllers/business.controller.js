@@ -134,6 +134,16 @@ exports.removeSetupPhoto = handle(async (req, res) => {
   res.json({ business });
 });
 
+exports.syncSetupPhotos = handle(async (req, res) => {
+  const images = Array.isArray(req.body.images) ? req.body.images : [];
+  const removeIds = Array.isArray(req.body.removeIds) ? req.body.removeIds : [];
+  const business = await setupService.syncPhotos(req.params.id, req.user.id, {
+    images,
+    removeIds,
+  });
+  res.json({ business });
+});
+
 exports.completeSetup = handle(async (req, res) => {
   const business = await setupService.completeSetup(req.params.id, req.user.id);
   res.json({ business });

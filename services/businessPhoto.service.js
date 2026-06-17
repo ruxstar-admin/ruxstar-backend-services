@@ -10,12 +10,6 @@ const streamPhoto = async (businessId, photoId, res) => {
     return;
   }
 
-  if (photo.url?.startsWith('http')) {
-    res.set('Cache-Control', PHOTO_CACHE);
-    res.redirect(302, photo.url);
-    return;
-  }
-
   if (photo.storageKey) {
     const stream = photoStorage.openBusinessPhotoReadStream(photo.storageKey);
     if (stream) {
@@ -34,6 +28,13 @@ const streamPhoto = async (businessId, photoId, res) => {
     res.set('Content-Type', photo.mimeType || 'image/jpeg');
     res.set('Cache-Control', 'public, max-age=86400');
     res.send(body);
+    return;
+  }
+
+  const externalUrl = photo.url?.startsWith('http') ? photo.url : null;
+  if (externalUrl && !externalUrl.includes(`/public/businesses/${businessId}/photos/${photoId}`)) {
+    res.set('Cache-Control', PHOTO_CACHE);
+    res.redirect(302, externalUrl);
     return;
   }
 
