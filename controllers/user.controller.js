@@ -4,6 +4,16 @@ const authService = require('../services/auth.service');
 const signToken = (user) =>
   jwt.sign({ id: String(user._id), roles: user.roles }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
+const bookingService = require('../services/booking.service');
+
+const handle = (fn) => async (req, res) => {
+  try {
+    await fn(req, res);
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message });
+  }
+};
+
 exports.getProfile = async (req, res) => {
   const user = await authService.findById(req.user.id);
   if (!user) return res.status(404).json({ message: 'user not found' });
@@ -26,3 +36,18 @@ exports.becomeVendor = async (req, res) => {
   if (!updated) return res.status(400).json({ message: 'only customers can become vendor' });
   res.json({ token: signToken(updated), user: authService.sanitize(updated) });
 };
+
+exports.listBookings = handle(async (req, res) => {
+  const payload = await bookingService.listCustomerBookings(req.user.id);
+  res.json(payload);
+});
+
+exports.createBooking = handle(async (req, res) => {
+  const payload = await bookingService.createBooking(req.user.id, req.body);
+  res.status(201).json(payload);
+});
+
+exports.cancelBooking = handle(async (req, res) => {
+  const payload = await bookingService.cancelBooking(req.user.id, req.params.id);
+  res.json(payload);
+});

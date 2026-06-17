@@ -12,4 +12,8 @@ router.get('/profile', userController.getProfile);
 router.patch('/profile', userController.updateProfile);
 router.post('/become-vendor', userController.becomeVendor);
 
+router.get('/bookings', userController.listBookings);
+router.post('/bookings', userController.createBooking);
+router.delete('/bookings/:id', userController.cancelBooking);
+
 module.exports = router;

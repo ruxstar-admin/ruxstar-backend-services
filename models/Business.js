@@ -28,6 +28,16 @@ const findByIdForVendor = async (id, vendorId) => {
   return sanitize(doc);
 };
 
+const findLiveById = async (id) => {
+  if (!ObjectId.isValid(String(id))) return null;
+  const doc = await collection().findOne({
+    _id: toObjectId(id),
+    status: 'live',
+    setupComplete: true,
+  });
+  return sanitize(doc);
+};
+
 const insert = async (vendorId, data) => {
   const now = new Date();
   const doc = {
@@ -68,6 +78,7 @@ module.exports = {
   sanitize,
   listByVendor,
   findByIdForVendor,
+  findLiveById,
   insert,
   updateForVendor,
   deleteForVendor,

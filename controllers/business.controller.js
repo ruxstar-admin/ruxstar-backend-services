@@ -1,19 +1,31 @@
 const Business = require('../models/Business');
 const catalogService = require('../services/businessCatalog.service');
+const setupService = require('../services/businessSetup.service');
+const slotsService = require('../services/businessSlots.service');
 
 const MAX_BUSINESSES = 25;
 
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
 
+const handle = (fn) => async (req, res) => {
+  try {
+    await fn(req, res);
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message });
+  }
+};
+
 exports.list = async (req, res) => {
   const businesses = await Business.listByVendor(req.user.id);
-  res.json({ businesses });
+  res.json({
+    businesses: businesses.map((b) => setupService.stripSetupPhotos(b)),
+  });
 };
 
 exports.get = async (req, res) => {
   const business = await Business.findByIdForVendor(req.params.id, req.user.id);
   if (!business) return res.status(404).json({ message: 'business not found' });
-  res.json({ business });
+  res.json({ business: setupService.stripSetupPhotos(business) });
 };
 
 exports.create = async (req, res) => {
@@ -47,9 +59,10 @@ exports.create = async (req, res) => {
     phone: str(req.body.phone),
     address: str(req.body.address),
     description: str(req.body.description),
+    setup: setupService.defaultSetup(),
   });
 
-  res.status(201).json({ business });
+  res.status(201).json({ business: setupService.stripSetupPhotos(business) });
 };
 
 exports.update = async (req, res) => {
@@ -86,7 +99,7 @@ exports.update = async (req, res) => {
 
   const business = await Business.updateForVendor(req.params.id, req.user.id, patch);
   if (!business) return res.status(404).json({ message: 'business not found' });
-  res.json({ business });
+  res.json({ business: setupService.stripSetupPhotos(business) });
 };
 
 exports.remove = async (req, res) => {
@@ -94,3 +107,49 @@ exports.remove = async (req, res) => {
   if (!ok) return res.status(404).json({ message: 'business not found' });
   res.json({ ok: true });
 };
+
+exports.getSetup = handle(async (req, res) => {
+  const business = await setupService.getSetup(req.params.id, req.user.id);
+  res.json({ business });
+});
+
+exports.updateSetup = handle(async (req, res) => {
+  const business = await setupService.updateSetup(req.params.id, req.user.id, req.body);
+  res.json({ business });
+});
+
+exports.addSetupPhoto = handle(async (req, res) => {
+  const image = req.body.image ?? req.body.photo;
+  if (!image) return res.status(400).json({ message: 'image required' });
+  const business = await setupService.addPhoto(req.params.id, req.user.id, image);
+  res.json({ business });
+});
+
+exports.removeSetupPhoto = handle(async (req, res) => {
+  const business = await setupService.removePhoto(
+    req.params.id,
+    req.user.id,
+    req.params.photoId,
+  );
+  res.json({ business });
+});
+
+exports.completeSetup = handle(async (req, res) => {
+  const business = await setupService.completeSetup(req.params.id, req.user.id);
+  res.json({ business });
+});
+
+exports.listSlots = handle(async (req, res) => {
+  const payload = await slotsService.listSlots(req.params.id, req.user.id, req.query);
+  res.json(payload);
+});
+
+exports.blockSlot = handle(async (req, res) => {
+  const payload = await slotsService.blockSlot(req.params.id, req.user.id, req.body);
+  res.json(payload);
+});
+
+exports.unblockSlot = handle(async (req, res) => {
+  const payload = await slotsService.unblockSlot(req.params.id, req.user.id, req.body);
+  res.json(payload);
+});

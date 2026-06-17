@@ -5,6 +5,8 @@ if (process.env.NODE_ENV !== 'production') {
 const app = require('./app');
 const db = require('./config/database');
 const catalogService = require('./services/businessCatalog.service');
+const slotsService = require('./services/businessSlots.service');
+const bookingService = require('./services/booking.service');
 
 const port = process.env.PORT || 8080;
 
@@ -18,6 +20,8 @@ const start = async () => {
         `Business catalog seeded (${seed.categories} categories, ${seed.types} types)`,
       );
     }
+    await slotsService.ensureIndexes();
+    await bookingService.ensureIndexes();
     app.listen(port, () => {
       console.log(`Server running on port ${port}`);
     });

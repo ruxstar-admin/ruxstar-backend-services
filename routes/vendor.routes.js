@@ -25,6 +25,14 @@ router.patch('/profile', vendorController.updateProfile);
 
 router.get('/businesses', businessController.list);
 router.post('/businesses', businessController.create);
+router.get('/businesses/:id/setup', businessController.getSetup);
+router.patch('/businesses/:id/setup', businessController.updateSetup);
+router.post('/businesses/:id/setup/photos', businessController.addSetupPhoto);
+router.delete('/businesses/:id/setup/photos/:photoId', businessController.removeSetupPhoto);
+router.post('/businesses/:id/setup/complete', businessController.completeSetup);
+router.get('/businesses/:id/slots', businessController.listSlots);
+router.post('/businesses/:id/slots/block', businessController.blockSlot);
+router.post('/businesses/:id/slots/unblock', businessController.unblockSlot);
 router.get('/businesses/:id', businessController.get);
 router.patch('/businesses/:id', businessController.update);
 router.delete('/businesses/:id', businessController.remove);
