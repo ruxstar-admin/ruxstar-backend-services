@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const vendorController = require('../controllers/vendor.controller');
 const vendorKycController = require('../controllers/vendor.kyc.controller');
+const businessController = require('../controllers/business.controller');
 const authenticate = require('../middlewares/auth');
 const requireRole = require('../middlewares/role');
 const requireKyc = require('../middlewares/requireKyc');
@@ -21,5 +22,11 @@ router.post('/become-customer', vendorController.becomeCustomer);
 router.use(requireKyc);
 router.get('/profile', vendorController.getProfile);
 router.patch('/profile', vendorController.updateProfile);
+
+router.get('/businesses', businessController.list);
+router.post('/businesses', businessController.create);
+router.get('/businesses/:id', businessController.get);
+router.patch('/businesses/:id', businessController.update);
+router.delete('/businesses/:id', businessController.remove);
 
 module.exports = router;
