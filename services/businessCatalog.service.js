@@ -3,6 +3,15 @@ const BusinessType = require('../models/BusinessType');
 const { BUSINESS_MODULES, MODULE_LABELS } = require('../constants/businessModules');
 const { BUSINESS_CATEGORIES, BUSINESS_TYPES } = require('../seeds/businessCatalog');
 
+const CATALOG_TTL_MS = 5 * 60 * 1000;
+let catalogCache = null;
+let catalogCachedAt = 0;
+
+const invalidateCatalogCache = () => {
+  catalogCache = null;
+  catalogCachedAt = 0;
+};
+
 const slug = (v) => String(v).trim().toLowerCase().replace(/\s+/g, '_');
 
 const seedIfEmpty = async () => {
@@ -29,6 +38,11 @@ const seedIfEmpty = async () => {
 
 /** Public/vendor catalog — active categories with nested active types. */
 const listCatalog = async () => {
+  const now = Date.now();
+  if (catalogCache && now - catalogCachedAt < CATALOG_TTL_MS) {
+    return catalogCache;
+  }
+
   const [categories, types] = await Promise.all([
     BusinessCategory.list({ activeOnly: true }),
     BusinessType.list({ activeOnly: true }),
@@ -40,13 +54,15 @@ const listCatalog = async () => {
     return acc;
   }, {});
 
-  return {
+  catalogCache = {
     categories: categories.map((c) => ({
       ...c,
       types: typesByCategory[c.id] ?? [],
     })),
     modules: MODULE_LABELS,
   };
+  catalogCachedAt = now;
+  return catalogCache;
 };
 
 /** Resolve type for business create — validates category is active too. */
@@ -84,6 +100,9 @@ const createCategory = async (body) => {
     icon: String(body.icon ?? '🏪').trim(),
     sortOrder: Number(body.sortOrder) || 0,
     active: body.active !== false,
+  }).then((row) => {
+    invalidateCatalogCache();
+    return row;
   });
 };
 
@@ -102,6 +121,7 @@ const updateCategory = async (id, body) => {
 
   const updated = await BusinessCategory.updateById(id, patch);
   if (!updated) throw Object.assign(new Error('category not found'), { status: 404 });
+  invalidateCatalogCache();
   return updated;
 };
 
@@ -133,6 +153,9 @@ const createType = async (body) => {
     module: body.module,
     sortOrder: Number(body.sortOrder) || 0,
     active: body.active !== false,
+  }).then((row) => {
+    invalidateCatalogCache();
+    return row;
   });
 };
 
@@ -169,6 +192,7 @@ const updateType = async (id, body) => {
 
   const updated = await BusinessType.updateById(id, patch);
   if (!updated) throw Object.assign(new Error('type not found'), { status: 404 });
+  invalidateCatalogCache();
   return updated;
 };
 

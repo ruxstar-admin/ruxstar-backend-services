@@ -13,8 +13,17 @@ const {
   slotKey,
 } = require('../utils/slotTime');
 
-const getLiveBusiness = async (businessId) => {
-  const business = await Business.findLiveById(businessId);
+const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/** In-memory slot template cache — avoids regenerating identical week grids. */
+const templateCache = new Map();
+const TEMPLATE_CACHE_MAX = 128;
+
+const businessCacheKey = (business) =>
+  `${business._id}:${business.updatedAt ?? ''}:${business.setup?.slotMinutes}:${business.setup?.pricePerSlot}`;
+
+const getLiveBusiness = async (businessId, { withPhotoData = false } = {}) => {
+  const business = await Business.findLiveById(businessId, { withPhotoData });
   if (!business) throw Object.assign(new Error('business not found'), { status: 404 });
   if (!SETUP_MODULES.includes(business.module)) {
     throw Object.assign(new Error('booking not available for this business yet'), { status: 400 });
@@ -26,7 +35,7 @@ const getLiveBusiness = async (businessId) => {
 };
 
 const getOwnedLive = async (businessId, vendorId) => {
-  const business = await Business.findByIdForVendor(businessId, vendorId);
+  const business = await Business.findByIdForVendor(businessId, vendorId, { withPhotoData: false });
   if (!business) throw Object.assign(new Error('business not found'), { status: 404 });
   if (!SETUP_MODULES.includes(business.module)) {
     throw Object.assign(new Error('slots not available for this business type yet'), { status: 400 });
@@ -93,6 +102,10 @@ const generateSlotsForDay = (business, dateStr, resource) => {
 };
 
 const generateSlots = (business, fromDate, toDate, resourceId) => {
+  const cacheId = `${businessCacheKey(business)}:${fromDate}:${toDate}:${resourceId || ''}`;
+  const cached = templateCache.get(cacheId);
+  if (cached) return cached;
+
   const resources = business.setup.resources.filter(
     (r) => !resourceId || r.id === resourceId,
   );
@@ -108,6 +121,12 @@ const generateSlots = (business, fromDate, toDate, resourceId) => {
     }
     cursor = addDays(cursor, 1);
   }
+
+  if (templateCache.size >= TEMPLATE_CACHE_MAX) {
+    const oldest = templateCache.keys().next().value;
+    templateCache.delete(oldest);
+  }
+  templateCache.set(cacheId, slots);
   return slots;
 };
 
@@ -169,24 +188,54 @@ const buildSlotsPayload = async (business, query, { publicView = false } = {}) =
   };
 };
 
-const assertSlotExists = (business, resourceId, startAt) => {
+const computeSlot = (business, resource, startAt) => {
   const start = new Date(startAt);
-  if (Number.isNaN(start.getTime())) {
-    throw Object.assign(new Error('invalid startAt'), { status: 400 });
-  }
+  if (Number.isNaN(start.getTime())) return null;
 
   const dateStr = String(startAt).slice(0, 10);
+  const startTime = String(startAt).slice(11, 16);
+  if (!parseDateOnly(dateStr) || !TIME_RE.test(startTime)) return null;
+
+  const dayKey = dayKeyForDate(dateStr);
+  const hours = business.setup.weeklyHours?.[dayKey];
+  if (!hours || hours.closed) return null;
+
+  const slotMinutes = Number(business.setup.slotMinutes) || 60;
+  const pricePerSlot = Number(business.setup.pricePerSlot) || 0;
+  const startMin = timeToMinutes(startTime);
+  const openMin = timeToMinutes(hours.open);
+  const closeMin = timeToMinutes(hours.close);
+
+  if (startMin < openMin || startMin + slotMinutes > closeMin) return null;
+  if ((startMin - openMin) % slotMinutes !== 0) return null;
+
+  const normalizedStartAt = slotIso(dateStr, startTime);
+  if (new Date(normalizedStartAt).getTime() !== start.getTime()) return null;
+
+  const endTime = minutesToTime(startMin + slotMinutes);
+  return {
+    id: slotKey(resource.id, normalizedStartAt),
+    resourceId: resource.id,
+    resourceName: resource.name,
+    date: dateStr,
+    startTime,
+    endTime,
+    startAt: normalizedStartAt,
+    endAt: slotIso(dateStr, endTime),
+    pricePerSlot,
+    status: 'available',
+  };
+};
+
+const assertSlotExists = (business, resourceId, startAt) => {
   const resource = business.setup.resources.find((r) => r.id === String(resourceId));
   if (!resource) throw Object.assign(new Error('resource not found'), { status: 404 });
 
-  const generated = generateSlotsForDay(business, dateStr, resource);
-  const normalized = generated.find(
-    (s) => new Date(s.startAt).getTime() === start.getTime(),
-  );
-  if (!normalized) {
+  const slot = computeSlot(business, resource, startAt);
+  if (!slot) {
     throw Object.assign(new Error('slot not found for this resource and time'), { status: 404 });
   }
-  return normalized;
+  return slot;
 };
 
 const listSlots = async (businessId, vendorId, query) => {
@@ -214,11 +263,7 @@ const blockSlot = async (businessId, vendorId, body) => {
     endAt: slot.endAt,
   });
 
-  return listSlots(businessId, vendorId, {
-    from: slot.date,
-    to: slot.date,
-    resourceId,
-  });
+  return { ok: true };
 };
 
 const unblockSlot = async (businessId, vendorId, body) => {
@@ -238,11 +283,7 @@ const unblockSlot = async (businessId, vendorId, body) => {
   const ok = await BusinessSlotState.removeBlocked(businessId, resourceId, slot.startAt);
   if (!ok) throw Object.assign(new Error('slot is not blocked'), { status: 404 });
 
-  return listSlots(businessId, vendorId, {
-    from: slot.date,
-    to: slot.date,
-    resourceId,
-  });
+  return { ok: true };
 };
 
 const ensureIndexes = () => BusinessSlotState.ensureIndexes();

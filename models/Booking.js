@@ -26,6 +26,7 @@ const sanitize = (doc) => {
 
 const ensureIndexes = async () => {
   await collection().createIndex({ customerUserId: 1, createdAt: -1 });
+  await collection().createIndex({ customerUserId: 1, startAt: 1 });
   await collection().createIndex({ businessId: 1, startAt: 1 });
   await collection().createIndex(
     { businessId: 1, resourceId: 1, startAt: 1 },

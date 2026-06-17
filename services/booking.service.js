@@ -54,7 +54,7 @@ const listPublicBusinesses = async () => {
 };
 
 const getPublicBusiness = async (businessId) => {
-  const business = await getLiveBusiness(businessId);
+  const business = await getLiveBusiness(businessId, { withPhotoData: true });
   return formatPublicBusiness(business);
 };
 
@@ -80,11 +80,6 @@ const createBooking = async (customerUserId, body) => {
 
   if (new Date(slot.startAt).getTime() <= Date.now()) {
     throw Object.assign(new Error('cannot book a past slot'), { status: 400 });
-  }
-
-  const existing = await BusinessSlotState.findOne(businessId, resourceId, slot.startAt);
-  if (existing) {
-    throw Object.assign(new Error('slot is no longer available'), { status: 409 });
   }
 
   const resource = business.setup.resources.find((r) => r.id === resourceId);

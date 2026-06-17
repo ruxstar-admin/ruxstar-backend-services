@@ -1,4 +1,5 @@
 const bookingService = require('../services/booking.service');
+const businessPhotoService = require('../services/businessPhoto.service');
 
 const handle = (fn) => async (req, res) => {
   try {
@@ -22,3 +23,13 @@ exports.listSlots = handle(async (req, res) => {
   const payload = await bookingService.listPublicSlots(req.params.id, req.query);
   res.json(payload);
 });
+
+exports.getPhoto = async (req, res) => {
+  try {
+    await businessPhotoService.streamPhoto(req.params.id, req.params.photoId, res);
+  } catch (err) {
+    if (!res.headersSent) {
+      res.status(err.status || 500).json({ message: err.message });
+    }
+  }
+};

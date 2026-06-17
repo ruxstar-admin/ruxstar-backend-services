@@ -4,6 +4,8 @@ if (process.env.NODE_ENV !== 'production') {
 
 const app = require('./app');
 const db = require('./config/database');
+const Business = require('./models/Business');
+const User = require('./models/User');
 const catalogService = require('./services/businessCatalog.service');
 const slotsService = require('./services/businessSlots.service');
 const bookingService = require('./services/booking.service');
@@ -22,6 +24,8 @@ const start = async () => {
     }
     await slotsService.ensureIndexes();
     await bookingService.ensureIndexes();
+    await Business.ensureIndexes();
+    await User.ensureIndexes();
     app.listen(port, () => {
       console.log(`Server running on port ${port}`);
     });

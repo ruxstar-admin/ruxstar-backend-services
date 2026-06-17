@@ -12,6 +12,12 @@ const findByMobile = (mobile) => collection().findOne({ mobile: normalize(mobile
 
 const findById = (id) => collection().findOne({ _id: new ObjectId(id) });
 
+const findKycStatusById = (id) =>
+  collection().findOne(
+    { _id: new ObjectId(id) },
+    { projection: { 'vendorProfile.kyc.status': 1 } },
+  );
+
 const insert = async (doc) => {
   const { insertedId } = await collection().insertOne(doc);
   return { _id: insertedId, ...doc };
@@ -71,11 +77,17 @@ const becomeCustomer = (userId) =>
     { returnDocument: 'after' },
   );
 
+const ensureIndexes = async () => {
+  await collection().createIndex({ mobile: 1 }, { unique: true });
+  await collection().createIndex({ roles: 1, 'vendorProfile.kyc.status': 1 });
+};
+
 module.exports = {
   normalize,
   sanitize,
   findByMobile,
   findById,
+  findKycStatusById,
   insert,
   list,
   updateById,
@@ -83,4 +95,5 @@ module.exports = {
   updateProfile,
   becomeVendor,
   becomeCustomer,
+  ensureIndexes,
 };

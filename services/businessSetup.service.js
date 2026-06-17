@@ -1,5 +1,6 @@
 const { randomUUID } = require('crypto');
 const Business = require('../models/Business');
+const photoStorage = require('./photoStorage.service');
 const {
   DAYS,
   DEFAULT_WEEKLY_HOURS,
@@ -81,17 +82,36 @@ const normalizeResources = (raw) => {
     .filter(Boolean);
 };
 
-const formatPhoto = (photo) => ({
-  id: photo.id,
-  mimeType: photo.mimeType,
-  url: `data:${photo.mimeType};base64,${photo.data}`,
-  createdAt: photo.createdAt,
-});
+const formatPhoto = (photo, businessId) => {
+  const id = photo.id;
+  const mimeType = photo.mimeType || 'image/jpeg';
+  let url = photo.url;
+  if (!url && photo.storageKey && businessId) {
+    url =
+      photoStorage.isEnabled() && process.env.GCS_PUBLIC_BASE_URL
+        ? `${process.env.GCS_PUBLIC_BASE_URL.trim().replace(/\/$/, '')}/${photo.storageKey}`
+        : photoStorage.apiPhotoPath(String(businessId), id);
+  }
+  if (!url && businessId && id) {
+    url = photoStorage.apiPhotoPath(String(businessId), id);
+  }
+  if (!url && photo.data) {
+    url = `data:${mimeType};base64,${photo.data}`;
+  }
+  return {
+    id,
+    mimeType,
+    url: url || '',
+    createdAt: photo.createdAt,
+  };
+};
 
-const formatSetupForClient = (setup) => {
+const formatSetupForClient = (setup, businessId) => {
   if (!setup) return defaultSetup();
   return {
-    photos: Array.isArray(setup.photos) ? setup.photos.map(formatPhoto) : [],
+    photos: Array.isArray(setup.photos)
+      ? setup.photos.map((p) => formatPhoto(p, businessId))
+      : [],
     weeklyHours: setup.weeklyHours ?? { ...DEFAULT_WEEKLY_HOURS },
     slotMinutes: setup.slotMinutes ?? 60,
     pricePerSlot: setup.pricePerSlot ?? 0,
@@ -102,23 +122,31 @@ const formatSetupForClient = (setup) => {
 const formatBusinessForClient = (business) => {
   if (!business) return business;
   const { setup, ...rest } = business;
+  const businessId = business._id ?? business.id;
   return {
     ...rest,
-    setup: formatSetupForClient(setup),
+    setup: formatSetupForClient(setup, businessId),
   };
 };
 
 const stripSetupPhotos = (business) => {
   if (!business?.setup?.photos) return business;
+  const businessId = String(business._id ?? business.id ?? '');
   return {
     ...business,
     setup: {
       ...business.setup,
-      photos: business.setup.photos.map(({ id, mimeType, createdAt }) => ({
-        id,
-        mimeType,
-        createdAt,
-      })),
+      photos: business.setup.photos.map((photo) => {
+        const { id, mimeType, createdAt, url, storageKey } = photo;
+        const formatted = formatPhoto(photo, businessId);
+        return {
+          id,
+          mimeType,
+          createdAt,
+          url: formatted.url || url,
+          ...(storageKey ? { storageKey } : {}),
+        };
+      }),
     },
   };
 };
@@ -213,12 +241,27 @@ const addPhoto = async (businessId, vendorId, imageBase64) => {
   }
 
   const { mimeType, data } = parseImage(imageBase64);
-  photos.push({
-    id: randomUUID(),
+  const buffer = Buffer.from(data, 'base64');
+  const photoId = randomUUID();
+  const createdAt = new Date().toISOString();
+
+  const { storageKey, url } = await photoStorage.uploadBusinessPhoto(
+    businessId,
+    photoId,
+    buffer,
     mimeType,
-    data,
-    createdAt: new Date().toISOString(),
-  });
+  );
+
+  const photoDoc = {
+    id: photoId,
+    mimeType,
+    createdAt,
+    url,
+    ...(storageKey ? { storageKey } : {}),
+    ...(photoStorage.isEnabled() ? {} : { data }),
+  };
+
+  photos.push(photoDoc);
 
   const updated = await Business.updateForVendor(businessId, vendorId, {
     setup: { ...current, photos },
@@ -234,6 +277,11 @@ const removePhoto = async (businessId, vendorId, photoId) => {
   const photos = (current.photos ?? []).filter((p) => p.id !== photoId);
   if (photos.length === (current.photos ?? []).length) {
     throw Object.assign(new Error('photo not found'), { status: 404 });
+  }
+
+  const removed = (current.photos ?? []).find((p) => p.id === photoId);
+  if (removed?.storageKey) {
+    await photoStorage.deleteBusinessPhoto(removed.storageKey);
   }
 
   const updated = await Business.updateForVendor(businessId, vendorId, {

@@ -5,36 +5,55 @@ const collection = () => getDb().collection('businesses');
 
 const toObjectId = (id) => new ObjectId(String(id));
 
+/** Exclude heavy base64 blobs from MongoDB reads (saves DB + memory bandwidth). */
+const WITHOUT_PHOTO_DATA = { 'setup.photos.data': 0 };
+
+const LIST_PUBLIC_PROJECTION = {
+  name: 1,
+  typeLabel: 1,
+  categoryLabel: 1,
+  module: 1,
+  address: 1,
+  description: 1,
+  'setup.pricePerSlot': 1,
+  'setup.slotMinutes': 1,
+  createdAt: 1,
+  status: 1,
+  setupComplete: 1,
+};
+
 const sanitize = (doc) => {
   if (!doc) return doc;
   const { vendorId, ...rest } = doc;
   return { ...rest, vendorId: vendorId ? String(vendorId) : undefined };
 };
 
-const listByVendor = async (vendorId) => {
+const findOpts = ({ withPhotoData = true } = {}) =>
+  withPhotoData ? {} : { projection: WITHOUT_PHOTO_DATA };
+
+const listByVendor = async (vendorId, { withPhotoData = false } = {}) => {
   const rows = await collection()
-    .find({ vendorId: toObjectId(vendorId) })
+    .find({ vendorId: toObjectId(vendorId) }, findOpts({ withPhotoData }))
     .sort({ createdAt: -1 })
     .toArray();
   return rows.map(sanitize);
 };
 
-const findByIdForVendor = async (id, vendorId) => {
+const findByIdForVendor = async (id, vendorId, { withPhotoData = true } = {}) => {
   if (!ObjectId.isValid(String(id))) return null;
-  const doc = await collection().findOne({
-    _id: toObjectId(id),
-    vendorId: toObjectId(vendorId),
-  });
+  const doc = await collection().findOne(
+    { _id: toObjectId(id), vendorId: toObjectId(vendorId) },
+    findOpts({ withPhotoData }),
+  );
   return sanitize(doc);
 };
 
-const findLiveById = async (id) => {
+const findLiveById = async (id, { withPhotoData = false } = {}) => {
   if (!ObjectId.isValid(String(id))) return null;
-  const doc = await collection().findOne({
-    _id: toObjectId(id),
-    status: 'live',
-    setupComplete: true,
-  });
+  const doc = await collection().findOne(
+    { _id: toObjectId(id), status: 'live', setupComplete: true },
+    findOpts({ withPhotoData }),
+  );
   return sanitize(doc);
 };
 
@@ -45,7 +64,11 @@ const listLivePublic = async ({ module } = {}) => {
   };
   if (module) filter.module = module;
 
-  const rows = await collection().find(filter).sort({ createdAt: -1 }).limit(50).toArray();
+  const rows = await collection()
+    .find(filter, { projection: LIST_PUBLIC_PROJECTION })
+    .sort({ createdAt: -1 })
+    .limit(50)
+    .toArray();
   return rows.map(sanitize);
 };
 
@@ -85,6 +108,11 @@ const deleteForVendor = async (id, vendorId) => {
 const countByVendor = (vendorId) =>
   collection().countDocuments({ vendorId: toObjectId(vendorId) });
 
+const ensureIndexes = async () => {
+  await collection().createIndex({ vendorId: 1, createdAt: -1 });
+  await collection().createIndex({ status: 1, setupComplete: 1, module: 1, createdAt: -1 });
+};
+
 module.exports = {
   sanitize,
   listByVendor,
@@ -95,4 +123,5 @@ module.exports = {
   updateForVendor,
   deleteForVendor,
   countByVendor,
+  ensureIndexes,
 };

@@ -5,6 +5,8 @@ substitutions:
   _RUNTIME_SA: backend-service-account@ruxstar-platform.iam.gserviceaccount.com
   _KYC_REDIRECT_URL: https://ruxstar.com/kyc/done
   _CASHFREE_ENV: production
+  # Private bucket — backend streams photos via /public/businesses/:id/photos/:photoId (no GCS_PUBLIC_BASE_URL)
+  _GCS_BUCKET: ruxstar-photos
 
 steps:
   - name: gcr.io/cloud-builders/docker
@@ -34,7 +36,7 @@ steps:
       - --port=8080
       - --allow-unauthenticated
       - --service-account=${_RUNTIME_SA}
-      - --set-env-vars=NODE_ENV=production,CASHFREE_ENV=${_CASHFREE_ENV},CASHFREE_API_VERSION=2024-12-01,KYC_REDIRECT_URL=${_KYC_REDIRECT_URL}
+      - --set-env-vars=NODE_ENV=production,CASHFREE_ENV=${_CASHFREE_ENV},CASHFREE_API_VERSION=2024-12-01,KYC_REDIRECT_URL=${_KYC_REDIRECT_URL},GCS_BUCKET=${_GCS_BUCKET}
       - --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest,MSG91_AUTH_KEY=msg91-auth-key:latest,MSG91_SENDER_ID=msg91-sender-id:latest,MSG91_TEMPLATE_ID=msg91-template-id:latest,CASHFREE_CLIENT_ID=cashfree-client-id:latest,CASHFREE_CLIENT_SECRET=cashfree-client-secret:latest
 
 images:
