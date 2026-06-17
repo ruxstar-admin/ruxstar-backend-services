@@ -9,13 +9,20 @@ const {
   SETUP_MODULES,
 } = require('../constants/businessSetup');
 
-const defaultSetup = () => ({
+const defaultSetup = (options = {}) => {
+  const bookingMode =
+    options.bookingMode === 'fullDay' ? 'fullDay' : 'slots';
+  return {
   photos: [],
   weeklyHours: { ...DEFAULT_WEEKLY_HOURS },
   slotMinutes: 60,
   pricePerSlot: 0,
   resources: [],
-});
+  bookingMode,
+  maxGuests: null,
+  venueRules: '',
+};
+};
 
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -77,9 +84,25 @@ const normalizeResources = (raw) => {
       const name = String(item.name ?? '').trim();
       if (!name) return null;
       const id = String(item.id ?? '').trim() || randomUUID();
-      return { id, name: name.slice(0, 80) };
+      const out = { id, name: name.slice(0, 80) };
+      if (item.capacity != null && item.capacity !== '') {
+        const capacity = Math.round(Number(item.capacity));
+        if (Number.isFinite(capacity) && capacity > 0) out.capacity = capacity;
+      }
+      const description = String(item.description ?? '').trim();
+      if (description) out.description = description.slice(0, 500);
+      return out;
     })
     .filter(Boolean);
+};
+
+const normalizeBookingMode = (raw) => (raw === 'fullDay' ? 'fullDay' : 'slots');
+
+const normalizeMaxGuests = (raw) => {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const n = Math.round(Number(raw));
+  if (!Number.isFinite(n) || n < 1) return null;
+  return n;
 };
 
 const formatPhoto = (photo, businessId) => {
@@ -115,6 +138,9 @@ const formatSetupForClient = (setup, businessId) => {
     slotMinutes: setup.slotMinutes ?? 60,
     pricePerSlot: setup.pricePerSlot ?? 0,
     resources: Array.isArray(setup.resources) ? setup.resources : [],
+    bookingMode: normalizeBookingMode(setup.bookingMode),
+    maxGuests: normalizeMaxGuests(setup.maxGuests),
+    venueRules: typeof setup.venueRules === 'string' ? setup.venueRules : '',
   };
 };
 
@@ -172,9 +198,12 @@ const validateReadyToComplete = (setup) => {
     throw Object.assign(new Error('set at least one open day'), { status: 400 });
   }
 
-  const slotMinutes = Number(setup.slotMinutes);
-  if (!Number.isFinite(slotMinutes) || slotMinutes < 15 || slotMinutes > 480) {
-    throw Object.assign(new Error('slot duration must be between 15 and 480 minutes'), { status: 400 });
+  const bookingMode = normalizeBookingMode(setup.bookingMode);
+  if (bookingMode !== 'fullDay') {
+    const slotMinutes = Number(setup.slotMinutes);
+    if (!Number.isFinite(slotMinutes) || slotMinutes < 15 || slotMinutes > 480) {
+      throw Object.assign(new Error('slot duration must be between 15 and 480 minutes'), { status: 400 });
+    }
   }
 
   const pricePerSlot = Number(setup.pricePerSlot);
@@ -206,11 +235,14 @@ const updateSetup = async (businessId, vendorId, body) => {
 
   if (body.weeklyHours !== undefined) patch.weeklyHours = normalizeWeeklyHours(body.weeklyHours);
   if (body.slotMinutes !== undefined) {
-    const slotMinutes = Number(body.slotMinutes);
-    if (!Number.isFinite(slotMinutes) || slotMinutes < 15 || slotMinutes > 480) {
-      throw Object.assign(new Error('slot duration must be between 15 and 480 minutes'), { status: 400 });
+    const bookingMode = normalizeBookingMode(patch.bookingMode ?? current.bookingMode);
+    if (bookingMode !== 'fullDay') {
+      const slotMinutes = Number(body.slotMinutes);
+      if (!Number.isFinite(slotMinutes) || slotMinutes < 15 || slotMinutes > 480) {
+        throw Object.assign(new Error('slot duration must be between 15 and 480 minutes'), { status: 400 });
+      }
+      patch.slotMinutes = Math.round(slotMinutes);
     }
-    patch.slotMinutes = Math.round(slotMinutes);
   }
   if (body.pricePerSlot !== undefined) {
     const pricePerSlot = Number(body.pricePerSlot);
@@ -220,11 +252,16 @@ const updateSetup = async (businessId, vendorId, body) => {
     patch.pricePerSlot = Math.round(pricePerSlot);
   }
   if (body.resources !== undefined) patch.resources = normalizeResources(body.resources);
+  if (body.bookingMode !== undefined) patch.bookingMode = normalizeBookingMode(body.bookingMode);
+  if (body.maxGuests !== undefined) patch.maxGuests = normalizeMaxGuests(body.maxGuests);
+  if (body.venueRules !== undefined) {
+    patch.venueRules = String(body.venueRules ?? '').trim().slice(0, 2000);
+  }
 
+  const preserveLive = business.setupComplete === true && business.status === 'live';
   const updated = await Business.updateForVendor(businessId, vendorId, {
     setup: patch,
-    setupComplete: false,
-    status: 'draft',
+    ...(preserveLive ? {} : { setupComplete: false, status: 'draft' }),
   });
   return formatBusinessForClient(updated);
 };

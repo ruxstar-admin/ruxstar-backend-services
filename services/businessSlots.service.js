@@ -20,7 +20,7 @@ const templateCache = new Map();
 const TEMPLATE_CACHE_MAX = 128;
 
 const businessCacheKey = (business) =>
-  `${business._id}:${business.updatedAt ?? ''}:${business.setup?.slotMinutes}:${business.setup?.pricePerSlot}`;
+  `${business._id}:${business.updatedAt ?? ''}:${business.setup?.slotMinutes}:${business.setup?.pricePerSlot}:${business.setup?.bookingMode ?? 'slots'}`;
 
 const getLiveBusiness = async (businessId, { withPhotoData = false } = {}) => {
   const business = await Business.findLiveById(businessId, { withPhotoData });
@@ -72,8 +72,31 @@ const generateSlotsForDay = (business, dateStr, resource) => {
   const hours = setup.weeklyHours?.[dayKey];
   if (!hours || hours.closed) return [];
 
-  const slotMinutes = Number(setup.slotMinutes) || 60;
   const pricePerSlot = Number(setup.pricePerSlot) || 0;
+  const bookingMode = setup.bookingMode === 'fullDay' ? 'fullDay' : 'slots';
+
+  if (bookingMode === 'fullDay') {
+    const startTime = hours.open;
+    const endTime = hours.close;
+    const startAt = slotIso(dateStr, startTime);
+    const endAt = slotIso(dateStr, endTime);
+    return [
+      {
+        id: slotKey(resource.id, startAt),
+        resourceId: resource.id,
+        resourceName: resource.name,
+        date: dateStr,
+        startTime,
+        endTime,
+        startAt,
+        endAt,
+        pricePerSlot,
+        status: 'available',
+      },
+    ];
+  }
+
+  const slotMinutes = Number(setup.slotMinutes) || 60;
   let cursor = timeToMinutes(hours.open);
   const closeMin = timeToMinutes(hours.close);
   const slots = [];
@@ -198,6 +221,7 @@ const buildSlotsPayload = async (business, query, { publicView = false } = {}) =
     timezone: 'Asia/Kolkata',
     slotMinutes: business.setup.slotMinutes,
     pricePerSlot: business.setup.pricePerSlot,
+    bookingMode: business.setup.bookingMode === 'fullDay' ? 'fullDay' : 'slots',
     resources: business.setup.resources,
     slots,
   };
@@ -215,11 +239,32 @@ const computeSlot = (business, resource, startAt) => {
   const hours = business.setup.weeklyHours?.[dayKey];
   if (!hours || hours.closed) return null;
 
-  const slotMinutes = Number(business.setup.slotMinutes) || 60;
   const pricePerSlot = Number(business.setup.pricePerSlot) || 0;
+  const bookingMode = business.setup.bookingMode === 'fullDay' ? 'fullDay' : 'slots';
   const startMin = timeToMinutes(startTime);
   const openMin = timeToMinutes(hours.open);
   const closeMin = timeToMinutes(hours.close);
+
+  if (bookingMode === 'fullDay') {
+    if (startTime !== hours.open) return null;
+    const endTime = hours.close;
+    const normalizedStartAt = slotIso(dateStr, startTime);
+    if (new Date(normalizedStartAt).getTime() !== start.getTime()) return null;
+    return {
+      id: slotKey(resource.id, normalizedStartAt),
+      resourceId: resource.id,
+      resourceName: resource.name,
+      date: dateStr,
+      startTime,
+      endTime,
+      startAt: normalizedStartAt,
+      endAt: slotIso(dateStr, endTime),
+      pricePerSlot,
+      status: 'available',
+    };
+  }
+
+  const slotMinutes = Number(business.setup.slotMinutes) || 60;
 
   if (startMin < openMin || startMin + slotMinutes > closeMin) return null;
   if ((startMin - openMin) % slotMinutes !== 0) return null;

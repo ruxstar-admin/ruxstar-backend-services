@@ -29,6 +29,9 @@ const formatPublicBusiness = (business) => {
       slotMinutes: setup.slotMinutes ?? 60,
       pricePerSlot: setup.pricePerSlot ?? 0,
       resources: setup.resources ?? [],
+      bookingMode: setup.bookingMode === 'fullDay' ? 'fullDay' : 'slots',
+      maxGuests: setup.maxGuests ?? null,
+      venueRules: setup.venueRules ?? '',
     },
   };
 };

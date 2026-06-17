@@ -59,7 +59,7 @@ exports.create = async (req, res) => {
     phone: str(req.body.phone),
     address: str(req.body.address),
     description: str(req.body.description),
-    setup: setupService.defaultSetup(),
+    setup: setupService.defaultSetup({ bookingMode: req.body.bookingMode }),
   });
 
   res.status(201).json({ business: setupService.stripSetupPhotos(business) });
