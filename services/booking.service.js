@@ -33,6 +33,26 @@ const formatPublicBusiness = (business) => {
   };
 };
 
+const formatPublicBusinessSummary = (business) => {
+  const setup = business.setup ?? {};
+  return {
+    id: String(business._id),
+    name: business.name,
+    typeLabel: business.typeLabel ?? '',
+    categoryLabel: business.categoryLabel ?? '',
+    module: business.module,
+    address: business.address ?? '',
+    description: business.description ?? '',
+    pricePerSlot: setup.pricePerSlot ?? 0,
+    slotMinutes: setup.slotMinutes ?? 60,
+  };
+};
+
+const listPublicBusinesses = async () => {
+  const rows = await Business.listLivePublic({ module: 'appointments' });
+  return { businesses: rows.map(formatPublicBusinessSummary) };
+};
+
 const getPublicBusiness = async (businessId) => {
   const business = await getLiveBusiness(businessId);
   return formatPublicBusiness(business);
@@ -134,6 +154,7 @@ const ensureIndexes = () => Booking.ensureIndexes();
 
 module.exports = {
   ensureIndexes,
+  listPublicBusinesses,
   getPublicBusiness,
   listPublicSlots,
   createBooking,

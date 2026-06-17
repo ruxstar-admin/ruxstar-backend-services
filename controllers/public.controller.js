@@ -13,6 +13,11 @@ exports.getBusiness = handle(async (req, res) => {
   res.json({ business });
 });
 
+exports.listBusinesses = handle(async (_req, res) => {
+  const payload = await bookingService.listPublicBusinesses();
+  res.json(payload);
+});
+
 exports.listSlots = handle(async (req, res) => {
   const payload = await bookingService.listPublicSlots(req.params.id, req.query);
   res.json(payload);

@@ -38,6 +38,17 @@ const findLiveById = async (id) => {
   return sanitize(doc);
 };
 
+const listLivePublic = async ({ module } = {}) => {
+  const filter = {
+    status: 'live',
+    setupComplete: true,
+  };
+  if (module) filter.module = module;
+
+  const rows = await collection().find(filter).sort({ createdAt: -1 }).limit(50).toArray();
+  return rows.map(sanitize);
+};
+
 const insert = async (vendorId, data) => {
   const now = new Date();
   const doc = {
@@ -79,6 +90,7 @@ module.exports = {
   listByVendor,
   findByIdForVendor,
   findLiveById,
+  listLivePublic,
   insert,
   updateForVendor,
   deleteForVendor,
