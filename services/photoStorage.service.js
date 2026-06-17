@@ -28,9 +28,13 @@ const publicUrlForKey = (storageKey) => {
   return `${base}/${storageKey}`;
 };
 
-/** Relative URL served via Next.js / backend photo route (CDN-cacheable). */
-const apiPhotoPath = (businessId, photoId) =>
-  `/api/public/businesses/${businessId}/photos/${photoId}`;
+/** Photo URL — use API_PUBLIC_BASE_URL in production so browsers load from Cloud Run directly. */
+const apiPhotoPath = (businessId, photoId) => {
+  const path = `/public/businesses/${businessId}/photos/${photoId}`;
+  const base = process.env.API_PUBLIC_BASE_URL?.trim().replace(/\/$/, '');
+  if (base) return `${base}${path}`;
+  return `/api/public/businesses/${businessId}/photos/${photoId}`;
+};
 
 const uploadBusinessPhoto = async (businessId, photoId, buffer, mimeType) => {
   const storageKey = storageKeyFor(businessId, photoId, mimeType);

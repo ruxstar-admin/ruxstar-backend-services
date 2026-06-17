@@ -105,6 +105,15 @@ const deleteForVendor = async (id, vendorId) => {
   return deletedCount > 0;
 };
 
+const findSetupPhoto = async (businessId, photoId) => {
+  if (!ObjectId.isValid(String(businessId)) || !photoId) return null;
+  const doc = await collection().findOne(
+    { _id: toObjectId(businessId), 'setup.photos.id': String(photoId) },
+    { projection: { 'setup.photos.$': 1 } },
+  );
+  return doc?.setup?.photos?.[0] ?? null;
+};
+
 const countByVendor = (vendorId) =>
   collection().countDocuments({ vendorId: toObjectId(vendorId) });
 
@@ -124,4 +133,5 @@ module.exports = {
   deleteForVendor,
   countByVendor,
   ensureIndexes,
+  findSetupPhoto,
 };

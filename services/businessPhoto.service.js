@@ -3,15 +3,8 @@ const photoStorage = require('./photoStorage.service');
 
 const PHOTO_CACHE = 'public, max-age=31536000, immutable';
 
-const findLivePhoto = async (businessId, photoId) => {
-  if (!photoId) return null;
-  const business = await Business.findLiveById(businessId, { withPhotoData: true });
-  if (!business?.setup?.photos) return null;
-  return business.setup.photos.find((p) => p.id === photoId) ?? null;
-};
-
 const streamPhoto = async (businessId, photoId, res) => {
-  const photo = await findLivePhoto(businessId, photoId);
+  const photo = await Business.findSetupPhoto(businessId, photoId);
   if (!photo) {
     res.status(404).json({ message: 'photo not found' });
     return;
@@ -47,4 +40,4 @@ const streamPhoto = async (businessId, photoId, res) => {
   res.status(404).json({ message: 'photo not found' });
 };
 
-module.exports = { streamPhoto, findLivePhoto };
+module.exports = { streamPhoto };

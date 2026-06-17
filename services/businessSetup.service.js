@@ -86,13 +86,12 @@ const formatPhoto = (photo, businessId) => {
   const id = photo.id;
   const mimeType = photo.mimeType || 'image/jpeg';
   let url = photo.url;
-  if (!url && photo.storageKey && businessId) {
-    url =
-      photoStorage.isEnabled() && process.env.GCS_PUBLIC_BASE_URL
-        ? `${process.env.GCS_PUBLIC_BASE_URL.trim().replace(/\/$/, '')}/${photo.storageKey}`
-        : photoStorage.apiPhotoPath(String(businessId), id);
-  }
-  if (!url && businessId && id) {
+  // Prefer fresh URL when file lives in GCS (fixes stale /api/public paths after deploy)
+  if (photo.storageKey && businessId && id) {
+    url = photoStorage.apiPhotoPath(String(businessId), id);
+  } else if (!url && photo.storageKey && businessId) {
+    url = photoStorage.apiPhotoPath(String(businessId), id);
+  } else if (!url && businessId && id) {
     url = photoStorage.apiPhotoPath(String(businessId), id);
   }
   if (!url && photo.data) {
