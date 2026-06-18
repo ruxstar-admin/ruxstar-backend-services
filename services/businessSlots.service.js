@@ -179,6 +179,20 @@ const mergeStates = (slots, states) => {
       return next;
     }
 
+    // A pending hold blocks the slot only while its payment window is open.
+    // Expired holds are ignored (treated as available) — the sweeper / next
+    // claim will clean them up.
+    if (state.status === 'pending') {
+      const active = state.pendingExpiresAt && new Date(state.pendingExpiresAt).getTime() > Date.now();
+      if (active) {
+        next.status = 'pending';
+        if (state.pricePerSlot != null) next.pricePerSlot = state.pricePerSlot;
+        return next;
+      }
+      if (state.pricePerSlot != null) next.pricePerSlot = state.pricePerSlot;
+      return next;
+    }
+
     if (state.status === 'blocked') {
       next.status = 'blocked';
       return next;
@@ -316,6 +330,15 @@ const assertSlotForBooking = async (businessId, business, resourceId, startAt) =
   }
   if (state?.status === 'booked') {
     throw Object.assign(new Error('slot is no longer available'), { status: 409 });
+  }
+  const pendingActive =
+    state?.status === 'pending' &&
+    state.pendingExpiresAt &&
+    new Date(state.pendingExpiresAt).getTime() > Date.now();
+  if (pendingActive) {
+    throw Object.assign(new Error('slot is being booked by someone else; try again shortly'), {
+      status: 409,
+    });
   }
   return {
     ...slot,

@@ -8,7 +8,15 @@ const app = express();
 // (used by rate limiting) come from X-Forwarded-For rather than the proxy.
 app.set('trust proxy', 1);
 
-app.use(express.json({ limit: '10mb' }));
+app.use(
+  express.json({
+    limit: '10mb',
+    // Keep the exact bytes so webhook HMAC signatures verify correctly.
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  }),
+);
 app.use((req, _res, next) => {
   if (req.body === undefined) req.body = {};
   next();

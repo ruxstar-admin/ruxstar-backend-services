@@ -5,6 +5,9 @@ substitutions:
   _RUNTIME_SA: backend-service-account@ruxstar-platform.iam.gserviceaccount.com
   _KYC_REDIRECT_URL: https://ruxstar.com/kyc/done
   _CASHFREE_ENV: production
+  # Cashfree Payment Gateway (bookings) — separate from KYC verification credentials.
+  _CASHFREE_PG_ENV: sandbox
+  _FRONTEND_URL: https://ruxstar.com
   # Private bucket — backend streams photos via /public/businesses/:id/photos/:photoId (no GCS_PUBLIC_BASE_URL)
   _GCS_BUCKET: ruxstar-photos
   # Browser loads photos directly from Cloud Run (works before frontend photo route is deployed)
@@ -38,8 +41,8 @@ steps:
       - --port=8080
       - --allow-unauthenticated
       - --service-account=${_RUNTIME_SA}
-      - --set-env-vars=NODE_ENV=production,CASHFREE_ENV=${_CASHFREE_ENV},CASHFREE_API_VERSION=2024-12-01,KYC_REDIRECT_URL=${_KYC_REDIRECT_URL},GCS_BUCKET=${_GCS_BUCKET},API_PUBLIC_BASE_URL=${_API_PUBLIC_BASE_URL}
-      - --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest,MSG91_AUTH_KEY=msg91-auth-key:latest,MSG91_SENDER_ID=msg91-sender-id:latest,MSG91_TEMPLATE_ID=msg91-template-id:latest,CASHFREE_CLIENT_ID=cashfree-client-id:latest,CASHFREE_CLIENT_SECRET=cashfree-client-secret:latest
+      - --set-env-vars=NODE_ENV=production,CASHFREE_ENV=${_CASHFREE_ENV},CASHFREE_API_VERSION=2024-12-01,KYC_REDIRECT_URL=${_KYC_REDIRECT_URL},GCS_BUCKET=${_GCS_BUCKET},API_PUBLIC_BASE_URL=${_API_PUBLIC_BASE_URL},CASHFREE_PG_ENV=${_CASHFREE_PG_ENV},CASHFREE_PG_API_VERSION=2023-08-01,CASHFREE_PG_NOTIFY_URL=${_API_PUBLIC_BASE_URL}/webhooks/cashfree/payments,CASHFREE_PG_RETURN_URL=${_FRONTEND_URL}/customer/payment-status?bookingId={bookingId},BOOKING_HOLD_MINUTES=10,BOOKING_REFUND_WINDOW_HOURS=24
+      - --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest,MSG91_AUTH_KEY=msg91-auth-key:latest,MSG91_SENDER_ID=msg91-sender-id:latest,MSG91_TEMPLATE_ID=msg91-template-id:latest,CASHFREE_CLIENT_ID=cashfree-client-id:latest,CASHFREE_CLIENT_SECRET=cashfree-client-secret:latest,CASHFREE_PG_CLIENT_ID=cashfree-pg-client-id:latest,CASHFREE_PG_SECRET=cashfree-pg-secret:latest
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}:$SHORT_SHA

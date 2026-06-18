@@ -14,6 +14,8 @@ router.post('/become-vendor', userController.becomeVendor);
 
 router.get('/bookings', userController.listBookings);
 router.post('/bookings', userController.createBooking);
+router.post('/bookings/initiate', userController.initiateBooking);
+router.get('/bookings/:id', userController.getBookingStatus);
 router.delete('/bookings/:id', userController.cancelBooking);
 
 module.exports = router;

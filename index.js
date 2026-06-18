@@ -31,6 +31,14 @@ const start = async () => {
     app.listen(port, () => {
       console.log(`Server running on port ${port}`);
     });
+
+    // Release expired payment holds so abandoned checkouts free up slots.
+    const sweepMs = Number(process.env.BOOKING_SWEEP_INTERVAL_MS) || 60000;
+    setInterval(() => {
+      bookingService
+        .releaseExpiredHolds()
+        .catch((err) => console.error('hold sweep failed:', err.message));
+    }, sweepMs).unref();
   } catch (err) {
     console.error('DB connection failed:', err);
     process.exit(1);

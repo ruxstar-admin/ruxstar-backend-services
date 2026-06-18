@@ -5,6 +5,7 @@ const catalogRoutes = require('./catalog.routes');
 const publicRoutes = require('./public.routes');
 const userRoutes = require('./user.routes');
 const vendorRoutes = require('./vendor.routes');
+const webhookRoutes = require('./webhook.routes');
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use('/auth', authRoutes);
 router.use('/admin', adminRoutes);
 router.use('/user', userRoutes);
 router.use('/vendor', vendorRoutes);
+router.use('/webhooks', webhookRoutes);
 
 module.exports = router;

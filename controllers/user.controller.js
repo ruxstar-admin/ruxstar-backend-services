@@ -47,6 +47,16 @@ exports.createBooking = handle(async (req, res) => {
   res.status(201).json(payload);
 });
 
+exports.initiateBooking = handle(async (req, res) => {
+  const payload = await bookingService.initiateBooking(req.user.id, req.body);
+  res.status(201).json(payload);
+});
+
+exports.getBookingStatus = handle(async (req, res) => {
+  const payload = await bookingService.getBookingStatus(req.user.id, req.params.id);
+  res.json(payload);
+});
+
 exports.cancelBooking = handle(async (req, res) => {
   const payload = await bookingService.cancelBooking(req.user.id, req.params.id);
   res.json(payload);
