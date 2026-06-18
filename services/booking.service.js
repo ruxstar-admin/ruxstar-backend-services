@@ -38,6 +38,14 @@ const formatPublicBusiness = (business) => {
 
 const formatPublicBusinessSummary = (business) => {
   const setup = business.setup ?? {};
+  const basePrice = Number(setup.pricePerSlot) || 0;
+  const resources = Array.isArray(setup.resources) ? setup.resources : [];
+  const resourcePrices = resources
+    .map((r) => Number(r && r.pricePerSlot))
+    .filter((p) => Number.isFinite(p) && p >= 0);
+  const prices = resourcePrices.length ? resourcePrices : [basePrice];
+  const photos = Array.isArray(setup.photos) ? setup.photos : [];
+  const cover = photos.find((p) => p && (p.id || p.url)) ?? null;
   return {
     id: String(business._id),
     name: business.name,
@@ -46,8 +54,15 @@ const formatPublicBusinessSummary = (business) => {
     module: business.module,
     address: business.address ?? '',
     description: business.description ?? '',
-    pricePerSlot: setup.pricePerSlot ?? 0,
+    pricePerSlot: basePrice,
     slotMinutes: setup.slotMinutes ?? 60,
+    bookingMode: setup.bookingMode === 'fullDay' ? 'fullDay' : 'slots',
+    maxGuests: setup.maxGuests ?? null,
+    resourceCount: resources.length,
+    priceFrom: Math.round(Math.min(...prices)),
+    priceTo: Math.round(Math.max(...prices)),
+    coverPhotoId: cover && cover.id ? String(cover.id) : null,
+    coverPhotoUrl: cover && cover.url ? String(cover.url) : null,
   };
 };
 
