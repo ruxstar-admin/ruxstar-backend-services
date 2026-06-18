@@ -91,6 +91,11 @@ const normalizeResources = (raw) => {
       }
       const description = String(item.description ?? '').trim();
       if (description) out.description = description.slice(0, 500);
+      if (item.pricePerSlot != null && item.pricePerSlot !== '') {
+        const pricePerSlot = Math.round(Number(item.pricePerSlot));
+        if (!Number.isFinite(pricePerSlot) || pricePerSlot < 0) return null;
+        out.pricePerSlot = pricePerSlot;
+      }
       return out;
     })
     .filter(Boolean);
@@ -206,6 +211,12 @@ const assertAppointmentsModule = (business) => {
   }
 };
 
+const resourcePrice = (resource, setup) => {
+  const p = Number(resource?.pricePerSlot);
+  if (Number.isFinite(p) && p >= 0) return Math.round(p);
+  return Math.round(Number(setup?.pricePerSlot) || 0);
+};
+
 const validateReadyToComplete = (setup) => {
   const hours = setup.weeklyHours ?? {};
   const hasOpenDay = DAYS.some((day) => {
@@ -224,14 +235,16 @@ const validateReadyToComplete = (setup) => {
     }
   }
 
-  const pricePerSlot = Number(setup.pricePerSlot);
-  if (!Number.isFinite(pricePerSlot) || pricePerSlot < 0) {
-    throw Object.assign(new Error('price per slot must be zero or greater'), { status: 400 });
-  }
-
   const resources = setup.resources ?? [];
   if (!resources.length) {
     throw Object.assign(new Error('add at least one bookable resource (court, room, etc.)'), { status: 400 });
+  }
+
+  for (const resource of resources) {
+    const price = resourcePrice(resource, setup);
+    if (!Number.isFinite(price) || price < 0) {
+      throw Object.assign(new Error('each hall or court needs a valid price'), { status: 400 });
+    }
   }
 };
 
@@ -269,7 +282,11 @@ const updateSetup = async (businessId, vendorId, body) => {
     }
     patch.pricePerSlot = Math.round(pricePerSlot);
   }
-  if (body.resources !== undefined) patch.resources = normalizeResources(body.resources);
+  if (body.resources !== undefined) {
+    patch.resources = normalizeResources(body.resources);
+    const prices = patch.resources.map((r) => resourcePrice(r, patch));
+    if (prices.length) patch.pricePerSlot = Math.min(...prices);
+  }
   if (body.bookingMode !== undefined) patch.bookingMode = normalizeBookingMode(body.bookingMode);
   if (body.maxGuests !== undefined) patch.maxGuests = normalizeMaxGuests(body.maxGuests);
   if (body.venueRules !== undefined) {

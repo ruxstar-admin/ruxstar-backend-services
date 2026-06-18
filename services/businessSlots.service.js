@@ -19,8 +19,18 @@ const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const templateCache = new Map();
 const TEMPLATE_CACHE_MAX = 128;
 
-const businessCacheKey = (business) =>
-  `${business._id}:${business.updatedAt ?? ''}:${business.setup?.slotMinutes}:${business.setup?.pricePerSlot}:${business.setup?.bookingMode ?? 'slots'}`;
+const businessCacheKey = (business) => {
+  const resourcePrices = (business.setup?.resources ?? [])
+    .map((r) => `${r.id}:${r.pricePerSlot ?? ''}`)
+    .join(',');
+  return `${business._id}:${business.updatedAt ?? ''}:${business.setup?.slotMinutes}:${business.setup?.pricePerSlot}:${business.setup?.bookingMode ?? 'slots'}:${resourcePrices}`;
+};
+
+const resourceBasePrice = (resource, setup) => {
+  const resourcePrice = Number(resource?.pricePerSlot);
+  if (Number.isFinite(resourcePrice) && resourcePrice >= 0) return Math.round(resourcePrice);
+  return Math.round(Number(setup?.pricePerSlot) || 0);
+};
 
 const getLiveBusiness = async (businessId, { withPhotoData = false } = {}) => {
   const business = await Business.findLiveById(businessId, { withPhotoData });
@@ -72,7 +82,7 @@ const generateSlotsForDay = (business, dateStr, resource) => {
   const hours = setup.weeklyHours?.[dayKey];
   if (!hours || hours.closed) return [];
 
-  const pricePerSlot = Number(setup.pricePerSlot) || 0;
+  const pricePerSlot = resourceBasePrice(resource, setup);
   const bookingMode = setup.bookingMode === 'fullDay' ? 'fullDay' : 'slots';
 
   if (bookingMode === 'fullDay') {
@@ -239,7 +249,7 @@ const computeSlot = (business, resource, startAt) => {
   const hours = business.setup.weeklyHours?.[dayKey];
   if (!hours || hours.closed) return null;
 
-  const pricePerSlot = Number(business.setup.pricePerSlot) || 0;
+  const pricePerSlot = resourceBasePrice(resource, business.setup);
   const bookingMode = business.setup.bookingMode === 'fullDay' ? 'fullDay' : 'slots';
   const startMin = timeToMinutes(startTime);
   const openMin = timeToMinutes(hours.open);
@@ -371,7 +381,8 @@ const setSlotPrice = async (businessId, vendorId, body) => {
   }
 
   const slot = assertSlotExists(business, resourceId, startAt);
-  const base = Number(business.setup.pricePerSlot) || 0;
+  const resource = business.setup.resources.find((r) => r.id === resourceId);
+  const base = resourceBasePrice(resource, business.setup);
   const price = Math.round(Number(pricePerSlot));
   if (price < base) {
     throw Object.assign(new Error('demand price must be at least the base slot price'), { status: 400 });
