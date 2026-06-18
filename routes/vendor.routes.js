@@ -25,6 +25,7 @@ router.patch('/profile', vendorController.updateProfile);
 
 router.get('/businesses', businessController.list);
 router.post('/businesses', businessController.create);
+router.post('/businesses/:id/thumbnail', businessController.setThumbnail);
 router.get('/businesses/:id/setup', businessController.getSetup);
 router.patch('/businesses/:id/setup', businessController.updateSetup);
 router.post('/businesses/:id/setup/photos/sync', businessController.syncSetupPhotos);

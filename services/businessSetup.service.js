@@ -160,9 +160,14 @@ const formatBusinessForClient = (business) => {
     formattedSetup.photos[0]?.url ||
     firstPhotoUrl(setup, businessId) ||
     '';
+  const thumbnailPhotoId =
+    (typeof business.thumbnailPhotoId === 'string' && business.thumbnailPhotoId) ||
+    formattedSetup.photos[0]?.id ||
+    '';
   return {
     ...rest,
     thumbnailUrl,
+    ...(thumbnailPhotoId ? { thumbnailPhotoId } : {}),
     setup: formattedSetup,
   };
 };
@@ -302,18 +307,22 @@ const buildPhotoDoc = async (businessId, imageBase64) => {
   };
 };
 
-/** First profile photo at business creation — all modules, before setup wizard. */
-const setCreateThumbnail = async (businessId, vendorId, imageBase64) => {
+/** Profile thumbnail — works for every business module (not only appointments). */
+const setBusinessThumbnail = async (businessId, vendorId, imageBase64) => {
   const business = await getOwned(businessId, vendorId);
   const current = business.setup ?? defaultSetup();
   const photos = Array.isArray(current.photos) ? [...current.photos] : [];
-  if (photos.length >= MAX_PHOTOS) {
-    throw Object.assign(new Error(`maximum ${MAX_PHOTOS} photos allowed`), { status: 400 });
-  }
 
   const photoDoc = await buildPhotoDoc(businessId, imageBase64);
-  photos.push(photoDoc);
   const thumbnailUrl = formatPhoto(photoDoc, businessId).url;
+
+  if (photos.length > 0) {
+    const old = photos[0];
+    if (old?.storageKey) await photoStorage.deleteBusinessPhoto(old.storageKey);
+    photos[0] = photoDoc;
+  } else {
+    photos.push(photoDoc);
+  }
 
   const updated = await Business.updateForVendor(businessId, vendorId, {
     setup: { ...current, photos },
@@ -322,6 +331,9 @@ const setCreateThumbnail = async (businessId, vendorId, imageBase64) => {
   });
   return formatBusinessForClient(updated);
 };
+
+/** @deprecated use setBusinessThumbnail */
+const setCreateThumbnail = setBusinessThumbnail;
 
 const addPhoto = async (businessId, vendorId, imageBase64) => {
   const business = await getOwned(businessId, vendorId);
@@ -423,6 +435,7 @@ module.exports = {
   stripSetupPhotos,
   getSetup,
   updateSetup,
+  setBusinessThumbnail,
   setCreateThumbnail,
   addPhoto,
   removePhoto,

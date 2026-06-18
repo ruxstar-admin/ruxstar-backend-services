@@ -59,9 +59,6 @@ exports.create = async (req, res) => {
   }
 
   const thumbnail = str(req.body.thumbnail);
-  if (!thumbnail) {
-    return res.status(400).json({ message: 'business thumbnail is required' });
-  }
 
   const business = await Business.insert(req.user.id, {
     name,
@@ -76,18 +73,33 @@ exports.create = async (req, res) => {
     setup: setupService.defaultSetup({ bookingMode: req.body.bookingMode }),
   });
 
-  try {
-    const withThumbnail = await setupService.setCreateThumbnail(
-      String(business._id ?? business.id),
-      req.user.id,
-      thumbnail,
-    );
-    res.status(201).json({ business: setupService.stripSetupPhotos(withThumbnail) });
-  } catch (err) {
-    await Business.deleteForVendor(String(business._id ?? business.id), req.user.id);
-    return res.status(err.status || 500).json({ message: err.message });
+  if (thumbnail) {
+    try {
+      const withThumbnail = await setupService.setBusinessThumbnail(
+        String(business._id ?? business.id),
+        req.user.id,
+        thumbnail,
+      );
+      return res.status(201).json({
+        business: setupService.stripSetupPhotos(withThumbnail),
+      });
+    } catch (err) {
+      await Business.deleteForVendor(String(business._id ?? business.id), req.user.id);
+      return res.status(err.status || 500).json({ message: err.message });
+    }
   }
+
+  res.status(201).json({
+    business: setupService.stripSetupPhotos(setupService.formatBusinessForClient(business)),
+  });
 };
+
+exports.setThumbnail = handle(async (req, res) => {
+  const image = req.body.image ?? req.body.thumbnail ?? req.body.photo;
+  if (!image) return res.status(400).json({ message: 'image required' });
+  const business = await setupService.setBusinessThumbnail(req.params.id, req.user.id, image);
+  res.json({ business: setupService.stripSetupPhotos(business) });
+});
 
 exports.update = async (req, res) => {
   const patch = {};
@@ -123,7 +135,9 @@ exports.update = async (req, res) => {
 
   const business = await Business.updateForVendor(req.params.id, req.user.id, patch);
   if (!business) return res.status(404).json({ message: 'business not found' });
-  res.json({ business: setupService.stripSetupPhotos(business) });
+  res.json({
+    business: setupService.stripSetupPhotos(setupService.formatBusinessForClient(business)),
+  });
 };
 
 exports.remove = async (req, res) => {
