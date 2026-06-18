@@ -18,14 +18,18 @@ const handle = (fn) => async (req, res) => {
 exports.list = async (req, res) => {
   const businesses = await Business.listByVendor(req.user.id);
   res.json({
-    businesses: businesses.map((b) => setupService.stripSetupPhotos(b)),
+    businesses: businesses.map((b) =>
+      setupService.stripSetupPhotos(setupService.formatBusinessForClient(b)),
+    ),
   });
 };
 
 exports.get = async (req, res) => {
   const business = await Business.findByIdForVendor(req.params.id, req.user.id);
   if (!business) return res.status(404).json({ message: 'business not found' });
-  res.json({ business: setupService.stripSetupPhotos(business) });
+  res.json({
+    business: setupService.stripSetupPhotos(setupService.formatBusinessForClient(business)),
+  });
 };
 
 exports.create = async (req, res) => {
@@ -49,6 +53,16 @@ exports.create = async (req, res) => {
     return res.status(400).json({ message: `you can add up to ${MAX_BUSINESSES} businesses` });
   }
 
+  const description = str(req.body.description);
+  if (!description) {
+    return res.status(400).json({ message: 'business description is required' });
+  }
+
+  const thumbnail = str(req.body.thumbnail);
+  if (!thumbnail) {
+    return res.status(400).json({ message: 'business thumbnail is required' });
+  }
+
   const business = await Business.insert(req.user.id, {
     name,
     typeId: businessType.id,
@@ -58,11 +72,21 @@ exports.create = async (req, res) => {
     module: businessType.module,
     phone: str(req.body.phone),
     address: str(req.body.address),
-    description: str(req.body.description),
+    description,
     setup: setupService.defaultSetup({ bookingMode: req.body.bookingMode }),
   });
 
-  res.status(201).json({ business: setupService.stripSetupPhotos(business) });
+  try {
+    const withThumbnail = await setupService.setCreateThumbnail(
+      String(business._id ?? business.id),
+      req.user.id,
+      thumbnail,
+    );
+    res.status(201).json({ business: setupService.stripSetupPhotos(withThumbnail) });
+  } catch (err) {
+    await Business.deleteForVendor(String(business._id ?? business.id), req.user.id);
+    return res.status(err.status || 500).json({ message: err.message });
+  }
 };
 
 exports.update = async (req, res) => {

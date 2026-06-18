@@ -144,13 +144,26 @@ const formatSetupForClient = (setup, businessId) => {
   };
 };
 
+const firstPhotoUrl = (setup, businessId) => {
+  const photos = Array.isArray(setup?.photos) ? setup.photos : [];
+  if (!photos.length) return '';
+  return formatPhoto(photos[0], businessId).url || '';
+};
+
 const formatBusinessForClient = (business) => {
   if (!business) return business;
   const { setup, ...rest } = business;
   const businessId = business._id ?? business.id;
+  const formattedSetup = formatSetupForClient(setup, businessId);
+  const thumbnailUrl =
+    (typeof business.thumbnailUrl === 'string' && business.thumbnailUrl.trim()) ||
+    formattedSetup.photos[0]?.url ||
+    firstPhotoUrl(setup, businessId) ||
+    '';
   return {
     ...rest,
-    setup: formatSetupForClient(setup, businessId),
+    thumbnailUrl,
+    setup: formattedSetup,
   };
 };
 
@@ -289,6 +302,27 @@ const buildPhotoDoc = async (businessId, imageBase64) => {
   };
 };
 
+/** First profile photo at business creation — all modules, before setup wizard. */
+const setCreateThumbnail = async (businessId, vendorId, imageBase64) => {
+  const business = await getOwned(businessId, vendorId);
+  const current = business.setup ?? defaultSetup();
+  const photos = Array.isArray(current.photos) ? [...current.photos] : [];
+  if (photos.length >= MAX_PHOTOS) {
+    throw Object.assign(new Error(`maximum ${MAX_PHOTOS} photos allowed`), { status: 400 });
+  }
+
+  const photoDoc = await buildPhotoDoc(businessId, imageBase64);
+  photos.push(photoDoc);
+  const thumbnailUrl = formatPhoto(photoDoc, businessId).url;
+
+  const updated = await Business.updateForVendor(businessId, vendorId, {
+    setup: { ...current, photos },
+    thumbnailUrl,
+    thumbnailPhotoId: photoDoc.id,
+  });
+  return formatBusinessForClient(updated);
+};
+
 const addPhoto = async (businessId, vendorId, imageBase64) => {
   const business = await getOwned(businessId, vendorId);
   assertAppointmentsModule(business);
@@ -389,6 +423,7 @@ module.exports = {
   stripSetupPhotos,
   getSetup,
   updateSetup,
+  setCreateThumbnail,
   addPhoto,
   removePhoto,
   syncPhotos,
