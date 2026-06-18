@@ -4,6 +4,10 @@ const notFound = require('./middlewares/notFound');
 
 const app = express();
 
+// Cloud Run terminates TLS and forwards via a proxy; trust it so client IPs
+// (used by rate limiting) come from X-Forwarded-For rather than the proxy.
+app.set('trust proxy', 1);
+
 app.use(express.json({ limit: '10mb' }));
 app.use((req, _res, next) => {
   if (req.body === undefined) req.body = {};

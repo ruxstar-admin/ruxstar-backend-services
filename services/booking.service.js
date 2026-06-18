@@ -1,4 +1,5 @@
 const { randomUUID } = require('crypto');
+const { withTransaction } = require('../config/database');
 const Business = require('../models/Business');
 const Booking = require('../models/Booking');
 const BusinessSlotState = require('../models/BusinessSlotState');
@@ -103,7 +104,9 @@ const listPublicBusinesses = async () => {
 };
 
 const getPublicBusiness = async (businessId) => {
-  const business = await getLiveBusiness(businessId, { withPhotoData: true });
+  // Photos are served via the proxy endpoint (formatPhoto builds URLs from ids),
+  // so we never need the heavy base64 blobs inline here.
+  const business = await getLiveBusiness(businessId);
   return formatPublicBusiness(business);
 };
 
@@ -139,40 +142,56 @@ const createBooking = async (customerUserId, body) => {
     customerMobile: user.mobile ?? '',
   };
 
-  const slotOk = await BusinessSlotState.insertBooked(businessId, {
-    resourceId,
-    startAt: slot.startAt,
-    endAt: slot.endAt,
-    booking: bookingMeta,
-  });
-  if (!slotOk) {
-    throw Object.assign(new Error('slot is no longer available'), { status: 409 });
-  }
-
-  try {
-    const booking = await Booking.insert({
-      _id: bookingMeta.bookingId,
-      businessId: business._id,
-      businessName: business.name,
-      typeLabel: business.typeLabel,
-      vendorId: business.vendorId,
-      resourceId,
-      resourceName: resource?.name ?? '',
-      startAt: new Date(slot.startAt),
-      endAt: new Date(slot.endAt),
-      pricePerSlot: slot.pricePerSlot,
-      customerUserId,
-      customerName: bookingMeta.customerName,
-      customerMobile: bookingMeta.customerMobile,
-    });
-    return { booking };
-  } catch (err) {
-    await BusinessSlotState.removeBooked(businessId, resourceId, slot.startAt);
-    if (err?.code === 11000) {
+  // Hold the slot and persist the booking atomically. On a replica set / Atlas
+  // both writes commit together (or roll back together); on a standalone dev
+  // mongod we fall back to a manual compensating delete.
+  const booking = await withTransaction(async (session) => {
+    const slotOk = await BusinessSlotState.insertBooked(
+      businessId,
+      {
+        resourceId,
+        startAt: slot.startAt,
+        endAt: slot.endAt,
+        booking: bookingMeta,
+      },
+      { session },
+    );
+    if (!slotOk) {
       throw Object.assign(new Error('slot is no longer available'), { status: 409 });
     }
-    throw err;
-  }
+
+    try {
+      return await Booking.insert(
+        {
+          _id: bookingMeta.bookingId,
+          businessId: business._id,
+          businessName: business.name,
+          typeLabel: business.typeLabel,
+          vendorId: business.vendorId,
+          resourceId,
+          resourceName: resource?.name ?? '',
+          startAt: new Date(slot.startAt),
+          endAt: new Date(slot.endAt),
+          pricePerSlot: slot.pricePerSlot,
+          customerUserId,
+          customerName: bookingMeta.customerName,
+          customerMobile: bookingMeta.customerMobile,
+        },
+        { session },
+      );
+    } catch (err) {
+      // Without a transaction the slot hold won't auto-roll back, so undo it.
+      if (!session) {
+        await BusinessSlotState.removeBooked(businessId, resourceId, slot.startAt);
+      }
+      if (err?.code === 11000) {
+        throw Object.assign(new Error('slot is no longer available'), { status: 409 });
+      }
+      throw err;
+    }
+  });
+
+  return { booking };
 };
 
 const listCustomerBookings = async (customerUserId) => {
@@ -188,8 +207,15 @@ const cancelBooking = async (customerUserId, bookingId) => {
     throw Object.assign(new Error('cannot cancel a slot that has already started'), { status: 400 });
   }
 
-  await Booking.cancelById(bookingId, customerUserId);
-  await BusinessSlotState.removeBooked(booking.businessId, booking.resourceId, booking.startAt);
+  await withTransaction(async (session) => {
+    await Booking.cancelById(bookingId, customerUserId, { session });
+    await BusinessSlotState.removeBooked(
+      booking.businessId,
+      booking.resourceId,
+      booking.startAt,
+      { session },
+    );
+  });
 
   return { ok: true };
 };

@@ -13,15 +13,15 @@ const ensureIndexes = async () => {
   await collection().createIndex({ businessId: 1, startAt: 1 });
 };
 
-const listInRange = async (businessId, from, to) => {
+const listInRange = async (businessId, from, to, resourceId) => {
   const start = new Date(from);
   const end = new Date(to);
-  const rows = await collection()
-    .find({
-      businessId: toObjectId(businessId),
-      startAt: { $gte: start, $lt: end },
-    })
-    .toArray();
+  const filter = {
+    businessId: toObjectId(businessId),
+    startAt: { $gte: start, $lt: end },
+  };
+  if (resourceId) filter.resourceId = String(resourceId);
+  const rows = await collection().find(filter).toArray();
   return rows.map((row) => ({
     resourceId: row.resourceId,
     startAt: row.startAt.toISOString(),
@@ -85,7 +85,7 @@ const removeBlocked = async (businessId, resourceId, startAt) => {
   return deletedCount > 0;
 };
 
-const insertBooked = async (businessId, { resourceId, startAt, endAt, booking }) => {
+const insertBooked = async (businessId, { resourceId, startAt, endAt, booking }, { session } = {}) => {
   const doc = {
     businessId: toObjectId(businessId),
     resourceId: String(resourceId),
@@ -97,7 +97,7 @@ const insertBooked = async (businessId, { resourceId, startAt, endAt, booking })
     updatedAt: new Date(),
   };
   try {
-    await collection().insertOne(doc);
+    await collection().insertOne(doc, session ? { session } : {});
     return true;
   } catch (err) {
     if (err?.code === 11000) return false;
@@ -105,13 +105,16 @@ const insertBooked = async (businessId, { resourceId, startAt, endAt, booking })
   }
 };
 
-const removeBooked = async (businessId, resourceId, startAt) => {
-  const { deletedCount } = await collection().deleteOne({
-    businessId: toObjectId(businessId),
-    resourceId: String(resourceId),
-    startAt: new Date(startAt),
-    status: 'booked',
-  });
+const removeBooked = async (businessId, resourceId, startAt, { session } = {}) => {
+  const { deletedCount } = await collection().deleteOne(
+    {
+      businessId: toObjectId(businessId),
+      resourceId: String(resourceId),
+      startAt: new Date(startAt),
+      status: 'booked',
+    },
+    session ? { session } : {},
+  );
   return deletedCount > 0;
 };
 

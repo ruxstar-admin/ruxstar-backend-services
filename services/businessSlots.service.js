@@ -218,7 +218,7 @@ const buildSlotsPayload = async (business, query, { publicView = false } = {}) =
 
   const [generated, states] = await Promise.all([
     Promise.resolve(generateSlots(business, fromDate, toDate, resourceId)),
-    BusinessSlotState.listInRange(String(business._id), rangeStart, rangeEndExclusive),
+    BusinessSlotState.listInRange(String(business._id), rangeStart, rangeEndExclusive, resourceId),
   ]);
 
   let slots = mergeStates(generated, states);

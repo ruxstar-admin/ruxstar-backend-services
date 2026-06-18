@@ -10,6 +10,12 @@ const hash = (mobile, otp) =>
 
 const collection = () => getDb().collection('otp_verifications');
 
+const ensureIndexes = async () => {
+  await collection().createIndex({ mobile: 1 }, { unique: true });
+  // TTL: Mongo purges the doc once `expiresAt` passes (no manual cleanup).
+  await collection().createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+};
+
 const save = async (mobile, otp) => {
   const m = normalize(mobile);
   const doc = {
@@ -36,4 +42,4 @@ const verify = async (mobile, otp) => {
   return true;
 };
 
-module.exports = { normalize, save, verify };
+module.exports = { ensureIndexes, normalize, save, verify };

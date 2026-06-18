@@ -6,6 +6,7 @@ const app = require('./app');
 const db = require('./config/database');
 const Business = require('./models/Business');
 const User = require('./models/User');
+const Otp = require('./models/Otp');
 const catalogService = require('./services/businessCatalog.service');
 const slotsService = require('./services/businessSlots.service');
 const bookingService = require('./services/booking.service');
@@ -26,6 +27,7 @@ const start = async () => {
     await bookingService.ensureIndexes();
     await Business.ensureIndexes();
     await User.ensureIndexes();
+    await Otp.ensureIndexes();
     app.listen(port, () => {
       console.log(`Server running on port ${port}`);
     });

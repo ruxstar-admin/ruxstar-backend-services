@@ -27,6 +27,7 @@ const sanitize = (doc) => {
 const ensureIndexes = async () => {
   await collection().createIndex({ customerUserId: 1, createdAt: -1 });
   await collection().createIndex({ customerUserId: 1, startAt: 1 });
+  await collection().createIndex({ customerUserId: 1, status: 1, startAt: 1 });
   await collection().createIndex({ businessId: 1, startAt: 1 });
   await collection().createIndex(
     { businessId: 1, resourceId: 1, startAt: 1 },
@@ -34,7 +35,7 @@ const ensureIndexes = async () => {
   );
 };
 
-const insert = async (doc) => {
+const insert = async (doc, { session } = {}) => {
   const now = new Date();
   const { _id, businessId, vendorId, customerUserId, ...rest } = doc;
   const row = {
@@ -49,14 +50,14 @@ const insert = async (doc) => {
     createdAt: now,
     updatedAt: now,
   };
-  const { insertedId } = await collection().insertOne(row);
+  const { insertedId } = await collection().insertOne(row, session ? { session } : {});
   return sanitize({ _id: insertedId, ...row });
 };
 
 const findByIdForCustomer = async (id, customerUserId) => {
-  if (!ObjectId.isValid(String(id))) return null;
+  if (!id) return null;
   const doc = await collection().findOne({
-    _id: toObjectId(id),
+    _id: String(id),
     customerUserId: toObjectId(customerUserId),
     status: 'confirmed',
   });
@@ -71,16 +72,16 @@ const listByCustomer = async (customerUserId) => {
   return rows.map(sanitize);
 };
 
-const cancelById = async (id, customerUserId) => {
-  if (!ObjectId.isValid(String(id))) return null;
+const cancelById = async (id, customerUserId, { session } = {}) => {
+  if (!id) return null;
   const result = await collection().findOneAndUpdate(
     {
-      _id: toObjectId(id),
+      _id: String(id),
       customerUserId: toObjectId(customerUserId),
       status: 'confirmed',
     },
     { $set: { status: 'cancelled', updatedAt: new Date() } },
-    { returnDocument: 'before' },
+    { returnDocument: 'before', ...(session ? { session } : {}) },
   );
   const doc = result?.value ?? result;
   return sanitize(doc);
