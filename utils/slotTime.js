@@ -1,6 +1,6 @@
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-const MAX_RANGE_DAYS = 14;
+const MAX_RANGE_DAYS = 90;
 
 const parseDateOnly = (value) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return null;
