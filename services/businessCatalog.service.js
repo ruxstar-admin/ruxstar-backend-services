@@ -23,7 +23,17 @@ const seedIfEmpty = async () => {
     BusinessType.count(),
   ]);
 
-  if (catCount > 0 || typeCount > 0) return { seeded: false };
+  if (catCount > 0 || typeCount > 0) {
+    const eventsSeed = BUSINESS_CATEGORIES.find((c) => c.id === 'events');
+    if (eventsSeed) {
+      await BusinessCategory.updateById('events', {
+        label: eventsSeed.label,
+        description: eventsSeed.description,
+      });
+      invalidateCatalogCache();
+    }
+    return { seeded: false };
+  }
 
   const now = new Date();
   await BusinessCategory.insertMany(

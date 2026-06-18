@@ -3,7 +3,7 @@
 const BUSINESS_CATEGORIES = [
   {
     id: 'events',
-    label: 'Events & entertainment',
+    label: 'Events and tournaments',
     description: 'Sell tickets and manage live events',
     icon: '🎬',
     sortOrder: 0,
