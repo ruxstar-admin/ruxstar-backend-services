@@ -22,6 +22,7 @@ router.post('/become-customer', vendorController.becomeCustomer);
 router.use(requireKyc);
 router.get('/profile', vendorController.getProfile);
 router.patch('/profile', vendorController.updateProfile);
+router.get('/bookings', vendorController.listBookings);
 
 router.get('/businesses', businessController.list);
 router.post('/businesses', businessController.create);

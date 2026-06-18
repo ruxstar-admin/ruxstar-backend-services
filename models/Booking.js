@@ -190,6 +190,18 @@ const listByCustomer = async (customerUserId) => {
   return rows.map(sanitize);
 };
 
+// All bookings across a vendor's businesses. Vendors only see slots that were
+// actually paid for (confirmed) or later cancelled — never pending holds.
+const listByVendor = async (vendorId, { businessId } = {}) => {
+  const query = {
+    vendorId: toObjectId(vendorId),
+    status: { $in: ['confirmed', 'cancelled'] },
+  };
+  if (businessId) query.businessId = toObjectId(businessId);
+  const rows = await collection().find(query).sort({ startAt: -1 }).toArray();
+  return rows.map(sanitize);
+};
+
 const cancelById = async (id, customerUserId, { session } = {}) => {
   if (!id) return null;
   const result = await collection().findOneAndUpdate(
@@ -214,6 +226,7 @@ module.exports = {
   findByIdForCustomer,
   getForCustomer,
   listByCustomer,
+  listByVendor,
   markPaid,
   markUnpaid,
   cancelById,

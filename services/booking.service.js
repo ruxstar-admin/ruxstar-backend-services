@@ -479,6 +479,11 @@ const listCustomerBookings = async (customerUserId) => {
   return { bookings };
 };
 
+const listVendorBookings = async (vendorId, { businessId } = {}) => {
+  const bookings = await Booking.listByVendor(vendorId, { businessId });
+  return { bookings };
+};
+
 const cancelBooking = async (customerUserId, bookingId) => {
   const booking = await Booking.findByIdForCustomer(bookingId, customerUserId);
   if (!booking) throw Object.assign(new Error('booking not found'), { status: 404 });
@@ -513,5 +518,6 @@ module.exports = {
   handlePaymentWebhook,
   releaseExpiredHolds,
   listCustomerBookings,
+  listVendorBookings,
   cancelBooking,
 };

@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const authService = require('../services/auth.service');
+const bookingService = require('../services/booking.service');
 
 const signToken = (user) =>
   jwt.sign({ id: String(user._id), roles: user.roles }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -26,6 +27,13 @@ exports.updateProfile = async (req, res) => {
   const user = await authService.updateVendorProfile(req.user.id, patch);
   if (!user) return res.status(404).json({ message: 'vendor not found' });
   res.json({ profile: user.vendorProfile });
+};
+
+/** Bookings (paid orders) across the vendor's businesses */
+exports.listBookings = async (req, res) => {
+  const businessId = req.query.businessId ? String(req.query.businessId) : undefined;
+  const { bookings } = await bookingService.listVendorBookings(req.user.id, { businessId });
+  res.json({ bookings });
 };
 
 /** Logged-in vendor → customer */
