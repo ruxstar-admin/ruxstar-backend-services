@@ -4,6 +4,7 @@ const Booking = require('../models/Booking');
 const BusinessSlotState = require('../models/BusinessSlotState');
 const User = require('../models/User');
 const setupService = require('./businessSetup.service');
+const photoStorage = require('./photoStorage.service');
 const {
   getLiveBusiness,
   buildSlotsPayload,
@@ -36,7 +37,26 @@ const formatPublicBusiness = (business) => {
   };
 };
 
-const formatPublicBusinessSummary = (business) => {
+const resolvePublicCoverUrl = (business) => {
+  const businessId = String(business._id ?? business.id ?? '');
+  const direct =
+    (typeof business.thumbnailUrl === 'string' && business.thumbnailUrl.trim()) || '';
+  if (direct) return direct;
+
+  const thumbId =
+    (typeof business.thumbnailPhotoId === 'string' && business.thumbnailPhotoId.trim()) || '';
+  if (thumbId && businessId) return photoStorage.apiPhotoPath(businessId, thumbId);
+
+  const photos = Array.isArray(business.setup?.photos) ? business.setup.photos : [];
+  const cover = photos.find((p) => p && (p.id || p.url || p.storageKey)) ?? null;
+  if (!cover) return null;
+
+  if (cover.url && String(cover.url).trim()) return String(cover.url).trim();
+  if (cover.id && businessId) return photoStorage.apiPhotoPath(businessId, String(cover.id));
+  return null;
+};
+
+const formatPublicBusinessSummary = (business, vendorName = '') => {
   const setup = business.setup ?? {};
   const basePrice = Number(setup.pricePerSlot) || 0;
   const resources = Array.isArray(setup.resources) ? setup.resources : [];
@@ -44,11 +64,11 @@ const formatPublicBusinessSummary = (business) => {
     .map((r) => Number(r && r.pricePerSlot))
     .filter((p) => Number.isFinite(p) && p >= 0);
   const prices = resourcePrices.length ? resourcePrices : [basePrice];
-  const photos = Array.isArray(setup.photos) ? setup.photos : [];
-  const cover = photos.find((p) => p && (p.id || p.url)) ?? null;
+  const coverUrl = resolvePublicCoverUrl(business);
   return {
     id: String(business._id),
     name: business.name,
+    vendorName: vendorName || '',
     typeLabel: business.typeLabel ?? '',
     categoryLabel: business.categoryLabel ?? '',
     module: business.module,
@@ -61,14 +81,25 @@ const formatPublicBusinessSummary = (business) => {
     resourceCount: resources.length,
     priceFrom: Math.round(Math.min(...prices)),
     priceTo: Math.round(Math.max(...prices)),
-    coverPhotoId: cover && cover.id ? String(cover.id) : null,
-    coverPhotoUrl: cover && cover.url ? String(cover.url) : null,
+    coverUrl,
   };
 };
 
 const listPublicBusinesses = async () => {
   const rows = await Business.listLivePublic({ module: 'appointments' });
-  return { businesses: rows.map(formatPublicBusinessSummary) };
+  const vendorIds = rows.map((row) => row.vendorId).filter(Boolean);
+  const users = await User.findByIds(vendorIds);
+  const vendorNames = new Map(
+    users.map((user) => [
+      String(user._id),
+      user.vendorProfile?.businessName || user.name || '',
+    ]),
+  );
+  return {
+    businesses: rows.map((row) =>
+      formatPublicBusinessSummary(row, vendorNames.get(String(row.vendorId)) || ''),
+    ),
+  };
 };
 
 const getPublicBusiness = async (businessId) => {

@@ -12,6 +12,14 @@ const findByMobile = (mobile) => collection().findOne({ mobile: normalize(mobile
 
 const findById = (id) => collection().findOne({ _id: new ObjectId(id) });
 
+const findByIds = async (ids, projection = { name: 1, 'vendorProfile.businessName': 1 }) => {
+  const oids = [...new Set(ids)]
+    .filter((id) => id && ObjectId.isValid(String(id)))
+    .map((id) => new ObjectId(String(id)));
+  if (!oids.length) return [];
+  return collection().find({ _id: { $in: oids } }, { projection }).toArray();
+};
+
 const findKycStatusById = (id) =>
   collection().findOne(
     { _id: new ObjectId(id) },
@@ -87,6 +95,7 @@ module.exports = {
   sanitize,
   findByMobile,
   findById,
+  findByIds,
   findKycStatusById,
   insert,
   list,
