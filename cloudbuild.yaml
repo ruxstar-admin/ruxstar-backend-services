@@ -41,7 +41,7 @@ steps:
       - --port=8080
       - --allow-unauthenticated
       - --service-account=${_RUNTIME_SA}
-      - --set-env-vars=NODE_ENV=production,CASHFREE_ENV=${_CASHFREE_ENV},CASHFREE_API_VERSION=2024-12-01,KYC_REDIRECT_URL=${_KYC_REDIRECT_URL},GCS_BUCKET=${_GCS_BUCKET},API_PUBLIC_BASE_URL=${_API_PUBLIC_BASE_URL},CASHFREE_PG_ENV=${_CASHFREE_PG_ENV},CASHFREE_PG_API_VERSION=2023-08-01,CASHFREE_PG_NOTIFY_URL=${_API_PUBLIC_BASE_URL}/webhooks/cashfree/payments,CASHFREE_PG_RETURN_URL=${_FRONTEND_URL}/customer/payment-status?bookingId={bookingId},BOOKING_HOLD_MINUTES=10,BOOKING_REFUND_WINDOW_HOURS=24
+      - --set-env-vars=NODE_ENV=production,CASHFREE_ENV=${_CASHFREE_ENV},CASHFREE_API_VERSION=2024-12-01,KYC_REDIRECT_URL=${_KYC_REDIRECT_URL},GCS_BUCKET=${_GCS_BUCKET},API_PUBLIC_BASE_URL=${_API_PUBLIC_BASE_URL},CASHFREE_PG_ENV=${_CASHFREE_PG_ENV},CASHFREE_PG_API_VERSION=2023-08-01,CASHFREE_PG_NOTIFY_URL=${_API_PUBLIC_BASE_URL}/webhooks/cashfree/payments,CASHFREE_PG_RETURN_URL=${_FRONTEND_URL}/customer/payment-status?bookingId={bookingId},BOOKING_HOLD_MINUTES=20,BOOKING_REFUND_WINDOW_HOURS=24
       - --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest,MSG91_AUTH_KEY=msg91-auth-key:latest,MSG91_SENDER_ID=msg91-sender-id:latest,MSG91_TEMPLATE_ID=msg91-template-id:latest,CASHFREE_CLIENT_ID=cashfree-client-id:latest,CASHFREE_CLIENT_SECRET=cashfree-client-secret:latest,CASHFREE_PG_CLIENT_ID=cashfree-pg-client-id:latest,CASHFREE_PG_SECRET=cashfree-pg-secret:latest
 
 images:
