@@ -359,8 +359,18 @@ const initiateBooking = async (customerUserId, body) => {
       note: `Booking · ${business.name}`,
     });
   } catch (err) {
-    await releaseHold({ ...(await Booking.findById(bookingId)) }, BOOKING_STATUS.PAYMENT_FAILED);
-    throw Object.assign(new Error('could not start payment; please try again'), { status: 502 });
+    console.error(
+      'cashfree createOrder failed:',
+      err.detail || err.message,
+      err.data ? JSON.stringify(err.data) : '',
+    );
+    const pending = await Booking.findById(bookingId);
+    if (pending) await releaseHold(pending, BOOKING_STATUS.PAYMENT_FAILED);
+    const clientMsg =
+      err.detail ||
+      err.message ||
+      'Could not start payment. Check Cashfree PG credentials and sandbox/prod mode match.';
+    throw Object.assign(new Error(clientMsg), { status: err.status === 401 || err.status === 403 ? 502 : err.status || 502 });
   }
 
   const paymentSessionId = order.payment_session_id;

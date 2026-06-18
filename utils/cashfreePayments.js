@@ -19,9 +19,16 @@ const headers = (extra = {}) => ({
 const parse = async (res) => {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(data.message || 'Cashfree payment request failed');
+    const parts = [
+      data.message,
+      data.error?.message,
+      data.code,
+      Array.isArray(data.details) ? data.details.map((d) => d.message || d).join('; ') : null,
+    ].filter(Boolean);
+    const err = new Error(parts[0] || 'Cashfree payment request failed');
     err.status = res.status;
     err.data = data;
+    err.detail = parts.join(' — ') || err.message;
     throw err;
   }
   return data;
@@ -30,10 +37,22 @@ const parse = async (res) => {
 const isConfigured = () =>
   Boolean(process.env.CASHFREE_PG_CLIENT_ID && process.env.CASHFREE_PG_SECRET);
 
-/**
- * Create a Cashfree order. `amount` is in rupees (Cashfree expects a decimal
- * order_amount, not paise). Returns the order incl. payment_session_id.
- */
+/** Cashfree expects a 10-digit Indian mobile (no +91 prefix). */
+const normalizePhone = (raw) => {
+  const digits = String(raw ?? '').replace(/\D/g, '');
+  const ten = digits.length >= 10 ? digits.slice(-10) : digits;
+  return ten.length === 10 ? ten : null;
+};
+
+/** Cashfree accepts ISO-8601; prefer IST offset without milliseconds. */
+const formatExpiry = (date) => {
+  const d = date instanceof Date ? date : new Date(date);
+  const istMs = d.getTime() + 5.5 * 60 * 60 * 1000;
+  const ist = new Date(istMs);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${ist.getUTCFullYear()}-${pad(ist.getUTCMonth() + 1)}-${pad(ist.getUTCDate())}T${pad(ist.getUTCHours())}:${pad(ist.getUTCMinutes())}:${pad(ist.getUTCSeconds())}+05:30`;
+};
+
 const createOrder = async ({
   orderId,
   amount,
@@ -43,26 +62,42 @@ const createOrder = async ({
   expiryIso,
   note,
 }) => {
+  const phone = normalizePhone(customer.phone);
+  if (!phone) {
+    throw Object.assign(new Error('customer phone must be a valid 10-digit mobile number'), {
+      status: 400,
+    });
+  }
+
+  const orderAmount = Number(amount);
+  if (!Number.isFinite(orderAmount) || orderAmount < 1) {
+    throw Object.assign(new Error('order amount must be at least ₹1'), { status: 400 });
+  }
+
   const body = {
-    order_id: orderId,
-    order_amount: Number(amount),
+    order_id: String(orderId),
+    order_amount: orderAmount,
     order_currency: 'INR',
     customer_details: {
-      customer_id: String(customer.id),
-      customer_phone: String(customer.phone || ''),
-      ...(customer.name ? { customer_name: customer.name } : {}),
-      ...(customer.email ? { customer_email: customer.email } : {}),
+      customer_id: String(customer.id).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 50),
+      customer_phone: phone,
+      ...(customer.name ? { customer_name: String(customer.name).slice(0, 100) } : {}),
+      ...(customer.email ? { customer_email: String(customer.email).slice(0, 100) } : {}),
     },
     order_meta: {
-      ...(returnUrl ? { return_url: returnUrl } : {}),
-      ...(notifyUrl ? { notify_url: notifyUrl } : {}),
+      ...(returnUrl ? { return_url: String(returnUrl).slice(0, 250) } : {}),
+      ...(notifyUrl ? { notify_url: String(notifyUrl).slice(0, 250) } : {}),
     },
-    ...(expiryIso ? { order_expiry_time: expiryIso } : {}),
-    ...(note ? { order_note: note } : {}),
+    ...(expiryIso ? { order_expiry_time: formatExpiry(expiryIso) } : {}),
+    ...(note ? { order_note: String(note).slice(0, 200) } : {}),
   };
+
   return fetch(`${BASE}/orders`, {
     method: 'POST',
-    headers: headers({ 'Content-Type': 'application/json' }),
+    headers: headers({
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    }),
     body: JSON.stringify(body),
   }).then(parse);
 };
