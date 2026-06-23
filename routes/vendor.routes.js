@@ -2,6 +2,7 @@ const { Router } = require('express');
 const vendorController = require('../controllers/vendor.controller');
 const vendorKycController = require('../controllers/vendor.kyc.controller');
 const businessController = require('../controllers/business.controller');
+const eventController = require('../controllers/event.controller');
 const authenticate = require('../middlewares/auth');
 const requireRole = require('../middlewares/role');
 const requireKyc = require('../middlewares/requireKyc');
@@ -23,6 +24,15 @@ router.use(requireKyc);
 router.get('/profile', vendorController.getProfile);
 router.patch('/profile', vendorController.updateProfile);
 router.get('/bookings', vendorController.listBookings);
+
+router.get('/events', eventController.listVendorEvents);
+router.post('/events', eventController.createEvent);
+router.get('/events/:id', eventController.getVendorEvent);
+router.patch('/events/:id', eventController.updateEvent);
+router.post('/events/:id/publish', eventController.publishEvent);
+router.post('/events/:id/unpublish', eventController.unpublishEvent);
+router.post('/events/:id/cancel', eventController.cancelEvent);
+router.delete('/events/:id', eventController.deleteEvent);
 
 router.get('/businesses', businessController.list);
 router.post('/businesses', businessController.create);

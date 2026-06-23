@@ -1,4 +1,5 @@
 const bookingService = require('../services/booking.service');
+const eventService = require('../services/event.service');
 const cashfreePayments = require('../utils/cashfreePayments');
 
 // Cashfree Payment Gateway webhook. Verifies the HMAC signature against the raw
@@ -14,7 +15,13 @@ exports.cashfreePayments = async (req, res) => {
   }
 
   try {
-    await bookingService.handlePaymentWebhook(req.body);
+    // One Cashfree account funds both venue bookings and event registrations.
+    // Try the booking handler first; if the order isn't a booking, fan out to
+    // the event-registration handler. (order_id disambiguates the two.)
+    const result = await bookingService.handlePaymentWebhook(req.body);
+    if (result?.ignored) {
+      await eventService.handlePaymentWebhook(req.body);
+    }
   } catch (err) {
     // Acknowledge anyway; the status poll + sweeper will reconcile.
     console.error('cashfree webhook processing error:', err.message);

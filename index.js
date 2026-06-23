@@ -10,6 +10,7 @@ const Otp = require('./models/Otp');
 const catalogService = require('./services/businessCatalog.service');
 const slotsService = require('./services/businessSlots.service');
 const bookingService = require('./services/booking.service');
+const eventService = require('./services/event.service');
 
 const port = process.env.PORT || 8080;
 
@@ -25,6 +26,7 @@ const start = async () => {
     }
     await slotsService.ensureIndexes();
     await bookingService.ensureIndexes();
+    await eventService.ensureIndexes();
     await Business.ensureIndexes();
     await User.ensureIndexes();
     await Otp.ensureIndexes();
@@ -38,6 +40,9 @@ const start = async () => {
       bookingService
         .releaseExpiredHolds()
         .catch((err) => console.error('hold sweep failed:', err.message));
+      eventService
+        .releaseExpiredHolds()
+        .catch((err) => console.error('event hold sweep failed:', err.message));
     }, sweepMs).unref();
   } catch (err) {
     console.error('DB connection failed:', err);
