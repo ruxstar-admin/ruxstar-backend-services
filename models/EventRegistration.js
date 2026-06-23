@@ -155,11 +155,17 @@ const listByCustomer = async (customerUserId) => {
   return rows.map(sanitize);
 };
 
-// Vendor view: confirmed (and cancelled) registrants for one event.
+// Vendor view: all active and historical registrants for one event.
 const listByEvent = async (eventId, { vendorId } = {}) => {
   const filter = {
     eventId: toObjectId(eventId),
-    status: { $in: [REGISTRATION_STATUS.CONFIRMED, REGISTRATION_STATUS.CANCELLED] },
+    status: {
+      $in: [
+        REGISTRATION_STATUS.CONFIRMED,
+        REGISTRATION_STATUS.PENDING_PAYMENT,
+        REGISTRATION_STATUS.CANCELLED,
+      ],
+    },
   };
   if (vendorId) filter.vendorId = toObjectId(vendorId);
   const rows = await collection().find(filter).sort({ createdAt: -1 }).toArray();
