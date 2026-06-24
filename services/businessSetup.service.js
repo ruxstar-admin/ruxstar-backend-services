@@ -370,7 +370,9 @@ const validateReadyToComplete = (setup, typeId) => {
 const getSetup = async (businessId, vendorId) => {
   const business = await getOwned(businessId, vendorId);
   if (!business.setup) {
-    const updated = await Business.updateForVendor(businessId, vendorId, { setup: defaultSetup() });
+    const updated = await Business.updateForVendor(businessId, vendorId, {
+      setup: defaultSetup({ typeId: business.typeId }),
+    });
     return formatBusinessForClient(updated);
   }
   return formatBusinessForClient(business);
