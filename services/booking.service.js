@@ -8,10 +8,14 @@ const setupService = require('./businessSetup.service');
 const photoStorage = require('./photoStorage.service');
 const cashfreePayments = require('../utils/cashfreePayments');
 const { HOLD_MINUTES, BOOKING_STATUS } = require('../constants/payments');
+const { isServiceType } = require('../constants/businessSetup');
 const {
   getLiveBusiness,
+  isServiceBusiness,
   buildSlotsPayload,
+  buildServiceAvailability,
   assertSlotForBooking,
+  assertServiceSlotForBooking,
 } = require('./businessSlots.service');
 
 const formatPublicBusiness = (business) => {
@@ -33,7 +37,10 @@ const formatPublicBusiness = (business) => {
       slotMinutes: setup.slotMinutes ?? 60,
       pricePerSlot: setup.pricePerSlot ?? 0,
       resources: setup.resources ?? [],
-      bookingMode: setup.bookingMode === 'fullDay' ? 'fullDay' : 'slots',
+      services: setup.services ?? [],
+      staff: setup.staff ?? [],
+      bufferMinutes: setup.bufferMinutes ?? 0,
+      bookingMode: setup.bookingMode,
       maxGuests: setup.maxGuests ?? null,
       venueRules: setup.venueRules ?? '',
     },
@@ -61,12 +68,24 @@ const resolvePublicCoverUrl = (business) => {
 
 const formatPublicBusinessSummary = (business, vendorName = '') => {
   const setup = business.setup ?? {};
+  const serviceMode = isServiceType(business.typeId);
   const basePrice = Number(setup.pricePerSlot) || 0;
   const resources = Array.isArray(setup.resources) ? setup.resources : [];
-  const resourcePrices = resources
-    .map((r) => Number(r && r.pricePerSlot))
-    .filter((p) => Number.isFinite(p) && p >= 0);
-  const prices = resourcePrices.length ? resourcePrices : [basePrice];
+  const services = Array.isArray(setup.services) ? setup.services : [];
+
+  let prices;
+  if (serviceMode) {
+    const servicePrices = services
+      .map((s) => Number(s && s.price))
+      .filter((p) => Number.isFinite(p) && p >= 0);
+    prices = servicePrices.length ? servicePrices : [0];
+  } else {
+    const resourcePrices = resources
+      .map((r) => Number(r && r.pricePerSlot))
+      .filter((p) => Number.isFinite(p) && p >= 0);
+    prices = resourcePrices.length ? resourcePrices : [basePrice];
+  }
+
   const coverUrl = resolvePublicCoverUrl(business);
   return {
     id: String(business._id),
@@ -77,11 +96,11 @@ const formatPublicBusinessSummary = (business, vendorName = '') => {
     module: business.module,
     address: business.address ?? '',
     description: business.description ?? '',
-    pricePerSlot: basePrice,
+    pricePerSlot: serviceMode ? Math.round(Math.min(...prices)) : basePrice,
     slotMinutes: setup.slotMinutes ?? 60,
-    bookingMode: setup.bookingMode === 'fullDay' ? 'fullDay' : 'slots',
+    bookingMode: serviceMode ? 'services' : setup.bookingMode === 'fullDay' ? 'fullDay' : 'slots',
     maxGuests: setup.maxGuests ?? null,
-    resourceCount: resources.length,
+    resourceCount: serviceMode ? services.length : resources.length,
     priceFrom: Math.round(Math.min(...prices)),
     priceTo: Math.round(Math.max(...prices)),
     coverUrl,
@@ -114,29 +133,26 @@ const getPublicBusiness = async (businessId) => {
 
 const listPublicSlots = async (businessId, query) => {
   const business = await getLiveBusiness(businessId);
+  if (isServiceBusiness(business)) return buildServiceAvailability(business, query);
   return buildSlotsPayload(business, query, { publicView: true });
 };
 
 const createBooking = async (customerUserId, body) => {
   const businessId = String(body.businessId ?? '').trim();
-  const resourceId = String(body.resourceId ?? '').trim();
-  const startAt = String(body.startAt ?? '').trim();
-
-  if (!businessId || !resourceId || !startAt) {
-    throw Object.assign(new Error('businessId, resourceId and startAt required'), { status: 400 });
+  if (!businessId) {
+    throw Object.assign(new Error('businessId required'), { status: 400 });
   }
 
   const user = await User.findById(customerUserId);
   if (!user) throw Object.assign(new Error('user not found'), { status: 404 });
 
   const business = await getLiveBusiness(businessId);
-  const slot = await assertSlotForBooking(businessId, business, resourceId, startAt);
+  const target = await resolveBookingTarget(business, body);
 
-  if (new Date(slot.startAt).getTime() <= Date.now()) {
-    throw Object.assign(new Error('cannot book a past slot'), { status: 400 });
+  if (new Date(target.startAt).getTime() <= Date.now()) {
+    throw Object.assign(new Error('cannot book a time in the past'), { status: 400 });
   }
 
-  const resource = business.setup.resources.find((r) => r.id === resourceId);
   const bookingMeta = {
     bookingId: randomUUID(),
     customerUserId: String(customerUserId),
@@ -144,16 +160,37 @@ const createBooking = async (customerUserId, body) => {
     customerMobile: user.mobile ?? '',
   };
 
+  const serviceFields = target.serviceMode
+    ? {
+        services: target.services,
+        serviceLabel: target.serviceLabel,
+        durationMinutes: target.durationMinutes,
+      }
+    : {};
+
   // Hold the slot and persist the booking atomically. On a replica set / Atlas
   // both writes commit together (or roll back together); on a standalone dev
   // mongod we fall back to a manual compensating delete.
   const booking = await withTransaction(async (session) => {
+    if (target.serviceMode) {
+      const overlap = await BusinessSlotState.findOverlap(
+        businessId,
+        target.resourceId,
+        target.conflictStart,
+        target.conflictEnd,
+        { session },
+      );
+      if (overlap) {
+        throw Object.assign(new Error('that time was just taken; pick another'), { status: 409 });
+      }
+    }
+
     const slotOk = await BusinessSlotState.insertBooked(
       businessId,
       {
-        resourceId,
-        startAt: slot.startAt,
-        endAt: slot.endAt,
+        resourceId: target.resourceId,
+        startAt: target.startAt,
+        endAt: target.endAt,
         booking: bookingMeta,
       },
       { session },
@@ -170,21 +207,22 @@ const createBooking = async (customerUserId, body) => {
           businessName: business.name,
           typeLabel: business.typeLabel,
           vendorId: business.vendorId,
-          resourceId,
-          resourceName: resource?.name ?? '',
-          startAt: new Date(slot.startAt),
-          endAt: new Date(slot.endAt),
-          pricePerSlot: slot.pricePerSlot,
+          resourceId: target.resourceId,
+          resourceName: target.resourceName,
+          startAt: new Date(target.startAt),
+          endAt: new Date(target.endAt),
+          pricePerSlot: target.pricePerSlot,
           customerUserId,
           customerName: bookingMeta.customerName,
           customerMobile: bookingMeta.customerMobile,
+          ...serviceFields,
         },
         { session },
       );
     } catch (err) {
       // Without a transaction the slot hold won't auto-roll back, so undo it.
       if (!session) {
-        await BusinessSlotState.removeBooked(businessId, resourceId, slot.startAt);
+        await BusinessSlotState.removeBooked(businessId, target.resourceId, target.startAt);
       }
       if (err?.code === 11000) {
         throw Object.assign(new Error('slot is no longer available'), { status: 409 });
@@ -258,13 +296,87 @@ const releaseHold = async (booking, status) => {
   });
 };
 
-const initiateBooking = async (customerUserId, body) => {
-  const businessId = String(body.businessId ?? '').trim();
+// Resolve a unified booking target from the request, for both the fixed-grid
+// (resource) model and the service-first (staff) model.
+const resolveBookingTarget = async (business, body) => {
+  const businessId = String(business._id);
+  if (isServiceBusiness(business)) {
+    const serviceIds = Array.isArray(body.serviceIds)
+      ? body.serviceIds.join(',')
+      : String(body.serviceIds ?? '');
+    const startAt = String(body.startAt ?? '').trim();
+    if (!serviceIds.trim() || !startAt) {
+      throw Object.assign(new Error('serviceIds and startAt required'), { status: 400 });
+    }
+    const resolved = await assertServiceSlotForBooking(businessId, business, {
+      serviceIds,
+      staffId: String(body.staffId ?? '').trim() || undefined,
+      startAt,
+    });
+    return {
+      serviceMode: true,
+      resourceId: resolved.staffId,
+      resourceName: resolved.staffName,
+      startAt: resolved.startAt,
+      endAt: resolved.endAt,
+      pricePerSlot: resolved.pricePerSlot,
+      services: resolved.services,
+      serviceLabel: resolved.serviceLabel,
+      durationMinutes: resolved.durationMinutes,
+      conflictStart: resolved.conflictStart,
+      conflictEnd: resolved.conflictEnd,
+    };
+  }
+
   const resourceId = String(body.resourceId ?? '').trim();
   const startAt = String(body.startAt ?? '').trim();
+  if (!resourceId || !startAt) {
+    throw Object.assign(new Error('resourceId and startAt required'), { status: 400 });
+  }
+  const slot = await assertSlotForBooking(businessId, business, resourceId, startAt);
+  const resource = business.setup.resources.find((r) => r.id === resourceId);
+  return {
+    serviceMode: false,
+    resourceId,
+    resourceName: resource?.name ?? '',
+    startAt: slot.startAt,
+    endAt: slot.endAt,
+    pricePerSlot: slot.pricePerSlot,
+  };
+};
 
-  if (!businessId || !resourceId || !startAt) {
-    throw Object.assign(new Error('businessId, resourceId and startAt required'), { status: 400 });
+// Claim a pending hold for the target inside a transaction. Service-mode also
+// guards against overlapping (different-start) appointments for the staff.
+const claimPendingForTarget = async (businessId, target, { expiresAt, booking }, session) => {
+  if (target.serviceMode) {
+    const overlap = await BusinessSlotState.findOverlap(
+      businessId,
+      target.resourceId,
+      target.conflictStart,
+      target.conflictEnd,
+      { session },
+    );
+    if (overlap) {
+      throw Object.assign(new Error('that time was just taken; pick another'), { status: 409 });
+    }
+  }
+  return BusinessSlotState.claimPending(
+    businessId,
+    {
+      resourceId: target.resourceId,
+      startAt: target.startAt,
+      endAt: target.endAt,
+      expiresAt,
+      booking,
+    },
+    { session },
+  );
+};
+
+const initiateBooking = async (customerUserId, body) => {
+  const businessId = String(body.businessId ?? '').trim();
+  if (!businessId) {
+    throw Object.assign(new Error('businessId required'), { status: 400 });
   }
   if (!cashfreePayments.isConfigured()) {
     throw Object.assign(new Error('payments are not configured'), { status: 503 });
@@ -274,15 +386,14 @@ const initiateBooking = async (customerUserId, body) => {
   if (!user) throw Object.assign(new Error('user not found'), { status: 404 });
 
   const business = await getLiveBusiness(businessId);
-  const slot = await assertSlotForBooking(businessId, business, resourceId, startAt);
-  if (new Date(slot.startAt).getTime() <= Date.now()) {
-    throw Object.assign(new Error('cannot book a past slot'), { status: 400 });
+  const target = await resolveBookingTarget(business, body);
+  if (new Date(target.startAt).getTime() <= Date.now()) {
+    throw Object.assign(new Error('cannot book a time in the past'), { status: 400 });
   }
 
-  const resource = business.setup.resources.find((r) => r.id === resourceId);
-  const amount = Number(slot.pricePerSlot) || 0;
+  const amount = Number(target.pricePerSlot) || 0;
   if (amount <= 0) {
-    throw Object.assign(new Error('this slot has no price set; contact the venue'), { status: 400 });
+    throw Object.assign(new Error('this booking has no price set; contact the business'), { status: 400 });
   }
 
   const bookingId = randomUUID();
@@ -294,19 +405,17 @@ const initiateBooking = async (customerUserId, body) => {
     customerMobile: user.mobile ?? '',
   };
 
+  const serviceFields = target.serviceMode
+    ? {
+        services: target.services,
+        serviceLabel: target.serviceLabel,
+        durationMinutes: target.durationMinutes,
+      }
+    : {};
+
   // Hold the slot + create the pending booking atomically.
   await withTransaction(async (session) => {
-    const ok = await BusinessSlotState.claimPending(
-      businessId,
-      {
-        resourceId,
-        startAt: slot.startAt,
-        endAt: slot.endAt,
-        expiresAt,
-        booking: bookingMeta,
-      },
-      { session },
-    );
+    const ok = await claimPendingForTarget(businessId, target, { expiresAt, booking: bookingMeta }, session);
     if (!ok) {
       throw Object.assign(new Error('slot is no longer available'), { status: 409 });
     }
@@ -318,24 +427,25 @@ const initiateBooking = async (customerUserId, body) => {
           businessName: business.name,
           typeLabel: business.typeLabel,
           vendorId: business.vendorId,
-          resourceId,
-          resourceName: resource?.name ?? '',
-          startAt: new Date(slot.startAt),
-          endAt: new Date(slot.endAt),
-          pricePerSlot: slot.pricePerSlot,
+          resourceId: target.resourceId,
+          resourceName: target.resourceName,
+          startAt: new Date(target.startAt),
+          endAt: new Date(target.endAt),
+          pricePerSlot: target.pricePerSlot,
           amount,
           currency: 'INR',
           customerUserId,
           customerName: bookingMeta.customerName,
           customerMobile: bookingMeta.customerMobile,
           expiresAt,
+          ...serviceFields,
         },
         { session },
       );
     } catch (err) {
       // Standalone (no-transaction) fallback: undo the hold we just placed.
       if (!session) {
-        await BusinessSlotState.releasePending(businessId, resourceId, slot.startAt, bookingId);
+        await BusinessSlotState.releasePending(businessId, target.resourceId, target.startAt, bookingId);
       }
       throw err;
     }

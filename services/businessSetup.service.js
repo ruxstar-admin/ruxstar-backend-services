@@ -7,17 +7,29 @@ const {
   MAX_PHOTOS,
   MAX_PHOTO_BYTES,
   SETUP_MODULES,
+  isServiceType,
+  MAX_SERVICES,
+  MAX_STAFF,
+  MAX_BUFFER_MINUTES,
+  MIN_SERVICE_MINUTES,
+  MAX_SERVICE_MINUTES,
 } = require('../constants/businessSetup');
 
 const defaultSetup = (options = {}) => {
-  const bookingMode =
-    options.bookingMode === 'fullDay' ? 'fullDay' : 'slots';
+  const bookingMode = isServiceType(options.typeId)
+    ? 'services'
+    : options.bookingMode === 'fullDay'
+      ? 'fullDay'
+      : 'slots';
   return {
   photos: [],
   weeklyHours: { ...DEFAULT_WEEKLY_HOURS },
   slotMinutes: 60,
   pricePerSlot: 0,
   resources: [],
+  services: [],
+  staff: [],
+  bufferMinutes: 0,
   bookingMode,
   maxGuests: null,
   venueRules: '',
@@ -101,7 +113,75 @@ const normalizeResources = (raw) => {
     .filter(Boolean);
 };
 
-const normalizeBookingMode = (raw) => (raw === 'fullDay' ? 'fullDay' : 'slots');
+const normalizeBookingMode = (raw) =>
+  raw === 'fullDay' ? 'fullDay' : raw === 'services' ? 'services' : 'slots';
+
+const normalizeStaff = (raw) => {
+  if (!Array.isArray(raw)) throw Object.assign(new Error('staff must be an array'), { status: 400 });
+  if (raw.length > MAX_STAFF) {
+    throw Object.assign(new Error(`maximum ${MAX_STAFF} staff members allowed`), { status: 400 });
+  }
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const name = String(item.name ?? '').trim();
+      if (!name) return null;
+      const id = String(item.id ?? '').trim() || randomUUID();
+      const role = String(item.role ?? '').trim();
+      return { id, name: name.slice(0, 80), ...(role ? { role: role.slice(0, 80) } : {}) };
+    })
+    .filter(Boolean);
+};
+
+const normalizeServices = (raw, staff = []) => {
+  if (!Array.isArray(raw)) throw Object.assign(new Error('services must be an array'), { status: 400 });
+  if (raw.length > MAX_SERVICES) {
+    throw Object.assign(new Error(`maximum ${MAX_SERVICES} services allowed`), { status: 400 });
+  }
+  const staffIdSet = new Set(staff.map((s) => s.id));
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const name = String(item.name ?? '').trim();
+      if (!name) return null;
+      const id = String(item.id ?? '').trim() || randomUUID();
+
+      const durationMinutes = Math.round(Number(item.durationMinutes));
+      if (!Number.isFinite(durationMinutes) || durationMinutes < MIN_SERVICE_MINUTES || durationMinutes > MAX_SERVICE_MINUTES) {
+        throw Object.assign(
+          new Error(`"${name}" needs a duration between ${MIN_SERVICE_MINUTES} and ${MAX_SERVICE_MINUTES} minutes`),
+          { status: 400 },
+        );
+      }
+
+      const price = Math.round(Number(item.price));
+      if (!Number.isFinite(price) || price < 0) {
+        throw Object.assign(new Error(`"${name}" needs a valid price`), { status: 400 });
+      }
+
+      const staffIds = Array.isArray(item.staffIds)
+        ? [...new Set(item.staffIds.map((x) => String(x)).filter((x) => staffIdSet.has(x)))]
+        : [];
+
+      const description = String(item.description ?? '').trim();
+      return {
+        id,
+        name: name.slice(0, 80),
+        durationMinutes,
+        price,
+        staffIds,
+        ...(description ? { description: description.slice(0, 300) } : {}),
+      };
+    })
+    .filter(Boolean);
+};
+
+const normalizeBufferMinutes = (raw) => {
+  if (raw === null || raw === undefined || raw === '') return 0;
+  const n = Math.round(Number(raw));
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(n, MAX_BUFFER_MINUTES);
+};
 
 const normalizeMaxGuests = (raw) => {
   if (raw === null || raw === undefined || raw === '') return null;
@@ -133,8 +213,8 @@ const formatPhoto = (photo, businessId) => {
   };
 };
 
-const formatSetupForClient = (setup, businessId) => {
-  if (!setup) return defaultSetup();
+const formatSetupForClient = (setup, businessId, typeId) => {
+  if (!setup) return defaultSetup({ typeId });
   return {
     photos: Array.isArray(setup.photos)
       ? setup.photos.map((p) => formatPhoto(p, businessId))
@@ -143,7 +223,12 @@ const formatSetupForClient = (setup, businessId) => {
     slotMinutes: setup.slotMinutes ?? 60,
     pricePerSlot: setup.pricePerSlot ?? 0,
     resources: Array.isArray(setup.resources) ? setup.resources : [],
-    bookingMode: normalizeBookingMode(setup.bookingMode),
+    services: Array.isArray(setup.services) ? setup.services : [],
+    staff: Array.isArray(setup.staff) ? setup.staff : [],
+    bufferMinutes: normalizeBufferMinutes(setup.bufferMinutes),
+    // Service-first types always report `services` mode to clients, regardless
+    // of any legacy value stored before the model switch.
+    bookingMode: isServiceType(typeId) ? 'services' : normalizeBookingMode(setup.bookingMode),
     maxGuests: normalizeMaxGuests(setup.maxGuests),
     venueRules: typeof setup.venueRules === 'string' ? setup.venueRules : '',
   };
@@ -159,7 +244,7 @@ const formatBusinessForClient = (business) => {
   if (!business) return business;
   const { setup, ...rest } = business;
   const businessId = business._id ?? business.id;
-  const formattedSetup = formatSetupForClient(setup, businessId);
+  const formattedSetup = formatSetupForClient(setup, businessId, business.typeId);
   const thumbnailUrl =
     (typeof business.thumbnailUrl === 'string' && business.thumbnailUrl.trim()) ||
     formattedSetup.photos[0]?.url ||
@@ -217,7 +302,36 @@ const resourcePrice = (resource, setup) => {
   return Math.round(Number(setup?.pricePerSlot) || 0);
 };
 
-const validateReadyToComplete = (setup) => {
+const validateServiceSetup = (setup) => {
+  const staff = Array.isArray(setup.staff) ? setup.staff : [];
+  const services = Array.isArray(setup.services) ? setup.services : [];
+  if (!staff.length) {
+    throw Object.assign(new Error('add at least one staff member'), { status: 400 });
+  }
+  if (!services.length) {
+    throw Object.assign(new Error('add at least one service'), { status: 400 });
+  }
+  const staffIds = new Set(staff.map((s) => s.id));
+  for (const service of services) {
+    const duration = Math.round(Number(service.durationMinutes));
+    if (!Number.isFinite(duration) || duration < MIN_SERVICE_MINUTES) {
+      throw Object.assign(new Error(`"${service.name}" needs a valid duration`), { status: 400 });
+    }
+    const price = Math.round(Number(service.price));
+    if (!Number.isFinite(price) || price < 0) {
+      throw Object.assign(new Error(`"${service.name}" needs a valid price`), { status: 400 });
+    }
+    const assigned = (service.staffIds ?? []).filter((id) => staffIds.has(id));
+    if (!assigned.length) {
+      throw Object.assign(
+        new Error(`assign at least one staff member to "${service.name}"`),
+        { status: 400 },
+      );
+    }
+  }
+};
+
+const validateReadyToComplete = (setup, typeId) => {
   const hours = setup.weeklyHours ?? {};
   const hasOpenDay = DAYS.some((day) => {
     const row = hours[day];
@@ -225,6 +339,11 @@ const validateReadyToComplete = (setup) => {
   });
   if (!hasOpenDay) {
     throw Object.assign(new Error('set at least one open day'), { status: 400 });
+  }
+
+  if (isServiceType(typeId)) {
+    validateServiceSetup(setup);
+    return;
   }
 
   const bookingMode = normalizeBookingMode(setup.bookingMode);
@@ -287,6 +406,12 @@ const updateSetup = async (businessId, vendorId, body) => {
     const prices = patch.resources.map((r) => resourcePrice(r, patch));
     if (prices.length) patch.pricePerSlot = Math.min(...prices);
   }
+  if (body.staff !== undefined) patch.staff = normalizeStaff(body.staff);
+  if (body.services !== undefined) {
+    const staffForServices = Array.isArray(patch.staff) ? patch.staff : [];
+    patch.services = normalizeServices(body.services, staffForServices);
+  }
+  if (body.bufferMinutes !== undefined) patch.bufferMinutes = normalizeBufferMinutes(body.bufferMinutes);
   if (body.bookingMode !== undefined) patch.bookingMode = normalizeBookingMode(body.bookingMode);
   if (body.maxGuests !== undefined) patch.maxGuests = normalizeMaxGuests(body.maxGuests);
   if (body.venueRules !== undefined) {
@@ -436,8 +561,8 @@ const completeSetup = async (businessId, vendorId) => {
   const business = await getOwned(businessId, vendorId);
   assertAppointmentsModule(business);
 
-  const setup = business.setup ?? defaultSetup();
-  validateReadyToComplete(setup);
+  const setup = business.setup ?? defaultSetup({ typeId: business.typeId });
+  validateReadyToComplete(setup, business.typeId);
 
   const updated = await Business.updateForVendor(businessId, vendorId, {
     setupComplete: true,

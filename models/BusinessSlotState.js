@@ -81,6 +81,27 @@ const removeBlocked = async (businessId, resourceId, startAt) => {
   return deletedCount > 0;
 };
 
+// Find an active (booked or live-pending) reservation for this resource that
+// overlaps [startAt, endAt). Used by service-mode bookings where variable
+// durations mean two appointments can clash without sharing a start time.
+const findOverlap = async (businessId, resourceId, startAt, endAt, { session } = {}) => {
+  const now = new Date();
+  const doc = await collection().findOne(
+    {
+      businessId: toObjectId(businessId),
+      resourceId: String(resourceId),
+      startAt: { $lt: new Date(endAt) },
+      endAt: { $gt: new Date(startAt) },
+      $or: [
+        { status: 'booked' },
+        { status: 'pending', pendingExpiresAt: { $gt: now } },
+      ],
+    },
+    session ? { session } : {},
+  );
+  return doc ? mapRow(doc) : null;
+};
+
 const insertBooked = async (businessId, { resourceId, startAt, endAt, booking }, { session } = {}) => {
   const doc = {
     businessId: toObjectId(businessId),
@@ -274,6 +295,7 @@ module.exports = {
   ensureIndexes,
   listInRange,
   findOne,
+  findOverlap,
   upsertBlocked,
   removeBlocked,
   insertBooked,

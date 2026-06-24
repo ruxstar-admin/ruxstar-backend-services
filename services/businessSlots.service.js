@@ -1,6 +1,10 @@
 const Business = require('../models/Business');
 const BusinessSlotState = require('../models/BusinessSlotState');
-const { SETUP_MODULES } = require('../constants/businessSetup');
+const {
+  SETUP_MODULES,
+  isServiceType,
+  SERVICE_SLOT_STEP_MINUTES,
+} = require('../constants/businessSetup');
 const {
   MAX_RANGE_DAYS,
   parseDateOnly,
@@ -32,13 +36,22 @@ const resourceBasePrice = (resource, setup) => {
   return Math.round(Number(setup?.pricePerSlot) || 0);
 };
 
+const isServiceBusiness = (business) => isServiceType(business?.typeId);
+
+const hasBookableSetup = (business) => {
+  if (isServiceBusiness(business)) {
+    return Boolean(business.setup?.staff?.length && business.setup?.services?.length);
+  }
+  return Boolean(business.setup?.resources?.length);
+};
+
 const getLiveBusiness = async (businessId, { withPhotoData = false } = {}) => {
   const business = await Business.findLiveById(businessId, { withPhotoData });
   if (!business) throw Object.assign(new Error('business not found'), { status: 404 });
   if (!SETUP_MODULES.includes(business.module)) {
     throw Object.assign(new Error('booking not available for this business yet'), { status: 400 });
   }
-  if (!business.setup?.resources?.length) {
+  if (!hasBookableSetup(business)) {
     throw Object.assign(new Error('business is not ready for bookings'), { status: 400 });
   }
   return business;
@@ -53,8 +66,11 @@ const getOwnedLive = async (businessId, vendorId) => {
   if (!business.setupComplete) {
     throw Object.assign(new Error('complete business setup before managing slots'), { status: 400 });
   }
-  if (!business.setup?.resources?.length) {
-    throw Object.assign(new Error('add resources in setup first'), { status: 400 });
+  if (!hasBookableSetup(business)) {
+    throw Object.assign(
+      new Error(isServiceBusiness(business) ? 'add staff and services in setup first' : 'add resources in setup first'),
+      { status: 400 },
+    );
   }
   return business;
 };
@@ -346,8 +362,215 @@ const assertSlotForBooking = async (businessId, business, resourceId, startAt) =
   };
 };
 
+// ───────────────────────── Service-first availability ─────────────────────────
+
+const intervalsOverlap = (aStart, aEnd, bStart, bEnd) => aStart < bEnd && bStart < aEnd;
+
+// Resolve the selected services from the setup, preserving setup order.
+const resolveSelectedServices = (business, serviceIdsRaw) => {
+  const services = Array.isArray(business.setup?.services) ? business.setup.services : [];
+  const ids = String(serviceIdsRaw ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!ids.length) return [];
+  const byId = new Map(services.map((s) => [s.id, s]));
+  // Keep duplicates out, honour requested set.
+  const seen = new Set();
+  const out = [];
+  for (const id of ids) {
+    if (seen.has(id)) continue;
+    const svc = byId.get(id);
+    if (svc) {
+      out.push(svc);
+      seen.add(id);
+    }
+  }
+  return out;
+};
+
+// Staff who can perform every selected service (intersection of staffIds).
+const eligibleStaffFor = (business, selectedServices, staffId) => {
+  const staff = Array.isArray(business.setup?.staff) ? business.setup.staff : [];
+  let eligible = staff;
+  if (selectedServices.length) {
+    eligible = staff.filter((st) =>
+      selectedServices.every((svc) => (svc.staffIds ?? []).includes(st.id)),
+    );
+  }
+  if (staffId) eligible = eligible.filter((st) => st.id === String(staffId));
+  return eligible;
+};
+
+// Active (booked / live-pending) intervals grouped by staff id, in ms.
+const busyIntervalsByStaff = (states) => {
+  const now = Date.now();
+  const map = new Map();
+  for (const st of states) {
+    const active =
+      st.status === 'booked' ||
+      (st.status === 'pending' && st.pendingExpiresAt && new Date(st.pendingExpiresAt).getTime() > now);
+    if (!active) continue;
+    const list = map.get(st.resourceId) ?? [];
+    list.push([new Date(st.startAt).getTime(), new Date(st.endAt).getTime()]);
+    map.set(st.resourceId, list);
+  }
+  return map;
+};
+
+const buildServiceAvailability = async (business, query) => {
+  const { fromDate, toDate } = parseRange(query.from, query.to);
+  const services = Array.isArray(business.setup?.services) ? business.setup.services : [];
+  const staff = Array.isArray(business.setup?.staff) ? business.setup.staff : [];
+  const buffer = Number(business.setup?.bufferMinutes) || 0;
+  const bufMs = buffer * 60 * 1000;
+
+  const selected = resolveSelectedServices(business, query.serviceIds);
+  const totalDuration = selected.reduce((sum, s) => sum + Number(s.durationMinutes || 0), 0);
+  const totalPrice = selected.reduce((sum, s) => sum + Number(s.price || 0), 0);
+  const eligible = eligibleStaffFor(business, selected, query.staffId);
+
+  const slots = [];
+  if (totalDuration > 0 && eligible.length) {
+    const rangeStart = slotIso(fromDate, '00:00');
+    const rangeEndExclusive = slotIso(addDays(toDate, 1), '00:00');
+    const states = await BusinessSlotState.listInRange(String(business._id), rangeStart, rangeEndExclusive);
+    const busyByStaff = busyIntervalsByStaff(states);
+    const now = Date.now();
+
+    let cursor = fromDate;
+    while (cursor <= toDate) {
+      const dayKey = dayKeyForDate(cursor);
+      const hours = business.setup.weeklyHours?.[dayKey];
+      if (hours && !hours.closed) {
+        const openMin = timeToMinutes(hours.open);
+        const closeMin = timeToMinutes(hours.close);
+        for (let startMin = openMin; startMin + totalDuration <= closeMin; startMin += SERVICE_SLOT_STEP_MINUTES) {
+          const startTime = minutesToTime(startMin);
+          const endTime = minutesToTime(startMin + totalDuration);
+          const startAt = slotIso(cursor, startTime);
+          const endAt = slotIso(cursor, endTime);
+          const startMs = new Date(startAt).getTime();
+          const endMs = new Date(endAt).getTime();
+          if (startMs <= now) continue;
+
+          const freeStaff = eligible.find((st) => {
+            const busy = busyByStaff.get(st.id) ?? [];
+            return !busy.some(([bs, be]) => intervalsOverlap(startMs - bufMs, endMs + bufMs, bs, be));
+          });
+          if (!freeStaff) continue;
+
+          slots.push({
+            id: slotKey(freeStaff.id, startAt),
+            resourceId: freeStaff.id,
+            resourceName: freeStaff.name,
+            staffId: freeStaff.id,
+            staffName: freeStaff.name,
+            date: cursor,
+            startTime,
+            endTime,
+            startAt,
+            endAt,
+            pricePerSlot: totalPrice,
+            durationMinutes: totalDuration,
+            status: 'available',
+          });
+        }
+      }
+      cursor = addDays(cursor, 1);
+    }
+  }
+
+  return {
+    businessId: String(business._id),
+    from: fromDate,
+    to: toDate,
+    timezone: 'Asia/Kolkata',
+    bookingMode: 'services',
+    bufferMinutes: buffer,
+    services,
+    staff,
+    selectedServiceIds: selected.map((s) => s.id),
+    durationMinutes: totalDuration,
+    pricePerSlot: totalPrice,
+    slots,
+  };
+};
+
+// Validate a service booking request and resolve the concrete staff + window.
+const assertServiceSlotForBooking = async (businessId, business, { serviceIds, staffId, startAt }) => {
+  const selected = resolveSelectedServices(business, serviceIds);
+  if (!selected.length) {
+    throw Object.assign(new Error('select at least one service'), { status: 400 });
+  }
+  const totalDuration = selected.reduce((sum, s) => sum + Number(s.durationMinutes || 0), 0);
+  const totalPrice = selected.reduce((sum, s) => sum + Number(s.price || 0), 0);
+
+  const dateStr = String(startAt).slice(0, 10);
+  const startTime = String(startAt).slice(11, 16);
+  if (!parseDateOnly(dateStr) || !TIME_RE.test(startTime)) {
+    throw Object.assign(new Error('invalid start time'), { status: 400 });
+  }
+  const dayKey = dayKeyForDate(dateStr);
+  const hours = business.setup.weeklyHours?.[dayKey];
+  if (!hours || hours.closed) {
+    throw Object.assign(new Error('closed on this day'), { status: 409 });
+  }
+  const startMinutes = timeToMinutes(startTime);
+  const openMin = timeToMinutes(hours.open);
+  const closeMin = timeToMinutes(hours.close);
+  if (startMinutes < openMin || startMinutes + totalDuration > closeMin) {
+    throw Object.assign(new Error('that time is outside opening hours'), { status: 409 });
+  }
+
+  const normalizedStartAt = slotIso(dateStr, startTime);
+  const endTime = minutesToTime(startMinutes + totalDuration);
+  const normalizedEndAt = slotIso(dateStr, endTime);
+
+  const eligible = eligibleStaffFor(business, selected, staffId);
+  if (!eligible.length) {
+    throw Object.assign(new Error('no staff can perform the selected services'), { status: 409 });
+  }
+
+  const buffer = Number(business.setup?.bufferMinutes) || 0;
+  const bufMs = buffer * 60 * 1000;
+  const startMs = new Date(normalizedStartAt).getTime();
+  const endMs = new Date(normalizedEndAt).getTime();
+  const conflictStart = new Date(startMs - bufMs);
+  const conflictEnd = new Date(endMs + bufMs);
+
+  // Pick the first eligible staff member who is free for the whole window.
+  let chosen = null;
+  for (const st of eligible) {
+    const overlap = await BusinessSlotState.findOverlap(businessId, st.id, conflictStart, conflictEnd);
+    if (!overlap) {
+      chosen = st;
+      break;
+    }
+  }
+  if (!chosen) {
+    throw Object.assign(new Error('that time was just taken; pick another'), { status: 409 });
+  }
+
+  return {
+    staffId: chosen.id,
+    staffName: chosen.name,
+    startAt: normalizedStartAt,
+    endAt: normalizedEndAt,
+    startTime,
+    endTime,
+    conflictStart,
+    conflictEnd,
+    durationMinutes: totalDuration,
+    pricePerSlot: totalPrice,
+    services: selected.map((s) => ({ id: s.id, name: s.name })),
+    serviceLabel: selected.map((s) => s.name).join(', '),
+  };
+};
+
 const listSlots = async (businessId, vendorId, query) => {
   const business = await getOwnedLive(businessId, vendorId);
+  if (isServiceBusiness(business)) return buildServiceAvailability(business, query);
   return buildSlotsPayload(business, query, { publicView: false });
 };
 
@@ -446,9 +669,12 @@ const ensureIndexes = () => BusinessSlotState.ensureIndexes();
 module.exports = {
   ensureIndexes,
   getLiveBusiness,
+  isServiceBusiness,
   buildSlotsPayload,
+  buildServiceAvailability,
   assertSlotExists,
   assertSlotForBooking,
+  assertServiceSlotForBooking,
   listSlots,
   blockSlot,
   unblockSlot,

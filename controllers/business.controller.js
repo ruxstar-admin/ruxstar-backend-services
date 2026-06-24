@@ -70,7 +70,7 @@ exports.create = async (req, res) => {
     phone: str(req.body.phone),
     address: str(req.body.address),
     description,
-    setup: setupService.defaultSetup({ bookingMode: req.body.bookingMode }),
+    setup: setupService.defaultSetup({ bookingMode: req.body.bookingMode, typeId: businessType.id }),
   });
 
   if (thumbnail) {
