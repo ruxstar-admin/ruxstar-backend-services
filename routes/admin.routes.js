@@ -7,22 +7,29 @@ const ROLES = require('../constants/roles');
 
 const router = Router();
 
-router.use(authenticate, requireRole(ROLES.ADMIN));
+// Staff area: any authenticated admin OR employee may enter. Sensitive
+// mutations (staff management, catalog edits) are gated to admins below.
+router.use(authenticate, requireRole(ROLES.ADMIN, ROLES.EMPLOYEE));
 
+const adminOnly = requireRole(ROLES.ADMIN);
+
+// Staff management — admins only.
 router.get('/users', adminController.listUsers);
-router.post('/users', adminController.createUser);
-router.patch('/users/:id', adminController.updateUser);
+router.post('/users', adminOnly, adminController.createUser);
+router.patch('/users/:id', adminOnly, adminController.updateUser);
 
+// Vendor KYC review — admins and employees.
 router.get('/kyc', adminController.listKyc);
 router.get('/kyc/:userId', adminController.getKyc);
 router.patch('/kyc/:userId', adminController.reviewKyc);
 
+// Catalog — readable by staff, editable by admins only.
 router.get('/business-categories', adminCatalogController.listCategories);
-router.post('/business-categories', adminCatalogController.createCategory);
-router.patch('/business-categories/:id', adminCatalogController.updateCategory);
+router.post('/business-categories', adminOnly, adminCatalogController.createCategory);
+router.patch('/business-categories/:id', adminOnly, adminCatalogController.updateCategory);
 
 router.get('/business-types', adminCatalogController.listTypes);
-router.post('/business-types', adminCatalogController.createType);
-router.patch('/business-types/:id', adminCatalogController.updateType);
+router.post('/business-types', adminOnly, adminCatalogController.createType);
+router.patch('/business-types/:id', adminOnly, adminCatalogController.updateType);
 
 module.exports = router;
