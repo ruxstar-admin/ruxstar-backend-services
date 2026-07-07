@@ -6,6 +6,8 @@ const publicRoutes = require('./public.routes');
 const userRoutes = require('./user.routes');
 const vendorRoutes = require('./vendor.routes');
 const webhookRoutes = require('./webhook.routes');
+const notificationRoutes = require('./notification.routes');
+const podRoutes = require('./pod.routes');
 
 const router = Router();
 
@@ -17,6 +19,8 @@ router.use('/auth', authRoutes);
 router.use('/admin', adminRoutes);
 router.use('/user', userRoutes);
 router.use('/vendor', vendorRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/pod', podRoutes);
 router.use('/webhooks', webhookRoutes);
 
 module.exports = router;

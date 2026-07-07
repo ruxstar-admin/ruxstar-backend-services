@@ -11,6 +11,8 @@ const catalogService = require('./services/businessCatalog.service');
 const slotsService = require('./services/businessSlots.service');
 const bookingService = require('./services/booking.service');
 const eventService = require('./services/event.service');
+const printOrderService = require('./services/printOrder.service');
+const notificationService = require('./services/notification.service');
 
 const port = process.env.PORT || 8080;
 
@@ -27,6 +29,8 @@ const start = async () => {
     await slotsService.ensureIndexes();
     await bookingService.ensureIndexes();
     await eventService.ensureIndexes();
+    await printOrderService.ensureIndexes();
+    await notificationService.ensureIndexes();
     await Business.ensureIndexes();
     await User.ensureIndexes();
     await Otp.ensureIndexes();
@@ -43,6 +47,9 @@ const start = async () => {
       eventService
         .releaseExpiredHolds()
         .catch((err) => console.error('event hold sweep failed:', err.message));
+      printOrderService
+        .releaseExpiredOpenOrders()
+        .catch((err) => console.error('print order sweep failed:', err.message));
     }, sweepMs).unref();
   } catch (err) {
     console.error('DB connection failed:', err);

@@ -13,7 +13,63 @@ const {
   MAX_BUFFER_MINUTES,
   MIN_SERVICE_MINUTES,
   MAX_SERVICE_MINUTES,
+  MAX_PRINT_CATEGORIES,
+  MAX_PRINT_CITIES,
+  MAX_TURNAROUND_DAYS,
 } = require('../constants/businessSetup');
+const { PRINT_CATEGORY_IDS } = require('../constants/printCatalog');
+
+const defaultPrintProfile = () => ({
+  serviceCategories: [],
+  cities: [],
+  serveAll: false,
+  turnaroundDays: 3,
+  minOrderValue: 0,
+  notes: '',
+});
+
+const normalizePrintProfile = (raw) => {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const serviceCategories = Array.isArray(src.serviceCategories)
+    ? [
+        ...new Set(
+          src.serviceCategories
+            .map((c) => String(c))
+            .filter((c) => PRINT_CATEGORY_IDS.includes(c)),
+        ),
+      ].slice(0, MAX_PRINT_CATEGORIES)
+    : [];
+  const cities = Array.isArray(src.cities)
+    ? [
+        ...new Set(
+          src.cities
+            .map((c) => String(c ?? '').trim().toLowerCase())
+            .filter(Boolean),
+        ),
+      ].slice(0, MAX_PRINT_CITIES)
+    : [];
+  const serveAll = src.serveAll === true;
+  const turnaroundDays = Math.min(
+    Math.max(Math.round(Number(src.turnaroundDays) || 0), 0),
+    MAX_TURNAROUND_DAYS,
+  );
+  const minOrderValue = Math.max(Math.round(Number(src.minOrderValue) || 0), 0);
+  const notes = String(src.notes ?? '').trim().slice(0, 1000);
+  return { serviceCategories, cities, serveAll, turnaroundDays, minOrderValue, notes };
+};
+
+const validatePrintReady = (setup) => {
+  const profile = setup.printProfile || defaultPrintProfile();
+  if (!profile.serviceCategories.length) {
+    throw Object.assign(new Error('select at least one print category you offer'), { status: 400 });
+  }
+  if (!profile.serveAll && !profile.cities.length) {
+    throw Object.assign(
+      new Error('add at least one service city or enable "serve everywhere"'),
+      { status: 400 },
+    );
+  }
+};
 
 const defaultSetup = (options = {}) => {
   const bookingMode = isServiceType(options.typeId)
@@ -33,6 +89,7 @@ const defaultSetup = (options = {}) => {
   bookingMode,
   maxGuests: null,
   venueRules: '',
+  printProfile: defaultPrintProfile(),
 };
 };
 
@@ -231,6 +288,9 @@ const formatSetupForClient = (setup, businessId, typeId) => {
     bookingMode: isServiceType(typeId) ? 'services' : normalizeBookingMode(setup.bookingMode),
     maxGuests: normalizeMaxGuests(setup.maxGuests),
     venueRules: typeof setup.venueRules === 'string' ? setup.venueRules : '',
+    printProfile: setup.printProfile
+      ? { ...defaultPrintProfile(), ...setup.printProfile }
+      : defaultPrintProfile(),
   };
 };
 
@@ -331,7 +391,12 @@ const validateServiceSetup = (setup) => {
   }
 };
 
-const validateReadyToComplete = (setup, typeId) => {
+const validateReadyToComplete = (setup, typeId, module) => {
+  if (module === 'print') {
+    validatePrintReady(setup);
+    return;
+  }
+
   const hours = setup.weeklyHours ?? {};
   const hasOpenDay = DAYS.some((day) => {
     const row = hours[day];
@@ -418,6 +483,9 @@ const updateSetup = async (businessId, vendorId, body) => {
   if (body.maxGuests !== undefined) patch.maxGuests = normalizeMaxGuests(body.maxGuests);
   if (body.venueRules !== undefined) {
     patch.venueRules = String(body.venueRules ?? '').trim().slice(0, 2000);
+  }
+  if (body.printProfile !== undefined) {
+    patch.printProfile = normalizePrintProfile(body.printProfile);
   }
 
   const preserveLive = business.setupComplete === true && business.status === 'live';
@@ -564,7 +632,7 @@ const completeSetup = async (businessId, vendorId) => {
   assertAppointmentsModule(business);
 
   const setup = business.setup ?? defaultSetup({ typeId: business.typeId });
-  validateReadyToComplete(setup, business.typeId);
+  validateReadyToComplete(setup, business.typeId, business.module);
 
   const updated = await Business.updateForVendor(businessId, vendorId, {
     setupComplete: true,

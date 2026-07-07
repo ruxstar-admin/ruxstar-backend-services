@@ -1,5 +1,6 @@
 const bookingService = require('../services/booking.service');
 const eventService = require('../services/event.service');
+const printOrderService = require('../services/printOrder.service');
 const cashfreePayments = require('../utils/cashfreePayments');
 
 // Cashfree Payment Gateway webhook. Verifies the HMAC signature against the raw
@@ -20,7 +21,10 @@ exports.cashfreePayments = async (req, res) => {
     // the event-registration handler. (order_id disambiguates the two.)
     const result = await bookingService.handlePaymentWebhook(req.body);
     if (result?.ignored) {
-      await eventService.handlePaymentWebhook(req.body);
+      const handledByEvent = await eventService.handlePaymentWebhook(req.body);
+      if (!handledByEvent) {
+        await printOrderService.handlePaymentWebhook(req.body);
+      }
     }
   } catch (err) {
     // Acknowledge anyway; the status poll + sweeper will reconcile.

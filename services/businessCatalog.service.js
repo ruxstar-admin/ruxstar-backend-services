@@ -14,6 +14,46 @@ const invalidateCatalogCache = () => {
 
 const slug = (v) => String(v).trim().toLowerCase().replace(/\s+/g, '_');
 
+// Types/category that were retired when "Services & professionals" was replaced
+// by "Print on demand". We deactivate rather than delete so existing businesses
+// (if any) keep working and the change is reversible.
+const RETIRED_TYPE_IDS = ['home_service', 'repair', 'local_pro'];
+const RETIRED_CATEGORY_IDS = ['services'];
+
+// Migrate an already-seeded database to the current catalog shape. Idempotent.
+const reconcileCatalog = async () => {
+  const now = new Date();
+
+  // 1. Upsert the Print on demand category + its types.
+  const printCategory = BUSINESS_CATEGORIES.find((c) => c.id === 'print');
+  if (printCategory && !(await BusinessCategory.findById('print'))) {
+    await BusinessCategory.insert({ ...printCategory, active: true });
+  }
+  for (const type of BUSINESS_TYPES.filter((t) => t.categoryId === 'print')) {
+    if (!(await BusinessType.findById(type.id))) {
+      await BusinessType.insert({ ...type, active: true });
+    }
+  }
+
+  // 2. Coaching moves from the retired "services" category into "appointments".
+  const coaching = await BusinessType.findById('coaching');
+  if (coaching && coaching.categoryId !== 'appointments') {
+    await BusinessType.updateById('coaching', { categoryId: 'appointments' });
+  }
+
+  // 3. Deactivate the retired category + service-only types.
+  for (const id of RETIRED_CATEGORY_IDS) {
+    const cat = await BusinessCategory.findById(id);
+    if (cat && cat.active !== false) await BusinessCategory.updateById(id, { active: false });
+  }
+  for (const id of RETIRED_TYPE_IDS) {
+    const type = await BusinessType.findById(id);
+    if (type && type.active !== false) await BusinessType.updateById(id, { active: false });
+  }
+
+  invalidateCatalogCache();
+};
+
 const seedIfEmpty = async () => {
   await BusinessCategory.ensureIndexes();
   await BusinessType.ensureIndexes();
@@ -30,8 +70,8 @@ const seedIfEmpty = async () => {
         label: eventsSeed.label,
         description: eventsSeed.description,
       });
-      invalidateCatalogCache();
     }
+    await reconcileCatalog();
     return { seeded: false };
   }
 

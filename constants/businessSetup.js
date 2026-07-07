@@ -24,7 +24,12 @@ const DEFAULT_WEEKLY_HOURS = Object.fromEntries(
 const MAX_PHOTOS = 3;
 const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
 const SLOT_MINUTES_OPTIONS = [15, 30, 45, 60, 90, 120];
-const SETUP_MODULES = ['appointments'];
+// Modules whose vendors run the post-create setup wizard (photos + config).
+const SETUP_MODULES = ['appointments', 'print'];
+
+const MAX_PRINT_CATEGORIES = 30;
+const MAX_PRINT_CITIES = 60;
+const MAX_TURNAROUND_DAYS = 90;
 
 // Service-first appointment types (salon/clinic/coaching). These book by
 // service + staff with variable durations, instead of a fixed resource grid.
@@ -55,4 +60,7 @@ module.exports = {
   MIN_SERVICE_MINUTES,
   MAX_SERVICE_MINUTES,
   SERVICE_SLOT_STEP_MINUTES,
+  MAX_PRINT_CATEGORIES,
+  MAX_PRINT_CITIES,
+  MAX_TURNAROUND_DAYS,
 };

@@ -84,6 +84,45 @@ const listLivePublic = async ({ module } = {}) => {
   return rows.map(sanitize);
 };
 
+const LIVE_PRINT_PROJECTION = {
+  name: 1,
+  vendorId: 1,
+  module: 1,
+  status: 1,
+  setupComplete: 1,
+  'setup.printProfile': 1,
+};
+
+// Live print-on-demand businesses that serve a given category (and optionally a
+// city). Used to broadcast an open order to eligible vendors.
+const listLivePrintForCategory = async (categoryId, city) => {
+  const filter = {
+    status: 'live',
+    setupComplete: true,
+    module: 'print',
+    'setup.printProfile.serviceCategories': String(categoryId),
+  };
+  if (city) {
+    filter.$or = [
+      { 'setup.printProfile.serveAll': true },
+      { 'setup.printProfile.cities': String(city) },
+    ];
+  }
+  const rows = await collection().find(filter, { projection: LIVE_PRINT_PROJECTION }).toArray();
+  return rows.map(sanitize);
+};
+
+// A vendor's own live print businesses — used to decide eligibility to accept.
+const listLivePrintByVendor = async (vendorId) => {
+  const rows = await collection()
+    .find(
+      { vendorId: toObjectId(vendorId), status: 'live', setupComplete: true, module: 'print' },
+      { projection: LIVE_PRINT_PROJECTION },
+    )
+    .toArray();
+  return rows.map(sanitize);
+};
+
 const insert = async (vendorId, data) => {
   const now = new Date();
   const doc = {
@@ -146,4 +185,6 @@ module.exports = {
   countByVendor,
   ensureIndexes,
   findSetupPhoto,
+  listLivePrintForCategory,
+  listLivePrintByVendor,
 };
