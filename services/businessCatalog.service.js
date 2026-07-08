@@ -17,7 +17,17 @@ const slug = (v) => String(v).trim().toLowerCase().replace(/\s+/g, '_');
 // Types/category that were retired when "Services & professionals" was replaced
 // by "Print on demand". We deactivate rather than delete so existing businesses
 // (if any) keep working and the change is reversible.
-const RETIRED_TYPE_IDS = ['home_service', 'repair', 'local_pro'];
+const RETIRED_TYPE_IDS = [
+  'home_service',
+  'repair',
+  'local_pro',
+  // Collapsed into a single "Print on demand" type (print_shop).
+  'custom_merch',
+  'creator_merch',
+  'corporate_printing',
+  'event_printing',
+  'branding_agency',
+];
 const RETIRED_CATEGORY_IDS = ['services'];
 
 // Migrate an already-seeded database to the current catalog shape. Idempotent.
@@ -30,8 +40,18 @@ const reconcileCatalog = async () => {
     await BusinessCategory.insert({ ...printCategory, active: true });
   }
   for (const type of BUSINESS_TYPES.filter((t) => t.categoryId === 'print')) {
-    if (!(await BusinessType.findById(type.id))) {
+    const existing = await BusinessType.findById(type.id);
+    if (!existing) {
       await BusinessType.insert({ ...type, active: true });
+    } else if (existing.label !== type.label || existing.description !== type.description) {
+      // Keep the canonical print type's label/description in sync (e.g. after
+      // collapsing the six print types into one "Print on demand" type).
+      await BusinessType.updateById(type.id, {
+        label: type.label,
+        description: type.description,
+        examples: type.examples,
+        active: true,
+      });
     }
   }
 
