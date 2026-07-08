@@ -82,6 +82,12 @@ const findById = async (id) => {
   return doc ? { ...sanitize(doc), _raw: doc } : null;
 };
 
+const findByIdWithDesign = async (id) => {
+  if (!id) return null;
+  const doc = await collection().findOne({ _id: String(id) });
+  return doc ? sanitize(doc, { withDesign: true }) : null;
+};
+
 const getForCustomer = async (id, customerUserId, { withDesign = false } = {}) => {
   if (!id) return null;
   const doc = await collection().findOne({
@@ -243,6 +249,7 @@ module.exports = {
   ensureIndexes,
   insert,
   findById,
+  findByIdWithDesign,
   getForCustomer,
   listByCustomer,
   listOpenForVendor,

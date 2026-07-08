@@ -182,8 +182,22 @@ const listVendorOrders = async (vendorId) => {
 };
 
 const getVendorOrder = async (vendorId, orderId) => {
-  const order = await PrintOrder.findAssignedForVendor(orderId, vendorId, { withDesign: true });
+  // Orders already assigned to this vendor are always viewable.
+  let order = await PrintOrder.findAssignedForVendor(orderId, vendorId, { withDesign: true });
+
+  // Otherwise, allow viewing an order that is still OPEN and matches this
+  // vendor's served categories — so tapping a "new order" notification opens
+  // the full detail where they can accept + quote.
+  if (!order) {
+    const open = await PrintOrder.findByIdWithDesign(orderId);
+    if (open && open.status === PRINT_ORDER_STATUS.OPEN) {
+      const eligibility = await vendorEligibility(vendorId);
+      if (eligibility.categoryIds.includes(open.categoryId)) order = open;
+    }
+  }
+
   if (!order) throw bad('order not found', 404);
+  if (order._raw) delete order._raw;
   return { order };
 };
 
