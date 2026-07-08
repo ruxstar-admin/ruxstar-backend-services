@@ -1,6 +1,10 @@
 /**
- * Print-on-demand catalog — product categories, per-category options, and
- * which fields the customer must fill for each product type.
+ * Print-on-demand catalog — per-product options and requirement fields.
+ *
+ * Requirement `type`:
+ *  - select → size | material | printType | color (options from category arrays)
+ *  - text | textarea → stored in attributes.extras[key]
+ *  - file → designImage upload
  */
 
 const APPAREL_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
@@ -9,20 +13,24 @@ const APPAREL_PRINT = ['Screen Print', 'Digital / DTG', 'Sublimation', 'Vinyl', 
 const PAPER_PRINT = ['Digital', 'Offset', 'UV Print'];
 const COLOR_OPTIONS = ['Full Colour', 'Black & White', 'Single Colour', 'Custom Palette'];
 
-const req = (key, label, opts = {}) => ({
-  key,
-  label,
-  required: opts.required === true,
-  hint: opts.hint || '',
-});
+const SELECT_KEYS = new Set(['size', 'material', 'printType', 'color']);
 
-const APPAREL_REQUIREMENTS = [
-  req('size', 'Size', { required: true }),
-  req('material', 'Fabric'),
-  req('printType', 'Print method'),
-  req('color', 'Colour'),
-  req('designImage', 'Artwork / design', { hint: 'Upload logo or artwork for printing' }),
-];
+const req = (key, label, opts = {}) => {
+  let type = opts.type;
+  if (!type) {
+    if (key === 'designImage') type = 'file';
+    else if (SELECT_KEYS.has(key)) type = 'select';
+    else type = 'text';
+  }
+  return {
+    key,
+    label,
+    type,
+    required: opts.required === true,
+    hint: opts.hint || '',
+    placeholder: opts.placeholder || '',
+  };
+};
 
 const cat = (id, label, icon, overrides = {}) => ({
   id,
@@ -34,7 +42,7 @@ const cat = (id, label, icon, overrides = {}) => ({
   printTypes: overrides.printTypes ?? APPAREL_PRINT,
   materials: overrides.materials ?? ['Cotton', 'Polyester', 'Cotton Blend', 'Other'],
   colorOptions: overrides.colorOptions ?? COLOR_OPTIONS,
-  requirements: overrides.requirements ?? APPAREL_REQUIREMENTS,
+  requirements: overrides.requirements ?? [],
 });
 
 const PRINT_CATEGORIES = [
@@ -45,7 +53,15 @@ const PRINT_CATEGORIES = [
       req('material', 'Fabric', { required: true }),
       req('printType', 'Print method'),
       req('color', 'Print colour'),
-      req('designImage', 'Artwork', { required: true, hint: 'Upload your logo or graphic' }),
+      req('placement', 'Print placement', {
+        required: true,
+        placeholder: 'e.g. Front chest, full back, sleeve',
+      }),
+      req('designImage', 'Artwork', {
+        type: 'file',
+        required: true,
+        hint: 'Upload your logo or graphic',
+      }),
     ],
   }),
   cat('hoodies', 'Hoodies', '🧥', {
@@ -55,19 +71,29 @@ const PRINT_CATEGORIES = [
       req('material', 'Fabric'),
       req('printType', 'Print / embroidery'),
       req('color', 'Garment colour'),
-      req('designImage', 'Artwork', { required: true }),
+      req('placement', 'Print placement', { placeholder: 'Front, back, hood, sleeve…' }),
+      req('designImage', 'Artwork', { type: 'file', required: true }),
     ],
   }),
   cat('jerseys', 'Jerseys', '🎽', {
     description: 'Team & sports jerseys',
+    printTypes: ['Sublimation', 'Screen Print', 'Heat Transfer', 'Embroidery'],
     requirements: [
       req('size', 'Jersey size', { required: true }),
-      req('material', 'Fabric'),
+      req('material', 'Fabric', { required: true }),
       req('printType', 'Print method', { required: true }),
       req('color', 'Primary colour'),
-      req('designImage', 'Team logo / design', { required: true, hint: 'Upload logo, numbers, names layout' }),
+      req('teamName', 'Team / club name', { required: true, placeholder: 'Team or academy name' }),
+      req('playerDetails', 'Names & numbers', {
+        type: 'textarea',
+        placeholder: 'Player names, numbers, sizes (one per line)',
+      }),
+      req('designImage', 'Team logo / design', {
+        type: 'file',
+        required: true,
+        hint: 'Upload logo and layout reference',
+      }),
     ],
-    printTypes: ['Sublimation', 'Screen Print', 'Heat Transfer', 'Embroidery'],
   }),
   cat('business_cards', 'Business Cards', '💼', {
     minQuantity: 100,
@@ -81,7 +107,16 @@ const PRINT_CATEGORIES = [
       req('material', 'Paper stock', { required: true }),
       req('printType', 'Sides & finish', { required: true }),
       req('color', 'Colour mode', { required: true }),
-      req('designImage', 'Card design', { required: true, hint: 'Upload front/back artwork' }),
+      req('contactDetails', 'Contact info to print', {
+        type: 'textarea',
+        required: true,
+        placeholder: 'Name, phone, email, address, website…',
+      }),
+      req('designImage', 'Card design', {
+        type: 'file',
+        required: true,
+        hint: 'Upload front/back artwork',
+      }),
     ],
   }),
   cat('posters', 'Posters', '🖼️', {
@@ -95,7 +130,8 @@ const PRINT_CATEGORIES = [
       req('material', 'Paper / material', { required: true }),
       req('printType', 'Print type'),
       req('color', 'Colour mode'),
-      req('designImage', 'Poster artwork', { required: true }),
+      req('finishing', 'Finishing', { placeholder: 'Lamination, mounting, eyelets…' }),
+      req('designImage', 'Poster artwork', { type: 'file', required: true }),
     ],
   }),
   cat('flex_banners', 'Flex Banners', '🚩', {
@@ -109,7 +145,17 @@ const PRINT_CATEGORIES = [
       req('size', 'Banner dimensions', { required: true }),
       req('material', 'Banner material', { required: true }),
       req('printType', 'Banner type', { required: true }),
-      req('designImage', 'Banner artwork', { required: true, hint: 'High-resolution file preferred' }),
+      req('customDimensions', 'Exact size (if custom)', {
+        placeholder: 'Width × height in feet or metres',
+      }),
+      req('installation', 'Installation needs', {
+        placeholder: 'Eyelets, pole pockets, rope, stand…',
+      }),
+      req('designImage', 'Banner artwork', {
+        type: 'file',
+        required: true,
+        hint: 'High-resolution file preferred',
+      }),
     ],
   }),
   cat('stickers', 'Stickers', '🏷️', {
@@ -124,7 +170,8 @@ const PRINT_CATEGORIES = [
       req('material', 'Sticker material', { required: true }),
       req('printType', 'Cut type', { required: true }),
       req('color', 'Colour mode'),
-      req('designImage', 'Sticker artwork', { required: true }),
+      req('shape', 'Shape / outline', { placeholder: 'Circle, rectangle, custom die-cut…' }),
+      req('designImage', 'Sticker artwork', { type: 'file', required: true }),
     ],
   }),
   cat('invitations', 'Invitations', '💌', {
@@ -139,7 +186,12 @@ const PRINT_CATEGORIES = [
       req('material', 'Paper type', { required: true }),
       req('printType', 'Card style', { required: true }),
       req('color', 'Colour theme'),
-      req('designImage', 'Invite design', { required: true }),
+      req('eventDate', 'Event date', { required: true, placeholder: 'Date and time of event' }),
+      req('eventDetails', 'Event wording', {
+        type: 'textarea',
+        placeholder: 'Names, venue, RSVP line…',
+      }),
+      req('designImage', 'Invite design', { type: 'file', required: true }),
     ],
   }),
   cat('photo_prints', 'Photo Prints', '📷', {
@@ -153,7 +205,14 @@ const PRINT_CATEGORIES = [
       req('size', 'Print size', { required: true }),
       req('material', 'Finish', { required: true }),
       req('printType', 'Print style'),
-      req('designImage', 'Photo file', { required: true, hint: 'Upload the photo to print' }),
+      req('cropNotes', 'Crop / border instructions', {
+        placeholder: 'Full bleed, white border, crop area…',
+      }),
+      req('designImage', 'Photo file', {
+        type: 'file',
+        required: true,
+        hint: 'Upload the photo to print',
+      }),
     ],
   }),
   cat('documents', 'Document Printing', '📄', {
@@ -165,10 +224,16 @@ const PRINT_CATEGORIES = [
     description: 'Documents, reports & xerox',
     requirements: [
       req('size', 'Paper size', { required: true }),
-      req('material', 'Paper type'),
       req('printType', 'Binding / sides', { required: true }),
       req('color', 'Print mode', { required: true }),
-      req('designImage', 'Document file', { hint: 'Optional — share with vendor after accept' }),
+      req('pageCount', 'Number of pages', {
+        required: true,
+        placeholder: 'Total pages to print',
+      }),
+      req('designImage', 'Document scan', {
+        type: 'file',
+        hint: 'Optional — you can share files with the vendor later',
+      }),
     ],
   }),
 ];
@@ -198,4 +263,5 @@ module.exports = {
   findPrintCategory,
   PRINT_ORDER_STATUS,
   OPEN_ORDER_TTL_MINUTES,
+  SELECT_KEYS,
 };

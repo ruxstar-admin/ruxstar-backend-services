@@ -31,12 +31,29 @@ const parseDesignImage = (imageBase64) => {
 const clampAttributes = (raw) => {
   const src = raw && typeof raw === 'object' ? raw : {};
   const pick = (v) => (typeof v === 'string' ? v.trim().slice(0, 120) : '');
-  return {
+  const out = {
     printType: pick(src.printType),
     material: pick(src.material),
     color: pick(src.color),
     size: pick(src.size),
   };
+  const extras = {};
+  const rawExtras = src.extras && typeof src.extras === 'object' ? src.extras : {};
+  for (const [key, value] of Object.entries(rawExtras)) {
+    if (!/^[a-z][a-z0-9_]{0,31}$/.test(key)) continue;
+    const trimmed = pick(value);
+    if (trimmed) extras[key] = trimmed;
+  }
+  if (Object.keys(extras).length) out.extras = extras;
+  return out;
+};
+
+const requirementValue = (attributes, field) => {
+  if (field.key === 'designImage') return null;
+  if (['size', 'material', 'printType', 'color'].includes(field.key)) {
+    return attributes[field.key] || '';
+  }
+  return attributes.extras?.[field.key] || '';
 };
 
 // ─────────────────────────── Customer: create + broadcast ───────────────────────────
@@ -62,11 +79,11 @@ const createOrder = async (customerUserId, body) => {
 
   for (const field of category.requirements || []) {
     if (!field.required) continue;
-    if (field.key === 'designImage') {
+    if (field.key === 'designImage' || field.type === 'file') {
       if (!designImage) throw bad(`${field.label} is required for ${category.label}`);
       continue;
     }
-    if (!attributes[field.key]) {
+    if (!requirementValue(attributes, field)) {
       throw bad(`${field.label} is required for ${category.label}`);
     }
   }
@@ -181,6 +198,7 @@ const listVendorOrders = async (vendorId) => {
       categoryIds: eligibility.categoryIds,
       cities: eligibility.cities,
       serveAll: eligibility.serveAll,
+      vendorId,
     }),
     PrintOrder.listAssignedForVendor(vendorId),
   ]);
@@ -202,7 +220,9 @@ const getVendorOrder = async (vendorId, orderId) => {
   // vendor's served categories — so tapping a "new order" notification opens
   // the full detail where they can accept + quote.
   if (!order) {
-    const open = await PrintOrder.findByIdWithDesign(orderId);
+    const open = await PrintOrder.findByIdWithDesign(orderId, {
+      viewer: { role: 'vendor', vendorId },
+    });
     if (open && open.status === PRINT_ORDER_STATUS.OPEN) {
       const eligibility = await vendorEligibility(vendorId);
       if (eligibility.categoryIds.includes(open.categoryId)) order = open;
@@ -214,15 +234,19 @@ const getVendorOrder = async (vendorId, orderId) => {
   return { order };
 };
 
-const acceptOrder = async (vendorId, orderId, body) => {
+// Vendor submits (or updates) a quote. The order stays open so the customer can
+// compare quotes from multiple vendors and pick one.
+const submitQuote = async (vendorId, orderId, body) => {
   const eligibility = await vendorEligibility(vendorId);
   if (!eligibility.businesses.length) {
-    throw bad('set up a live print business before accepting orders', 403);
+    throw bad('set up a live print business before quoting on orders', 403);
   }
 
   const raw = await PrintOrder.findById(orderId);
   if (!raw) throw bad('order not found', 404);
-  if (raw.status !== PRINT_ORDER_STATUS.OPEN) throw bad('this order was already taken', 409);
+  if (raw.status !== PRINT_ORDER_STATUS.OPEN) {
+    throw bad('this order is no longer open for quotes', 409);
+  }
   if (!eligibility.categoryIds.includes(raw.categoryId)) {
     throw bad('none of your print businesses serve this category', 403);
   }
@@ -232,7 +256,7 @@ const acceptOrder = async (vendorId, orderId, body) => {
     throw bad('enter a valid quote amount (₹1 or more)');
   }
 
-  // Pick the eligible business serving this category to attribute the order to.
+  // Pick the eligible business serving this category to attribute the quote to.
   const business =
     eligibility.businesses.find((b) =>
       (b.setup?.printProfile?.serviceCategories || []).map(String).includes(raw.categoryId),
@@ -240,7 +264,7 @@ const acceptOrder = async (vendorId, orderId, body) => {
 
   const user = await User.findById(vendorId);
 
-  const accepted = await PrintOrder.accept(orderId, {
+  const quoted = await PrintOrder.addQuote(orderId, {
     vendorId,
     businessId: business?.id ?? business?._id,
     vendorName: user?.name || user?.vendorProfile?.businessName || 'Vendor',
@@ -249,14 +273,52 @@ const acceptOrder = async (vendorId, orderId, body) => {
     vendorNote: String(body.vendorNote ?? '').trim().slice(0, 500),
     quoteAmount,
   });
-  if (!accepted) throw bad('this order was just taken by another vendor', 409);
+  if (!quoted) throw bad('this order is no longer open for quotes', 409);
 
-  await notificationService.notify(accepted.customerUserId, {
-    type: 'pod_order_accepted',
-    title: 'A vendor accepted your order',
-    body: `${accepted.businessName || accepted.vendorName} quoted ₹${quoteAmount} for your ${accepted.categoryLabel}. Pay to confirm.`,
+  await notificationService.notify(quoted.customerUserId, {
+    type: 'pod_order_quoted',
+    title: 'New quote received',
+    body: `${quoted.businessName || quoted.vendorName || 'A vendor'} quoted ₹${quoteAmount} for your ${quoted.categoryLabel}. Compare quotes and choose.`,
+    data: { orderId: quoted.id, kind: 'pod' },
+  });
+
+  return { order: quoted };
+};
+
+// Customer chooses a vendor's quote → assigns the order and unlocks payment.
+const selectQuote = async (customerUserId, orderId, vendorId) => {
+  if (!vendorId) throw bad('choose a vendor to continue');
+
+  const raw = await PrintOrder.findById(orderId);
+  if (!raw) throw bad('order not found', 404);
+  if (String(raw.customerUserId) !== String(customerUserId)) throw bad('order not found', 404);
+  if (raw.status !== PRINT_ORDER_STATUS.OPEN) {
+    throw bad('a vendor has already been chosen for this order', 409);
+  }
+
+  const accepted = await PrintOrder.selectQuote(orderId, customerUserId, vendorId);
+  if (!accepted) throw bad('that quote is no longer available', 409);
+
+  // Notify the winning vendor.
+  await notificationService.notify(accepted.assignedVendorId, {
+    type: 'pod_order_won',
+    title: 'You won a print order 🎉',
+    body: `The customer picked your ₹${accepted.quoteAmount} quote for the ${accepted.categoryLabel}. Awaiting payment.`,
     data: { orderId: accepted.id, kind: 'pod' },
   });
+
+  // Notify the vendors who quoted but were not chosen.
+  const losers = (Array.isArray(raw._raw?.quotes) ? raw._raw.quotes : [])
+    .map((q) => String(q.vendorId))
+    .filter((id) => id && id !== String(accepted.assignedVendorId));
+  if (losers.length) {
+    await notificationService.notifyMany([...new Set(losers)], {
+      type: 'pod_order_lost',
+      title: 'Order went to another vendor',
+      body: `The customer chose a different vendor for the ${accepted.categoryLabel} order.`,
+      data: { orderId: accepted.id, kind: 'pod' },
+    });
+  }
 
   return { order: accepted };
 };
@@ -415,7 +477,8 @@ module.exports = {
   cancelOrder,
   listVendorOrders,
   getVendorOrder,
-  acceptOrder,
+  submitQuote,
+  selectQuote,
   updateOrderStatus,
   initiatePayment,
   handlePaymentWebhook,
