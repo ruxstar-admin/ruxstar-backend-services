@@ -58,6 +58,19 @@ const createOrder = async (customerUserId, body) => {
   if (!city) throw bad('city is required so we can find nearby vendors');
 
   const designImage = parseDesignImage(body.designImage);
+  const attributes = clampAttributes(body.attributes);
+
+  for (const field of category.requirements || []) {
+    if (!field.required) continue;
+    if (field.key === 'designImage') {
+      if (!designImage) throw bad(`${field.label} is required for ${category.label}`);
+      continue;
+    }
+    if (!attributes[field.key]) {
+      throw bad(`${field.label} is required for ${category.label}`);
+    }
+  }
+
   const orderId = randomUUID();
   const openExpiresAt = new Date(Date.now() + OPEN_ORDER_TTL_MINUTES * 60 * 1000);
 
@@ -69,7 +82,7 @@ const createOrder = async (customerUserId, body) => {
     categoryId: category.id,
     categoryLabel: category.label,
     title: String(body.title ?? '').trim().slice(0, 120) || category.label,
-    attributes: clampAttributes(body.attributes),
+    attributes: attributes,
     quantity,
     notes: String(body.notes ?? '').trim().slice(0, 1000),
     city,
