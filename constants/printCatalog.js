@@ -63,25 +63,19 @@ const PRINT_CATEGORIES = [
     sizes: ['Small', 'Medium', 'Large', 'Custom'],
     materials: ['Vinyl', 'Paper', 'Transparent', 'Holographic'],
   }),
-  cat('packaging', 'Packaging Materials', '📦', {
-    minQuantity: 50,
-    sizes: ['Small', 'Medium', 'Large', 'Custom'],
-    materials: ['Corrugated', 'Kraft', 'Card', 'Other'],
-  }),
   cat('invitations', 'Invitations', '💌', { minQuantity: 25, sizes: PAPER_SIZES }),
   cat('photo_prints', 'Photo Prints', '📷', {
     minQuantity: 1,
     sizes: ['4x6', '5x7', '8x10', '12x18', 'Custom'],
     materials: ['Glossy', 'Matte', 'Lustre', 'Canvas'],
   }),
-  cat('merchandise', 'Merchandise', '🛍️', { minQuantity: 1 }),
-  cat('corporate_branding', 'Corporate Branding Products', '🏢', { minQuantity: 10 }),
-  cat('event_materials', 'Event Materials', '🎪', { minQuantity: 1, sizes: PAPER_SIZES }),
-  cat('personalized_gifts', 'Personalized Gifts', '🎁', { minQuantity: 1 }),
-  cat('college_merch', 'College Merchandise', '🎓', { minQuantity: 1 }),
-  cat('sports_team_merch', 'Sports Team Merchandise', '🏅', { minQuantity: 1 }),
-  cat('promotional', 'Promotional Materials', '📣', { minQuantity: 10 }),
-  cat('digital_artwork', 'Digital Artwork Printing', '🎨', { minQuantity: 1, sizes: PAPER_SIZES }),
+  cat('documents', 'Document Printing', '📄', {
+    minQuantity: 1,
+    sizes: PAPER_SIZES,
+    materials: ['Bond Paper', 'Art Paper', 'Matte', 'Glossy'],
+    colorOptions: ['Black & White', 'Full Colour'],
+    description: 'Documents, reports & xerox',
+  }),
 ];
 
 const PRINT_CATEGORY_IDS = PRINT_CATEGORIES.map((c) => c.id);
