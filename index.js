@@ -47,9 +47,6 @@ const start = async () => {
       eventService
         .releaseExpiredHolds()
         .catch((err) => console.error('event hold sweep failed:', err.message));
-      printOrderService
-        .releaseExpiredOpenOrders()
-        .catch((err) => console.error('print order sweep failed:', err.message));
     }, sweepMs).unref();
   } catch (err) {
     console.error('DB connection failed:', err);

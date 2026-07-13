@@ -291,8 +291,6 @@ const PRINT_ORDER_STATUS = {
   EXPIRED: 'expired',
 };
 
-const OPEN_ORDER_TTL_MINUTES = Number(process.env.POD_OPEN_ORDER_TTL_MINUTES) || 720;
-
 module.exports = {
   PRINT_CATEGORIES,
   PRINT_CATEGORY_IDS,
@@ -301,6 +299,5 @@ module.exports = {
   printPricingModel,
   pricingDimensions,
   PRINT_ORDER_STATUS,
-  OPEN_ORDER_TTL_MINUTES,
   SELECT_KEYS,
 };

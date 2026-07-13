@@ -13,9 +13,6 @@ router.use(authenticate);
 const vendorGuard = [requireRole(ROLES.VENDOR), requireKyc];
 router.get('/vendor/orders', ...vendorGuard, printOrderController.listVendorOrders);
 router.get('/vendor/orders/:id', ...vendorGuard, printOrderController.getVendorOrder);
-router.post('/vendor/orders/:id/quote', ...vendorGuard, printOrderController.submitQuote);
-// Back-compat alias for the previous "accept" endpoint.
-router.post('/vendor/orders/:id/accept', ...vendorGuard, printOrderController.submitQuote);
 router.post('/vendor/orders/:id/status', ...vendorGuard, printOrderController.updateStatus);
 // Toggle a print shop's availability (accepting orders on/off).
 router.post(
@@ -30,7 +27,6 @@ router.get('/shops', customerGuard, printOrderController.listShops);
 router.post('/orders', customerGuard, printOrderController.createOrder);
 router.get('/orders', customerGuard, printOrderController.listOrders);
 router.get('/orders/:id', customerGuard, printOrderController.getOrder);
-router.post('/orders/:id/select', customerGuard, printOrderController.selectQuote);
 router.post('/orders/:id/pay', customerGuard, printOrderController.pay);
 router.post('/orders/:id/cancel', customerGuard, printOrderController.cancelOrder);
 

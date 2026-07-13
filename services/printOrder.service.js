@@ -4,11 +4,8 @@ const Business = require('../models/Business');
 const User = require('../models/User');
 const notificationService = require('./notification.service');
 const cashfreePayments = require('../utils/cashfreePayments');
-const {
-  findPrintCategory,
-  PRINT_ORDER_STATUS,
-  OPEN_ORDER_TTL_MINUTES,
-} = require('../constants/printCatalog');
+const { findPrintCategory, PRINT_ORDER_STATUS } = require('../constants/printCatalog');
+const { computePrice } = require('../utils/printPricing');
 
 const MAX_DESIGN_BYTES = 4 * 1024 * 1024;
 
@@ -48,15 +45,38 @@ const clampAttributes = (raw) => {
   return out;
 };
 
-const requirementValue = (attributes, field) => {
-  if (field.key === 'designImage') return null;
-  if (['size', 'material', 'printType', 'color'].includes(field.key)) {
-    return attributes[field.key] || '';
+const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
+// Trust-but-verify the customer's selection before recomputing the price.
+const sanitizeSelection = (category, raw) => {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  if (category.pricingModel === 'per_page') {
+    const sections = Array.isArray(src.sections)
+      ? src.sections
+          .map((s) => ({
+            pages: Math.max(0, Math.round(num(s?.pages))),
+            color: s?.color === 'color' ? 'color' : 'bw',
+          }))
+          .filter((s) => s.pages > 0)
+      : [];
+    return {
+      copies: Math.max(1, Math.round(num(src.copies))),
+      sections,
+      doubleSided: src.doubleSided === true,
+      ...(typeof src.binding === 'string' && src.binding ? { binding: src.binding } : {}),
+      ...(typeof src.paperSize === 'string' && src.paperSize ? { paperSize: src.paperSize } : {}),
+    };
   }
-  return attributes.extras?.[field.key] || '';
+  const options = {};
+  if (src.options && typeof src.options === 'object') {
+    for (const [k, v] of Object.entries(src.options)) {
+      if (typeof v === 'string' && v) options[k] = v.slice(0, 120);
+    }
+  }
+  return { quantity: Math.max(1, Math.round(num(src.quantity))), options };
 };
 
-// ─────────────────────────── Customer: create + broadcast ───────────────────────────
+// ─────────────────────────── Customer: create direct order ───────────────────────────
 
 const createOrder = async (customerUserId, body) => {
   const category = findPrintCategory(body.categoryId);
@@ -65,32 +85,48 @@ const createOrder = async (customerUserId, body) => {
   const user = await User.findById(customerUserId);
   if (!user) throw bad('user not found', 404);
 
-  const quantity = Math.round(Number(body.quantity));
-  const minQty = category.minQuantity || 1;
-  if (!Number.isFinite(quantity) || quantity < minQty) {
-    throw bad(`minimum quantity for ${category.label} is ${minQty}`);
+  const businessId = String(body.businessId ?? '').trim();
+  if (!businessId) throw bad('choose a print shop');
+
+  const business = await Business.findLiveById(businessId);
+  if (!business || business.module !== 'print') throw bad('print shop not found', 404);
+
+  const profile = business.setup?.printProfile || {};
+  if (!(profile.serviceCategories || []).map(String).includes(category.id)) {
+    throw bad('this shop does not offer that product');
+  }
+  if (profile.acceptingOrders === false) {
+    throw bad('this shop is not accepting orders right now', 409);
   }
 
+  const pricing = (profile.pricing || {})[category.id];
+  if (!hasUsablePrice(category, pricing)) throw bad('this shop has not priced that product');
+
+  const selection = sanitizeSelection(category, body.selection);
+  const isPerPage = category.pricingModel === 'per_page';
+  const quantity = isPerPage ? selection.copies : selection.quantity;
+  const minQty = Number(pricing.minQuantity) || category.minQuantity || 1;
+  if (quantity < minQty) {
+    throw bad(`minimum ${isPerPage ? 'copies' : 'quantity'} is ${minQty}`);
+  }
+  if (isPerPage && selection.sections.reduce((s, x) => s + x.pages, 0) <= 0) {
+    throw bad('add the number of pages to print');
+  }
+
+  const priced = computePrice(category, pricing, selection);
+  const amount = Math.round(num(priced.total));
+  if (amount < 1) throw bad('could not price this configuration');
+
   const city = String(body.city ?? '').trim();
-  if (!city) throw bad('city is required so we can find nearby vendors');
+  if (!city) throw bad('city is required');
 
   const designImage = parseDesignImage(body.designImage);
   const attributes = clampAttributes(body.attributes);
 
-  for (const field of category.requirements || []) {
-    if (!field.required) continue;
-    if (field.key === 'designImage' || field.type === 'file') {
-      if (!designImage) throw bad(`${field.label} is required for ${category.label}`);
-      continue;
-    }
-    if (!requirementValue(attributes, field)) {
-      throw bad(`${field.label} is required for ${category.label}`);
-    }
-  }
+  const vendorId = business.vendorId ? String(business.vendorId) : '';
+  const vendorUser = vendorId ? await User.findById(vendorId) : null;
 
   const orderId = randomUUID();
-  const openExpiresAt = new Date(Date.now() + OPEN_ORDER_TTL_MINUTES * 60 * 1000);
-
   const order = await PrintOrder.insert({
     _id: orderId,
     customerUserId,
@@ -98,33 +134,37 @@ const createOrder = async (customerUserId, body) => {
     customerMobile: user.mobile || '',
     categoryId: category.id,
     categoryLabel: category.label,
-    title: String(body.title ?? '').trim().slice(0, 120) || category.label,
-    attributes: attributes,
+    title: category.label,
+    attributes,
+    selection,
     quantity,
     notes: String(body.notes ?? '').trim().slice(0, 1000),
     city,
     cityKey: normCity(city),
     pincode: String(body.pincode ?? '').replace(/\D/g, '').slice(0, 6),
     ...(designImage ? { designImage } : {}),
-    openExpiresAt,
+    status: PRINT_ORDER_STATUS.ACCEPTED,
+    assignedVendorId: vendorId || undefined,
+    assignedBusinessId: businessId,
+    vendorName: vendorUser?.name || '',
+    businessName: business.name || '',
+    vendorMobile: vendorUser?.mobile || '',
+    quoteAmount: amount,
+    acceptedAt: new Date(),
   });
 
-  // Broadcast to eligible vendors (fire-and-forget notifications).
-  broadcastOpenOrder(order).catch((err) => console.error('broadcast failed:', err.message));
+  if (vendorId) {
+    notificationService
+      .notify(vendorId, {
+        type: 'pod_order_new',
+        title: 'New print order 🎉',
+        body: `${quantity} × ${category.label} · ₹${amount}. Awaiting customer payment.`,
+        data: { orderId: order.id, kind: 'pod' },
+      })
+      .catch((err) => console.error('notify failed:', err.message));
+  }
 
   return { order };
-};
-
-const broadcastOpenOrder = async (order) => {
-  const businesses = await Business.listLivePrintForCategory(order.categoryId, normCity(order.city));
-  const vendorIds = [...new Set(businesses.map((b) => String(b.vendorId)).filter(Boolean))];
-  if (!vendorIds.length) return;
-  await notificationService.notifyMany(vendorIds, {
-    type: 'pod_order_open',
-    title: 'New print order nearby',
-    body: `${order.quantity} × ${order.categoryLabel} in ${order.city}. Tap to review & accept.`,
-    data: { orderId: order.id, categoryId: order.categoryId, kind: 'pod' },
-  });
 };
 
 // ─────────────────────────── Customer: available shops (direct pricing) ───────────────────────────
@@ -225,157 +265,25 @@ const cancelOrder = async (customerUserId, orderId) => {
   return { order: cancelled };
 };
 
-// ─────────────────────────── Vendor: eligibility + accept + status ───────────────────────────
-
-const vendorEligibility = async (vendorId) => {
-  const businesses = await Business.listLivePrintByVendor(vendorId);
-  const categoryIds = new Set();
-  const cities = new Set();
-  let serveAll = false;
-  for (const biz of businesses) {
-    const profile = biz.setup?.printProfile || {};
-    (profile.serviceCategories || []).forEach((c) => categoryIds.add(String(c)));
-    (profile.cities || []).forEach((c) => cities.add(normCity(c)));
-    if (profile.serveAll) serveAll = true;
-  }
-  return {
-    businesses,
-    categoryIds: [...categoryIds],
-    cities: [...cities],
-    serveAll,
-  };
-};
+// ─────────────────────────── Vendor: incoming orders + status ───────────────────────────
 
 const listVendorOrders = async (vendorId) => {
-  const eligibility = await vendorEligibility(vendorId);
-  const [open, assigned] = await Promise.all([
-    PrintOrder.listOpenForVendor({
-      categoryIds: eligibility.categoryIds,
-      cities: eligibility.cities,
-      serveAll: eligibility.serveAll,
-      vendorId,
-    }),
+  const [assigned, businesses] = await Promise.all([
     PrintOrder.listAssignedForVendor(vendorId),
+    Business.listLivePrintByVendor(vendorId),
   ]);
   return {
-    open,
+    open: [],
     assigned,
-    eligible: {
-      categories: eligibility.categoryIds,
-      hasPrintBusiness: eligibility.businesses.length > 0,
-    },
+    eligible: { categories: [], hasPrintBusiness: businesses.length > 0 },
   };
 };
 
 const getVendorOrder = async (vendorId, orderId) => {
-  // Orders already assigned to this vendor are always viewable.
-  let order = await PrintOrder.findAssignedForVendor(orderId, vendorId, { withDesign: true });
-
-  // Otherwise, allow viewing an order that is still OPEN and matches this
-  // vendor's served categories — so tapping a "new order" notification opens
-  // the full detail where they can accept + quote.
-  if (!order) {
-    const open = await PrintOrder.findByIdWithDesign(orderId, {
-      viewer: { role: 'vendor', vendorId },
-    });
-    if (open && open.status === PRINT_ORDER_STATUS.OPEN) {
-      const eligibility = await vendorEligibility(vendorId);
-      if (eligibility.categoryIds.includes(open.categoryId)) order = open;
-    }
-  }
-
+  const order = await PrintOrder.findAssignedForVendor(orderId, vendorId, { withDesign: true });
   if (!order) throw bad('order not found', 404);
   if (order._raw) delete order._raw;
   return { order };
-};
-
-// Vendor submits (or updates) a quote. The order stays open so the customer can
-// compare quotes from multiple vendors and pick one.
-const submitQuote = async (vendorId, orderId, body) => {
-  const eligibility = await vendorEligibility(vendorId);
-  if (!eligibility.businesses.length) {
-    throw bad('set up a live print business before quoting on orders', 403);
-  }
-
-  const raw = await PrintOrder.findById(orderId);
-  if (!raw) throw bad('order not found', 404);
-  if (raw.status !== PRINT_ORDER_STATUS.OPEN) {
-    throw bad('this order is no longer open for quotes', 409);
-  }
-  if (!eligibility.categoryIds.includes(raw.categoryId)) {
-    throw bad('none of your print businesses serve this category', 403);
-  }
-
-  const quoteAmount = Math.round(Number(body.quoteAmount));
-  if (!Number.isFinite(quoteAmount) || quoteAmount < 1) {
-    throw bad('enter a valid quote amount (₹1 or more)');
-  }
-
-  // Pick the eligible business serving this category to attribute the quote to.
-  const business =
-    eligibility.businesses.find((b) =>
-      (b.setup?.printProfile?.serviceCategories || []).map(String).includes(raw.categoryId),
-    ) || eligibility.businesses[0];
-
-  const user = await User.findById(vendorId);
-
-  const quoted = await PrintOrder.addQuote(orderId, {
-    vendorId,
-    businessId: business?.id ?? business?._id,
-    vendorName: user?.name || user?.vendorProfile?.businessName || 'Vendor',
-    businessName: business?.name || '',
-    vendorMobile: user?.mobile || '',
-    vendorNote: String(body.vendorNote ?? '').trim().slice(0, 500),
-    quoteAmount,
-  });
-  if (!quoted) throw bad('this order is no longer open for quotes', 409);
-
-  await notificationService.notify(quoted.customerUserId, {
-    type: 'pod_order_quoted',
-    title: 'New quote received',
-    body: `${quoted.businessName || quoted.vendorName || 'A vendor'} quoted ₹${quoteAmount} for your ${quoted.categoryLabel}. Compare quotes and choose.`,
-    data: { orderId: quoted.id, kind: 'pod' },
-  });
-
-  return { order: quoted };
-};
-
-// Customer chooses a vendor's quote → assigns the order and unlocks payment.
-const selectQuote = async (customerUserId, orderId, vendorId) => {
-  if (!vendorId) throw bad('choose a vendor to continue');
-
-  const raw = await PrintOrder.findById(orderId);
-  if (!raw) throw bad('order not found', 404);
-  if (String(raw.customerUserId) !== String(customerUserId)) throw bad('order not found', 404);
-  if (raw.status !== PRINT_ORDER_STATUS.OPEN) {
-    throw bad('a vendor has already been chosen for this order', 409);
-  }
-
-  const accepted = await PrintOrder.selectQuote(orderId, customerUserId, vendorId);
-  if (!accepted) throw bad('that quote is no longer available', 409);
-
-  // Notify the winning vendor.
-  await notificationService.notify(accepted.assignedVendorId, {
-    type: 'pod_order_won',
-    title: 'You won a print order 🎉',
-    body: `The customer picked your ₹${accepted.quoteAmount} quote for the ${accepted.categoryLabel}. Awaiting payment.`,
-    data: { orderId: accepted.id, kind: 'pod' },
-  });
-
-  // Notify the vendors who quoted but were not chosen.
-  const losers = (Array.isArray(raw._raw?.quotes) ? raw._raw.quotes : [])
-    .map((q) => String(q.vendorId))
-    .filter((id) => id && id !== String(accepted.assignedVendorId));
-  if (losers.length) {
-    await notificationService.notifyMany([...new Set(losers)], {
-      type: 'pod_order_lost',
-      title: 'Order went to another vendor',
-      body: `The customer chose a different vendor for the ${accepted.categoryLabel} order.`,
-      data: { orderId: accepted.id, kind: 'pod' },
-    });
-  }
-
-  return { order: accepted };
 };
 
 const VENDOR_STATUS_FLOW = {
@@ -517,11 +425,6 @@ const handlePaymentWebhook = async (payload) => {
   return { ok: true };
 };
 
-const releaseExpiredOpenOrders = async () => {
-  const expired = await PrintOrder.expireOpenOrders();
-  return { expired };
-};
-
 const ensureIndexes = () => PrintOrder.ensureIndexes();
 
 module.exports = {
@@ -533,10 +436,7 @@ module.exports = {
   cancelOrder,
   listVendorOrders,
   getVendorOrder,
-  submitQuote,
-  selectQuote,
   updateOrderStatus,
   initiatePayment,
   handlePaymentWebhook,
-  releaseExpiredOpenOrders,
 };

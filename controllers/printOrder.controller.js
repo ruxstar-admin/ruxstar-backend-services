@@ -40,12 +40,6 @@ exports.cancelOrder = handle(async (req, res) => {
   res.json(payload);
 });
 
-exports.selectQuote = handle(async (req, res) => {
-  const vendorId = String(req.body.vendorId ?? '').trim();
-  const payload = await printOrderService.selectQuote(req.user.id, req.params.id, vendorId);
-  res.json(payload);
-});
-
 // ── Vendor ──
 exports.listVendorOrders = handle(async (req, res) => {
   const payload = await printOrderService.listVendorOrders(req.user.id);
@@ -54,11 +48,6 @@ exports.listVendorOrders = handle(async (req, res) => {
 
 exports.getVendorOrder = handle(async (req, res) => {
   const payload = await printOrderService.getVendorOrder(req.user.id, req.params.id);
-  res.json(payload);
-});
-
-exports.submitQuote = handle(async (req, res) => {
-  const payload = await printOrderService.submitQuote(req.user.id, req.params.id, req.body);
   res.json(payload);
 });
 

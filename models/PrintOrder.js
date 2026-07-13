@@ -10,38 +10,9 @@ const WITHOUT_DESIGN = { designImage: 0 };
 
 const iso = (d) => (d ? d.toISOString?.() ?? d : null);
 
-const sanitizeQuote = (q) => ({
-  vendorId: q.vendorId ? String(q.vendorId) : '',
-  businessName: q.businessName || '',
-  vendorName: q.vendorName || '',
-  quoteAmount: typeof q.quoteAmount === 'number' ? q.quoteAmount : null,
-  vendorNote: q.vendorNote || '',
-  createdAt: iso(q.createdAt),
-});
-
-// viewer: null (default, no quote data) | { role: 'customer' } | { role: 'vendor', vendorId }
-const sanitize = (doc, { withDesign = false, viewer = null } = {}) => {
+const sanitize = (doc, { withDesign = false } = {}) => {
   if (!doc) return doc;
-  const quotes = Array.isArray(doc.quotes) ? doc.quotes : [];
-  const extraViewer = {};
-  if (viewer?.role === 'customer') {
-    extraViewer.quotes = quotes
-      .map(sanitizeQuote)
-      .sort((a, b) => (a.quoteAmount ?? Infinity) - (b.quoteAmount ?? Infinity));
-    extraViewer.quoteCount = quotes.length;
-  } else if (viewer?.role === 'vendor') {
-    const mine = quotes.find((q) => String(q.vendorId) === String(viewer.vendorId));
-    extraViewer.myQuote = mine
-      ? {
-          quoteAmount: typeof mine.quoteAmount === 'number' ? mine.quoteAmount : null,
-          vendorNote: mine.vendorNote || '',
-          createdAt: iso(mine.createdAt),
-        }
-      : null;
-    extraViewer.quoteCount = quotes.length;
-  }
   return {
-    ...extraViewer,
     id: String(doc._id),
     customerUserId: doc.customerUserId ? String(doc.customerUserId) : undefined,
     customerName: doc.customerName || '',
@@ -74,7 +45,6 @@ const sanitize = (doc, { withDesign = false, viewer = null } = {}) => {
     acceptedAt: iso(doc.acceptedAt),
     paidAt: iso(doc.paidAt),
     expiresAt: iso(doc.expiresAt),
-    openExpiresAt: iso(doc.openExpiresAt),
     createdAt: iso(doc.createdAt),
     updatedAt: iso(doc.updatedAt),
   };
@@ -84,21 +54,22 @@ const ensureIndexes = async () => {
   await collection().createIndex({ customerUserId: 1, createdAt: -1 });
   await collection().createIndex({ status: 1, categoryId: 1, createdAt: -1 });
   await collection().createIndex({ assignedVendorId: 1, createdAt: -1 });
-  await collection().createIndex({ status: 1, openExpiresAt: 1 });
   await collection().createIndex({ status: 1, expiresAt: 1 });
 };
 
 const insert = async (doc) => {
   const now = new Date();
-  const { _id, customerUserId, ...rest } = doc;
+  const { _id, customerUserId, assignedVendorId, assignedBusinessId, status, acceptedAt, ...rest } =
+    doc;
   const row = {
     ...(_id ? { _id: String(_id) } : {}),
     customerUserId: toObjectId(customerUserId),
-    status: 'open',
+    status: status || 'accepted',
     currency: 'INR',
-    quotes: [],
+    ...(assignedVendorId ? { assignedVendorId: toObjectId(assignedVendorId) } : {}),
+    ...(assignedBusinessId ? { assignedBusinessId: toObjectId(assignedBusinessId) } : {}),
+    ...(acceptedAt ? { acceptedAt: new Date(acceptedAt) } : {}),
     ...rest,
-    openExpiresAt: doc.openExpiresAt ? new Date(doc.openExpiresAt) : undefined,
     createdAt: now,
     updatedAt: now,
   };
@@ -112,13 +83,11 @@ const findById = async (id) => {
   return doc ? { ...sanitize(doc), _raw: doc } : null;
 };
 
-const findByIdWithDesign = async (id, { viewer = null } = {}) => {
+const findByIdWithDesign = async (id) => {
   if (!id) return null;
   const doc = await collection().findOne({ _id: String(id) });
-  return doc ? sanitize(doc, { withDesign: true, viewer }) : null;
+  return doc ? sanitize(doc, { withDesign: true }) : null;
 };
-
-const CUSTOMER_VIEWER = { role: 'customer' };
 
 const getForCustomer = async (id, customerUserId, { withDesign = false } = {}) => {
   if (!id) return null;
@@ -126,7 +95,7 @@ const getForCustomer = async (id, customerUserId, { withDesign = false } = {}) =
     _id: String(id),
     customerUserId: toObjectId(customerUserId),
   });
-  return doc ? sanitize(doc, { withDesign, viewer: CUSTOMER_VIEWER }) : null;
+  return doc ? sanitize(doc, { withDesign }) : null;
 };
 
 const listByCustomer = async (customerUserId) => {
@@ -134,43 +103,15 @@ const listByCustomer = async (customerUserId) => {
     .find({ customerUserId: toObjectId(customerUserId) }, { projection: WITHOUT_DESIGN })
     .sort({ createdAt: -1 })
     .toArray();
-  return rows.map((r) => sanitize(r, { viewer: CUSTOMER_VIEWER }));
-};
-
-// Open orders a vendor is eligible to accept — matched by served categories and
-// service area (city). serveAll bypasses the city filter.
-// NOTE: vendor `cities` are normalized (lowercased), so we match against the
-// order's normalized `cityKey` field — matching the raw `city` here would miss
-// as-entered values like "Hyderabad" and hide orders vendors were notified about.
-const listOpenForVendor = async ({ categoryIds = [], cities = [], serveAll = false, vendorId } = {}) => {
-  if (!categoryIds.length) return [];
-  const filter = {
-    status: 'open',
-    categoryId: { $in: categoryIds },
-  };
-  if (!serveAll && cities.length) {
-    filter.$or = [
-      { cityKey: { $in: cities } },
-      { cityKey: { $in: ['', null] } },
-      { cityKey: { $exists: false } },
-    ];
-  }
-  const viewer = vendorId ? { role: 'vendor', vendorId } : null;
-  const rows = await collection()
-    .find(filter, { projection: WITHOUT_DESIGN })
-    .sort({ createdAt: -1 })
-    .limit(100)
-    .toArray();
-  return rows.map((r) => sanitize(r, { viewer }));
+  return rows.map((r) => sanitize(r));
 };
 
 const listAssignedForVendor = async (vendorId) => {
-  const viewer = { role: 'vendor', vendorId };
   const rows = await collection()
     .find({ assignedVendorId: toObjectId(vendorId) }, { projection: WITHOUT_DESIGN })
     .sort({ updatedAt: -1 })
     .toArray();
-  return rows.map((r) => sanitize(r, { viewer }));
+  return rows.map((r) => sanitize(r));
 };
 
 const findAssignedForVendor = async (id, vendorId, { withDesign = false } = {}) => {
@@ -179,73 +120,7 @@ const findAssignedForVendor = async (id, vendorId, { withDesign = false } = {}) 
     _id: String(id),
     assignedVendorId: toObjectId(vendorId),
   });
-  return doc
-    ? { ...sanitize(doc, { withDesign, viewer: { role: 'vendor', vendorId } }), _raw: doc }
-    : null;
-};
-
-// A vendor submits (or updates) a quote on an OPEN order. Multiple vendors may
-// quote; the order stays open until the customer picks one.
-const addQuote = async (id, quote) => {
-  const now = new Date();
-  const vendorId = toObjectId(quote.vendorId);
-  const entry = {
-    vendorId,
-    businessId: quote.businessId ? toObjectId(quote.businessId) : undefined,
-    vendorName: quote.vendorName || '',
-    businessName: quote.businessName || '',
-    vendorMobile: quote.vendorMobile || '',
-    vendorNote: quote.vendorNote || '',
-    quoteAmount: quote.quoteAmount,
-    createdAt: now,
-  };
-  // Replace any prior quote from this vendor, then append the fresh one.
-  await collection().updateOne(
-    { _id: String(id), status: 'open' },
-    { $pull: { quotes: { vendorId } } },
-  );
-  const res = await collection().findOneAndUpdate(
-    { _id: String(id), status: 'open' },
-    { $push: { quotes: entry }, $set: { updatedAt: now } },
-    { returnDocument: 'after' },
-  );
-  const doc = res?.value ?? res;
-  return doc ? { ...sanitize(doc, { viewer: { role: 'vendor', vendorId: quote.vendorId } }), _raw: doc } : null;
-};
-
-// Customer picks a vendor's quote → assigns the order and moves it to accepted.
-const selectQuote = async (id, customerUserId, vendorId) => {
-  const now = new Date();
-  const doc = await collection().findOne({
-    _id: String(id),
-    customerUserId: toObjectId(customerUserId),
-    status: 'open',
-  });
-  if (!doc || !Array.isArray(doc.quotes)) return null;
-  const q = doc.quotes.find((x) => String(x.vendorId) === String(vendorId));
-  if (!q) return null;
-  const res = await collection().findOneAndUpdate(
-    { _id: String(id), customerUserId: toObjectId(customerUserId), status: 'open' },
-    {
-      $set: {
-        status: 'accepted',
-        assignedVendorId: q.vendorId,
-        assignedBusinessId: q.businessId,
-        vendorName: q.vendorName || '',
-        businessName: q.businessName || '',
-        vendorMobile: q.vendorMobile || '',
-        vendorNote: q.vendorNote || '',
-        quoteAmount: q.quoteAmount,
-        acceptedAt: now,
-        updatedAt: now,
-      },
-    },
-    { returnDocument: 'after' },
-  );
-  const updated = res?.value ?? res;
-  return updated
-    ? { ...sanitize(updated, { viewer: CUSTOMER_VIEWER }), _raw: updated }
-    : null;
+  return doc ? { ...sanitize(doc, { withDesign }), _raw: doc } : null;
 };
 
 const updateStatusForVendor = async (id, vendorId, status, extra = {}) => {
@@ -305,21 +180,13 @@ const cancelByCustomer = async (id, customerUserId) => {
     {
       _id: String(id),
       customerUserId: toObjectId(customerUserId),
-      status: { $in: ['open', 'accepted'] },
+      status: { $in: ['accepted', 'pending_payment'] },
     },
     { $set: { status: 'cancelled', updatedAt: new Date() } },
     { returnDocument: 'after' },
   );
   const doc = res?.value ?? res;
   return doc ? sanitize(doc) : null;
-};
-
-const expireOpenOrders = async () => {
-  const { modifiedCount } = await collection().updateMany(
-    { status: 'open', openExpiresAt: { $lte: new Date() } },
-    { $set: { status: 'expired', updatedAt: new Date() } },
-  );
-  return modifiedCount;
 };
 
 module.exports = {
@@ -330,15 +197,11 @@ module.exports = {
   findByIdWithDesign,
   getForCustomer,
   listByCustomer,
-  listOpenForVendor,
   listAssignedForVendor,
   findAssignedForVendor,
-  addQuote,
-  selectQuote,
   updateStatusForVendor,
   attachPaymentSession,
   markPaid,
   markPaymentFailed,
   cancelByCustomer,
-  expireOpenOrders,
 };
