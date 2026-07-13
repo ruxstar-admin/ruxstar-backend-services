@@ -90,6 +90,8 @@ const LIVE_PRINT_PROJECTION = {
   module: 1,
   status: 1,
   setupComplete: 1,
+  thumbnailUrl: 1,
+  address: 1,
   'setup.printProfile': 1,
 };
 

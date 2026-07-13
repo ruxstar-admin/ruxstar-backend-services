@@ -26,6 +26,7 @@ router.post(
 
 // ── Customer order flow ──
 const customerGuard = requireRole(ROLES.CUSTOMER);
+router.get('/shops', customerGuard, printOrderController.listShops);
 router.post('/orders', customerGuard, printOrderController.createOrder);
 router.get('/orders', customerGuard, printOrderController.listOrders);
 router.get('/orders/:id', customerGuard, printOrderController.getOrder);

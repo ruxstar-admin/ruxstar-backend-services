@@ -15,6 +15,11 @@ exports.createOrder = handle(async (req, res) => {
   res.status(201).json(payload);
 });
 
+exports.listShops = handle(async (req, res) => {
+  const payload = await printOrderService.listAvailableShops(req.query.category, req.query.city);
+  res.json(payload);
+});
+
 exports.listOrders = handle(async (req, res) => {
   const payload = await printOrderService.listCustomerOrders(req.user.id);
   res.json(payload);

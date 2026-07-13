@@ -127,6 +127,61 @@ const broadcastOpenOrder = async (order) => {
   });
 };
 
+// ─────────────────────────── Customer: available shops (direct pricing) ───────────────────────────
+
+// Lowest advertised price for a shop's pricing block, for "from ₹X" display.
+const startingPrice = (category, pricing) => {
+  if (category.pricingModel === 'per_page') {
+    const rates = [pricing.perPage?.bw, pricing.perPage?.color]
+      .map(Number)
+      .filter((n) => Number.isFinite(n) && n > 0);
+    return rates.length ? Math.min(...rates) : 0;
+  }
+  return Number(pricing.basePrice) || 0;
+};
+
+const hasUsablePrice = (category, pricing) => {
+  if (!pricing || pricing.enabled === false) return false;
+  if (category.pricingModel === 'per_page') {
+    return Number(pricing.perPage?.bw) > 0 || Number(pricing.perPage?.color) > 0;
+  }
+  return Number(pricing.basePrice) > 0;
+};
+
+// Live print shops that offer a category (optionally in a city) with a real
+// price set. Replaces the quote marketplace: customers pick a shop directly.
+const listAvailableShops = async (categoryId, city) => {
+  const category = findPrintCategory(categoryId);
+  if (!category) throw bad('choose a valid print category');
+
+  const businesses = await Business.listLivePrintForCategory(category.id, normCity(city));
+  const shops = [];
+  for (const biz of businesses) {
+    const profile = biz.setup?.printProfile || {};
+    const pricing = (profile.pricing || {})[category.id];
+    if (!hasUsablePrice(category, pricing)) continue;
+    shops.push({
+      businessId: String(biz._id ?? biz.id),
+      vendorId: String(biz.vendorId ?? ''),
+      name: biz.name || 'Print shop',
+      thumbnailUrl: biz.thumbnailUrl || '',
+      city: biz.address?.city || '',
+      acceptingOrders: profile.acceptingOrders !== false,
+      pricingModel: category.pricingModel,
+      turnaroundDays: Number(pricing.turnaroundDays) || Number(profile.turnaroundDays) || 0,
+      minQuantity: Number(pricing.minQuantity) || category.minQuantity || 1,
+      fromPrice: startingPrice(category, pricing),
+      pricing,
+    });
+  }
+  // Open shops first, then cheapest starting price.
+  shops.sort(
+    (a, b) =>
+      Number(b.acceptingOrders) - Number(a.acceptingOrders) || a.fromPrice - b.fromPrice,
+  );
+  return { shops };
+};
+
 const listCustomerOrders = async (customerUserId) => {
   const orders = await PrintOrder.listByCustomer(customerUserId);
   return { orders };
@@ -472,6 +527,7 @@ const ensureIndexes = () => PrintOrder.ensureIndexes();
 module.exports = {
   ensureIndexes,
   createOrder,
+  listAvailableShops,
   listCustomerOrders,
   getCustomerOrder,
   cancelOrder,
