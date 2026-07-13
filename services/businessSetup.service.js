@@ -17,7 +17,11 @@ const {
   MAX_PRINT_CITIES,
   MAX_TURNAROUND_DAYS,
 } = require('../constants/businessSetup');
-const { PRINT_CATEGORY_IDS } = require('../constants/printCatalog');
+const {
+  PRINT_CATEGORY_IDS,
+  findPrintCategory,
+  pricingDimensions,
+} = require('../constants/printCatalog');
 
 const defaultPrintProfile = () => ({
   serviceCategories: [],
@@ -26,7 +30,103 @@ const defaultPrintProfile = () => ({
   turnaroundDays: 3,
   minOrderValue: 0,
   notes: '',
+  acceptingOrders: true,
+  pricing: {},
 });
+
+const MAX_MONEY = 10_000_000;
+const MAX_TIERS = 10;
+
+const clampMoney = (v) => {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(n, MAX_MONEY);
+};
+
+/** Keep only allowed option keys with a positive surcharge. */
+const normalizeValueMap = (raw, allowed) => {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || !Array.isArray(allowed)) return out;
+  const allow = new Set(allowed.map(String));
+  for (const [k, v] of Object.entries(raw)) {
+    if (!allow.has(String(k))) continue;
+    const amount = clampMoney(v);
+    if (amount > 0) out[String(k)] = amount;
+  }
+  return out;
+};
+
+const normalizeTiers = (raw, key) => {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((t) => {
+      if (!t || typeof t !== 'object') return null;
+      const threshold = Math.round(Number(t[key]) || 0);
+      const unitPrice = clampMoney(t.unitPrice);
+      if (threshold < 2 || unitPrice <= 0) return null;
+      return { [key]: threshold, unitPrice };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a[key] - b[key])
+    .slice(0, MAX_TIERS);
+};
+
+/** Validate + shape one category's pricing against the catalog category. */
+const normalizeCategoryPricing = (categoryId, raw) => {
+  const category = findPrintCategory(categoryId);
+  if (!category) return null;
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const enabled = src.enabled !== false;
+  const minQuantity = Math.max(1, Math.round(Number(src.minQuantity) || category.minQuantity || 1));
+  const turnaroundDays = Math.min(
+    Math.max(Math.round(Number(src.turnaroundDays) || 0), 0),
+    MAX_TURNAROUND_DAYS,
+  );
+  const srcAddons = src.addons && typeof src.addons === 'object' ? src.addons : {};
+
+  if (category.pricingModel === 'per_page') {
+    const perPageSrc = src.perPage && typeof src.perPage === 'object' ? src.perPage : {};
+    const perPage = { bw: clampMoney(perPageSrc.bw), color: clampMoney(perPageSrc.color) };
+    const addons = {
+      doubleSided: clampMoney(srcAddons.doubleSided),
+      binding: normalizeValueMap(srcAddons.binding, category.bindingOptions || []),
+      paperSize: normalizeValueMap(srcAddons.paperSize, category.sizes || []),
+    };
+    return {
+      enabled,
+      minQuantity,
+      turnaroundDays,
+      perPage,
+      addons,
+      tiers: normalizeTiers(src.tiers, 'minPages'),
+    };
+  }
+
+  const basePrice = clampMoney(src.basePrice);
+  const addons = {};
+  for (const { key, values } of pricingDimensions(category)) {
+    addons[key] = normalizeValueMap(srcAddons[key], values);
+  }
+  return {
+    enabled,
+    minQuantity,
+    turnaroundDays,
+    basePrice,
+    addons,
+    tiers: normalizeTiers(src.tiers, 'minQty'),
+  };
+};
+
+/** Whether a category has a usable price so it can go live / be shown. */
+const hasValidPrice = (categoryId, pricing) => {
+  if (!pricing || pricing.enabled === false) return false;
+  const category = findPrintCategory(categoryId);
+  if (!category) return false;
+  if (category.pricingModel === 'per_page') {
+    return clampMoney(pricing.perPage?.bw) > 0 || clampMoney(pricing.perPage?.color) > 0;
+  }
+  return clampMoney(pricing.basePrice) > 0;
+};
 
 const normalizePrintProfile = (raw) => {
   const src = raw && typeof raw === 'object' ? raw : {};
@@ -55,7 +155,24 @@ const normalizePrintProfile = (raw) => {
   );
   const minOrderValue = Math.max(Math.round(Number(src.minOrderValue) || 0), 0);
   const notes = String(src.notes ?? '').trim().slice(0, 1000);
-  return { serviceCategories, cities, serveAll, turnaroundDays, minOrderValue, notes };
+  const acceptingOrders = src.acceptingOrders !== false;
+  const pricingSrc = src.pricing && typeof src.pricing === 'object' ? src.pricing : {};
+  const pricing = {};
+  for (const catId of serviceCategories) {
+    if (pricingSrc[catId] === undefined) continue;
+    const norm = normalizeCategoryPricing(catId, pricingSrc[catId]);
+    if (norm) pricing[catId] = norm;
+  }
+  return {
+    serviceCategories,
+    cities,
+    serveAll,
+    turnaroundDays,
+    minOrderValue,
+    notes,
+    acceptingOrders,
+    pricing,
+  };
 };
 
 const validatePrintReady = (setup) => {
@@ -68,6 +185,16 @@ const validatePrintReady = (setup) => {
       new Error('add at least one service city or enable "serve everywhere"'),
       { status: 400 },
     );
+  }
+  const pricing = profile.pricing || {};
+  for (const catId of profile.serviceCategories) {
+    if (!hasValidPrice(catId, pricing[catId])) {
+      const category = findPrintCategory(catId);
+      throw Object.assign(
+        new Error(`set a price for "${category ? category.label : catId}" before going live`),
+        { status: 400 },
+      );
+    }
   }
 };
 
@@ -627,6 +754,24 @@ const syncPhotos = async (businessId, vendorId, { images = [], removeIds = [] } 
   return formatBusinessForClient(updated);
 };
 
+/** Fast operational toggle — does not reset the business's live status. */
+const setAcceptingOrders = async (businessId, vendorId, accepting) => {
+  const business = await getOwned(businessId, vendorId);
+  if (business.module !== 'print') {
+    throw Object.assign(new Error('only print shops can toggle order availability'), { status: 400 });
+  }
+  const current = business.setup ?? defaultSetup({ typeId: business.typeId });
+  const printProfile = {
+    ...defaultPrintProfile(),
+    ...(current.printProfile || {}),
+    acceptingOrders: accepting === true,
+  };
+  const updated = await Business.updateForVendor(businessId, vendorId, {
+    setup: { ...current, printProfile },
+  });
+  return formatBusinessForClient(updated);
+};
+
 const completeSetup = async (businessId, vendorId) => {
   const business = await getOwned(businessId, vendorId);
   assertAppointmentsModule(business);
@@ -652,5 +797,6 @@ module.exports = {
   addPhoto,
   removePhoto,
   syncPhotos,
+  setAcceptingOrders,
   completeSetup,
 };

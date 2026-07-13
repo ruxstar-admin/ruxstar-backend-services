@@ -17,6 +17,12 @@ router.post('/vendor/orders/:id/quote', ...vendorGuard, printOrderController.sub
 // Back-compat alias for the previous "accept" endpoint.
 router.post('/vendor/orders/:id/accept', ...vendorGuard, printOrderController.submitQuote);
 router.post('/vendor/orders/:id/status', ...vendorGuard, printOrderController.updateStatus);
+// Toggle a print shop's availability (accepting orders on/off).
+router.post(
+  '/vendor/businesses/:id/accepting',
+  ...vendorGuard,
+  printOrderController.setAcceptingOrders,
+);
 
 // ── Customer order flow ──
 const customerGuard = requireRole(ROLES.CUSTOMER);

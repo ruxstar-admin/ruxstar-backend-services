@@ -1,4 +1,5 @@
 const printOrderService = require('../services/printOrder.service');
+const businessSetupService = require('../services/businessSetup.service');
 
 const handle = (fn) => async (req, res) => {
   try {
@@ -60,4 +61,15 @@ exports.updateStatus = handle(async (req, res) => {
   const status = String(req.body.status ?? '').trim();
   const payload = await printOrderService.updateOrderStatus(req.user.id, req.params.id, status);
   res.json(payload);
+});
+
+// Toggle a print shop's "Accepting orders" availability.
+exports.setAcceptingOrders = handle(async (req, res) => {
+  const accepting = req.body.accepting === true || req.body.accepting === 'true';
+  const business = await businessSetupService.setAcceptingOrders(
+    req.params.id,
+    req.user.id,
+    accepting,
+  );
+  res.json({ business });
 });

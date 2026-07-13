@@ -12,6 +12,8 @@ const PAPER_SIZES = ['A6', 'A5', 'A4', 'A3', 'A2', 'A1', 'Custom'];
 const APPAREL_PRINT = ['Screen Print', 'Digital / DTG', 'Sublimation', 'Vinyl', 'Embroidery'];
 const PAPER_PRINT = ['Digital', 'Offset', 'UV Print'];
 const COLOR_OPTIONS = ['Full Colour', 'Black & White', 'Single Colour', 'Custom Palette'];
+const APPAREL_SIDES = ['Front', 'Back', 'Both'];
+const DOCUMENT_BINDINGS = ['None', 'Stapled', 'Spiral bind', 'Soft cover'];
 
 const SELECT_KEYS = new Set(['size', 'material', 'printType', 'color']);
 
@@ -37,17 +39,25 @@ const cat = (id, label, icon, overrides = {}) => ({
   label,
   icon,
   description: overrides.description || '',
+  // How a vendor prices this product: 'per_unit' (base + option add-ons)
+  // or 'per_page' (per-page rates, used for documents).
+  pricingModel: overrides.pricingModel ?? 'per_unit',
   minQuantity: overrides.minQuantity ?? 1,
   sizes: overrides.sizes ?? APPAREL_SIZES,
   printTypes: overrides.printTypes ?? APPAREL_PRINT,
   materials: overrides.materials ?? ['Cotton', 'Polyester', 'Cotton Blend', 'Other'],
   colorOptions: overrides.colorOptions ?? COLOR_OPTIONS,
+  // Print sides (Front/Back/Both) — only meaningful for apparel-style products.
+  sides: overrides.sides ?? null,
+  // Binding options — only for per_page (document) products.
+  bindingOptions: overrides.bindingOptions ?? null,
   requirements: overrides.requirements ?? [],
 });
 
 const PRINT_CATEGORIES = [
   cat('tshirts', 'T-Shirts', '👕', {
     description: 'Custom printed tees',
+    sides: APPAREL_SIDES,
     requirements: [
       req('size', 'T-shirt size', { required: true }),
       req('material', 'Fabric', { required: true }),
@@ -66,6 +76,7 @@ const PRINT_CATEGORIES = [
   }),
   cat('hoodies', 'Hoodies', '🧥', {
     description: 'Hooded sweatshirts',
+    sides: APPAREL_SIDES,
     requirements: [
       req('size', 'Hoodie size', { required: true }),
       req('material', 'Fabric'),
@@ -78,6 +89,7 @@ const PRINT_CATEGORIES = [
   cat('jerseys', 'Jerseys', '🎽', {
     description: 'Team & sports jerseys',
     printTypes: ['Sublimation', 'Screen Print', 'Heat Transfer', 'Embroidery'],
+    sides: APPAREL_SIDES,
     requirements: [
       req('size', 'Jersey size', { required: true }),
       req('material', 'Fabric', { required: true }),
@@ -216,11 +228,13 @@ const PRINT_CATEGORIES = [
     ],
   }),
   cat('documents', 'Document Printing', '📄', {
+    pricingModel: 'per_page',
     minQuantity: 1,
     sizes: PAPER_SIZES,
     materials: ['Bond paper', 'Art paper', 'Matte', 'Glossy'],
     printTypes: ['Single-sided', 'Double-sided', 'Spiral bind', 'Stapled'],
     colorOptions: ['Black & White', 'Full Colour'],
+    bindingOptions: DOCUMENT_BINDINGS,
     description: 'Documents, reports & xerox',
     requirements: [
       req('size', 'Paper size', { required: true }),
@@ -241,6 +255,29 @@ const PRINT_CATEGORIES = [
 const PRINT_CATEGORY_IDS = PRINT_CATEGORIES.map((c) => c.id);
 const isPrintCategory = (id) => PRINT_CATEGORY_IDS.includes(String(id));
 const findPrintCategory = (id) => PRINT_CATEGORIES.find((c) => c.id === String(id)) || null;
+const printPricingModel = (id) => {
+  const c = findPrintCategory(id);
+  return c ? c.pricingModel : 'per_unit';
+};
+
+// Priceable option dimensions for a per_unit category, mapping the pricing key
+// to the list of valid values (used to validate & render add-on surcharges).
+const PRICING_DIMENSIONS = [
+  { key: 'sides', field: 'sides' },
+  { key: 'size', field: 'sizes' },
+  { key: 'printType', field: 'printTypes' },
+  { key: 'material', field: 'materials' },
+  { key: 'color', field: 'colorOptions' },
+];
+const pricingDimensions = (category) => {
+  if (!category) return [];
+  const out = [];
+  for (const d of PRICING_DIMENSIONS) {
+    const values = category[d.field];
+    if (Array.isArray(values) && values.length) out.push({ key: d.key, values });
+  }
+  return out;
+};
 
 const PRINT_ORDER_STATUS = {
   OPEN: 'open',
@@ -261,6 +298,8 @@ module.exports = {
   PRINT_CATEGORY_IDS,
   isPrintCategory,
   findPrintCategory,
+  printPricingModel,
+  pricingDimensions,
   PRINT_ORDER_STATUS,
   OPEN_ORDER_TTL_MINUTES,
   SELECT_KEYS,
