@@ -9,6 +9,7 @@ const photoStorage = require('./photoStorage.service');
 const cashfreePayments = require('../utils/cashfreePayments');
 const { HOLD_MINUTES, BOOKING_STATUS } = require('../constants/payments');
 const { isServiceType } = require('../constants/businessSetup');
+const { pendingHoldResourceId } = require('../utils/coachingService');
 const {
   getLiveBusiness,
   isServiceBusiness,
@@ -168,11 +169,33 @@ const createBooking = async (customerUserId, body) => {
       }
     : {};
 
+  const groupFields = target.groupClass
+    ? {
+        groupClass: true,
+        classSessionKey: target.classSessionKey,
+        holdResourceId: slotResourceIdForTarget(target, String(customerUserId)),
+        maxParticipants: target.maxParticipants,
+      }
+    : {};
+
   // Hold the slot and persist the booking atomically. On a replica set / Atlas
   // both writes commit together (or roll back together); on a standalone dev
   // mongod we fall back to a manual compensating delete.
   const booking = await withTransaction(async (session) => {
-    if (target.serviceMode) {
+    if (target.serviceMode && target.groupClass) {
+      const booked = await Booking.countClassSessionParticipants(
+        businessId,
+        {
+          serviceId: target.primaryServiceId,
+          staffId: target.resourceId,
+          startAt: target.startAt,
+        },
+        { session },
+      );
+      if (booked >= target.maxParticipants) {
+        throw Object.assign(new Error('this class is full; pick another time or batch'), { status: 409 });
+      }
+    } else if (target.serviceMode) {
       const overlap = await BusinessSlotState.findOverlap(
         businessId,
         target.resourceId,
@@ -185,18 +208,20 @@ const createBooking = async (customerUserId, body) => {
       }
     }
 
-    const slotOk = await BusinessSlotState.insertBooked(
-      businessId,
-      {
-        resourceId: target.resourceId,
-        startAt: target.startAt,
-        endAt: target.endAt,
-        booking: bookingMeta,
-      },
-      { session },
-    );
-    if (!slotOk) {
-      throw Object.assign(new Error('slot is no longer available'), { status: 409 });
+    if (!target.groupClass) {
+      const slotOk = await BusinessSlotState.insertBooked(
+        businessId,
+        {
+          resourceId: target.resourceId,
+          startAt: target.startAt,
+          endAt: target.endAt,
+          booking: bookingMeta,
+        },
+        { session },
+      );
+      if (!slotOk) {
+        throw Object.assign(new Error('slot is no longer available'), { status: 409 });
+      }
     }
 
     try {
@@ -216,12 +241,12 @@ const createBooking = async (customerUserId, body) => {
           customerName: bookingMeta.customerName,
           customerMobile: bookingMeta.customerMobile,
           ...serviceFields,
+          ...groupFields,
         },
         { session },
       );
     } catch (err) {
-      // Without a transaction the slot hold won't auto-roll back, so undo it.
-      if (!session) {
+      if (!session && !target.groupClass) {
         await BusinessSlotState.removeBooked(businessId, target.resourceId, target.startAt);
       }
       if (err?.code === 11000) {
@@ -246,36 +271,60 @@ const buildReturnUrl = (bookingId) => {
 // Secure a paid booking once Cashfree confirms payment. Promotes the pending
 // hold to a permanent `booked` slot and the booking to `confirmed`. Idempotent.
 const settlePaid = async (booking, { cashfreeOrderId, paymentRef } = {}) => {
+  const raw = booking._raw ?? {};
+  const isGroup = raw.groupClass === true;
+  const holdResourceId =
+    raw.holdResourceId ||
+    pendingHoldResourceId(booking.resourceId, booking.startAt, String(raw.customerUserId ?? ''));
+
   await withTransaction(async (session) => {
-    const confirmed = await BusinessSlotState.confirmPending(
-      booking.businessId,
-      booking.resourceId,
-      booking.startAt,
-      booking.id,
-      { session },
-    );
-    if (!confirmed) {
-      // Hold was already swept (paid right at the expiry boundary). Re-claim the
-      // slot directly; if someone else grabbed it, we can't honour this booking.
-      const ok = await BusinessSlotState.insertBooked(
+    if (isGroup) {
+      await BusinessSlotState.releasePending(
         booking.businessId,
-        {
-          resourceId: booking.resourceId,
-          startAt: booking.startAt,
-          endAt: booking.endAt,
-          booking: {
-            bookingId: booking.id,
-            customerUserId: String(booking._raw?.customerUserId ?? ''),
-            customerName: booking.customerName,
-            customerMobile: booking.customerMobile,
-          },
-        },
+        holdResourceId,
+        booking.startAt,
+        booking.id,
         { session },
       );
-      if (!ok) {
-        // Slot taken by another confirmed booking — flag for refund (Phase 5).
+      const serviceId = raw.services?.[0]?.id;
+      const maxParticipants = Number(raw.maxParticipants) || 1;
+      const booked = await Booking.countClassSessionParticipants(
+        booking.businessId,
+        { serviceId, staffId: booking.resourceId, startAt: booking.startAt },
+        { session, excludeBookingId: booking.id },
+      );
+      if (booked >= maxParticipants) {
         await Booking.markUnpaid(booking.id, BOOKING_STATUS.PAYMENT_FAILED, { session });
         return;
+      }
+    } else {
+      const confirmed = await BusinessSlotState.confirmPending(
+        booking.businessId,
+        booking.resourceId,
+        booking.startAt,
+        booking.id,
+        { session },
+      );
+      if (!confirmed) {
+        const ok = await BusinessSlotState.insertBooked(
+          booking.businessId,
+          {
+            resourceId: booking.resourceId,
+            startAt: booking.startAt,
+            endAt: booking.endAt,
+            booking: {
+              bookingId: booking.id,
+              customerUserId: String(raw.customerUserId ?? ''),
+              customerName: booking.customerName,
+              customerMobile: booking.customerMobile,
+            },
+          },
+          { session },
+        );
+        if (!ok) {
+          await Booking.markUnpaid(booking.id, BOOKING_STATUS.PAYMENT_FAILED, { session });
+          return;
+        }
       }
     }
     await Booking.markPaid(booking.id, { cashfreeOrderId, paymentRef }, { session });
@@ -284,11 +333,17 @@ const settlePaid = async (booking, { cashfreeOrderId, paymentRef } = {}) => {
 
 // Release a pending hold and move the booking to a terminal unpaid state.
 const releaseHold = async (booking, status) => {
+  const raw = booking._raw ?? {};
+  const holdResourceId =
+    raw.holdResourceId ||
+    pendingHoldResourceId(booking.resourceId, booking.startAt, String(raw.customerUserId ?? ''));
+  const slotResourceId = raw.groupClass === true ? holdResourceId : booking.resourceId;
+
   await withTransaction(async (session) => {
     await Booking.markUnpaid(booking.id, status, { session });
     await BusinessSlotState.releasePending(
       booking.businessId,
-      booking.resourceId,
+      slotResourceId,
       booking.startAt,
       booking.id,
       { session },
@@ -325,6 +380,10 @@ const resolveBookingTarget = async (business, body) => {
       durationMinutes: resolved.durationMinutes,
       conflictStart: resolved.conflictStart,
       conflictEnd: resolved.conflictEnd,
+      groupClass: resolved.groupClass === true,
+      classSessionKey: resolved.classSessionKey,
+      maxParticipants: resolved.maxParticipants,
+      primaryServiceId: resolved.primaryServiceId,
     };
   }
 
@@ -348,7 +407,28 @@ const resolveBookingTarget = async (business, body) => {
 // Claim a pending hold for the target inside a transaction. Service-mode also
 // guards against overlapping (different-start) appointments for the staff.
 const claimPendingForTarget = async (businessId, target, { expiresAt, booking }, session) => {
-  if (target.serviceMode) {
+  const holdResourceId = target.groupClass
+    ? pendingHoldResourceId(target.resourceId, target.startAt, booking.customerUserId)
+    : target.resourceId;
+
+  if (target.serviceMode && target.groupClass) {
+    const booked = await Booking.countClassSessionParticipants(businessId, {
+      serviceId: target.primaryServiceId,
+      staffId: target.resourceId,
+      startAt: target.startAt,
+    }, { session });
+    if (booked >= target.maxParticipants) {
+      throw Object.assign(new Error('this class is full; pick another time or batch'), { status: 409 });
+    }
+    const already = await Booking.hasCustomerClassBooking(businessId, booking.customerUserId, {
+      serviceId: target.primaryServiceId,
+      staffId: target.resourceId,
+      startAt: target.startAt,
+    });
+    if (already) {
+      throw Object.assign(new Error('you already have a booking for this class'), { status: 409 });
+    }
+  } else if (target.serviceMode) {
     const overlap = await BusinessSlotState.findOverlap(
       businessId,
       target.resourceId,
@@ -363,7 +443,7 @@ const claimPendingForTarget = async (businessId, target, { expiresAt, booking },
   return BusinessSlotState.claimPending(
     businessId,
     {
-      resourceId: target.resourceId,
+      resourceId: holdResourceId,
       startAt: target.startAt,
       endAt: target.endAt,
       expiresAt,
@@ -372,6 +452,11 @@ const claimPendingForTarget = async (businessId, target, { expiresAt, booking },
     { session },
   );
 };
+
+const slotResourceIdForTarget = (target, customerUserId) =>
+  target.groupClass
+    ? pendingHoldResourceId(target.resourceId, target.startAt, customerUserId)
+    : target.resourceId;
 
 const initiateBooking = async (customerUserId, body) => {
   const businessId = String(body.businessId ?? '').trim();
@@ -413,6 +498,15 @@ const initiateBooking = async (customerUserId, body) => {
       }
     : {};
 
+  const groupFields = target.groupClass
+    ? {
+        groupClass: true,
+        classSessionKey: target.classSessionKey,
+        holdResourceId: slotResourceIdForTarget(target, String(customerUserId)),
+        maxParticipants: target.maxParticipants,
+      }
+    : {};
+
   // Hold the slot + create the pending booking atomically.
   await withTransaction(async (session) => {
     const ok = await claimPendingForTarget(businessId, target, { expiresAt, booking: bookingMeta }, session);
@@ -439,13 +533,18 @@ const initiateBooking = async (customerUserId, body) => {
           customerMobile: bookingMeta.customerMobile,
           expiresAt,
           ...serviceFields,
+          ...groupFields,
         },
         { session },
       );
     } catch (err) {
-      // Standalone (no-transaction) fallback: undo the hold we just placed.
       if (!session) {
-        await BusinessSlotState.releasePending(businessId, target.resourceId, target.startAt, bookingId);
+        await BusinessSlotState.releasePending(
+          businessId,
+          groupFields.holdResourceId ?? target.resourceId,
+          target.startAt,
+          bookingId,
+        );
       }
       throw err;
     }
@@ -602,14 +701,19 @@ const cancelBooking = async (customerUserId, bookingId) => {
     throw Object.assign(new Error('cannot cancel a slot that has already started'), { status: 400 });
   }
 
+  const full = await Booking.findById(bookingId);
+  const isGroup = full?._raw?.groupClass === true;
+
   await withTransaction(async (session) => {
     await Booking.cancelById(bookingId, customerUserId, { session });
-    await BusinessSlotState.removeBooked(
-      booking.businessId,
-      booking.resourceId,
-      booking.startAt,
-      { session },
-    );
+    if (!isGroup) {
+      await BusinessSlotState.removeBooked(
+        booking.businessId,
+        booking.resourceId,
+        booking.startAt,
+        { session },
+      );
+    }
   });
 
   return { ok: true };

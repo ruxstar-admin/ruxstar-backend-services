@@ -22,6 +22,12 @@ const {
   findPrintCategory,
   pricingDimensions,
 } = require('../constants/printCatalog');
+const {
+  normalizePricingModel,
+  normalizeEnrollmentType,
+  normalizeMaxParticipants,
+  normalizeClassTimings,
+} = require('../utils/coachingService');
 
 const defaultPrintProfile = () => ({
   serviceCategories: [],
@@ -348,6 +354,18 @@ const normalizeServices = (raw, staff = []) => {
         : [];
 
       const description = String(item.description ?? '').trim();
+      const pricingModel = normalizePricingModel(item.pricingModel);
+      const enrollmentType = normalizeEnrollmentType(item.enrollmentType);
+      const maxParticipants = normalizeMaxParticipants(item.maxParticipants, enrollmentType);
+      const classTimings = normalizeClassTimings(item.classTimings);
+
+      if ((enrollmentType === 'batch' || enrollmentType === 'monthly') && !classTimings.length) {
+        throw Object.assign(
+          new Error(`"${name}" needs at least one class timing for batch/monthly enrollment`),
+          { status: 400 },
+        );
+      }
+
       return {
         id,
         name: name.slice(0, 80),
@@ -355,6 +373,10 @@ const normalizeServices = (raw, staff = []) => {
         price,
         staffIds,
         ...(description ? { description: description.slice(0, 300) } : {}),
+        ...(pricingModel !== 'per_session' ? { pricingModel } : {}),
+        ...(enrollmentType !== 'open' ? { enrollmentType } : {}),
+        ...(maxParticipants > 1 ? { maxParticipants } : {}),
+        ...(classTimings.length ? { classTimings } : {}),
       };
     })
     .filter(Boolean);

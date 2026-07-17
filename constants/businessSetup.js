@@ -44,6 +44,10 @@ const MAX_SERVICE_MINUTES = 480;
 // Granularity for candidate appointment start times.
 const SERVICE_SLOT_STEP_MINUTES = 15;
 
+const PRICING_MODELS = ['per_session', 'hourly', 'weekly', 'monthly'];
+const ENROLLMENT_TYPES = ['open', 'limited', 'batch', 'monthly'];
+const MAX_CLASS_PARTICIPANTS = 500;
+
 module.exports = {
   DAYS,
   DAY_LABELS,
@@ -60,6 +64,9 @@ module.exports = {
   MIN_SERVICE_MINUTES,
   MAX_SERVICE_MINUTES,
   SERVICE_SLOT_STEP_MINUTES,
+  PRICING_MODELS,
+  ENROLLMENT_TYPES,
+  MAX_CLASS_PARTICIPANTS,
   MAX_PRINT_CATEGORIES,
   MAX_PRINT_CITIES,
   MAX_TURNAROUND_DAYS,

@@ -59,8 +59,13 @@ const ensureIndexes = async () => {
   }
   await collection().createIndex(
     { businessId: 1, resourceId: 1, startAt: 1 },
-    { unique: true, partialFilterExpression: { status: 'confirmed' }, name: SLOT_UNIQUE_INDEX },
+    {
+      unique: true,
+      partialFilterExpression: { status: 'confirmed', groupClass: { $ne: true } },
+      name: SLOT_UNIQUE_INDEX,
+    },
   );
+  await collection().createIndex({ businessId: 1, classSessionKey: 1, startAt: 1, status: 1 });
 };
 
 const insert = async (doc, { session } = {}) => {
@@ -220,6 +225,59 @@ const cancelById = async (id, customerUserId, { session } = {}) => {
   return sanitize(doc);
 };
 
+// Count active seats for a group class session (confirmed + live pending holds).
+const countClassSessionParticipants = async (
+  businessId,
+  { serviceId, staffId, startAt },
+  { session, excludeBookingId } = {},
+) => {
+  const now = new Date();
+  const filter = {
+    businessId: toObjectId(businessId),
+    resourceId: String(staffId),
+    startAt: new Date(startAt),
+    $or: [
+      { status: 'confirmed' },
+      { status: 'pending_payment', expiresAt: { $gt: now } },
+    ],
+    services: { $elemMatch: { id: String(serviceId) } },
+    ...(excludeBookingId ? { _id: { $ne: String(excludeBookingId) } } : {}),
+  };
+  return collection().countDocuments(filter, session ? { session } : {});
+};
+
+const hasCustomerClassBooking = async (businessId, customerUserId, { serviceId, staffId, startAt }) => {
+  const now = new Date();
+  const doc = await collection().findOne({
+    businessId: toObjectId(businessId),
+    customerUserId: toObjectId(customerUserId),
+    resourceId: String(staffId),
+    startAt: new Date(startAt),
+    services: { $elemMatch: { id: String(serviceId) } },
+    $or: [
+      { status: 'confirmed' },
+      { status: 'pending_payment', expiresAt: { $gt: now } },
+    ],
+  });
+  return Boolean(doc);
+};
+
+const listActiveServiceBookingsInRange = async (businessId, from, to) => {
+  const now = new Date();
+  const rows = await collection()
+    .find({
+      businessId: toObjectId(businessId),
+      startAt: { $gte: new Date(from), $lt: new Date(to) },
+      $or: [
+        { status: 'confirmed' },
+        { status: 'pending_payment', expiresAt: { $gt: now } },
+      ],
+      services: { $exists: true, $ne: [] },
+    })
+    .toArray();
+  return rows;
+};
+
 module.exports = {
   ensureIndexes,
   insert,
@@ -233,4 +291,7 @@ module.exports = {
   markPaid,
   markUnpaid,
   cancelById,
+  countClassSessionParticipants,
+  hasCustomerClassBooking,
+  listActiveServiceBookingsInRange,
 };

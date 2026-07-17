@@ -1,9 +1,11 @@
 const Business = require('../models/Business');
 const BusinessSlotState = require('../models/BusinessSlotState');
+const Booking = require('../models/Booking');
 const {
   SETUP_MODULES,
   isServiceType,
   SERVICE_SLOT_STEP_MINUTES,
+  MIN_SERVICE_MINUTES,
 } = require('../constants/businessSetup');
 const {
   MAX_RANGE_DAYS,
@@ -16,6 +18,14 @@ const {
   slotIso,
   slotKey,
 } = require('../utils/slotTime');
+const {
+  isGroupClass,
+  usesFixedTimings,
+  computeBookingPrice,
+  pricingUnitLabel,
+  maxParticipantsFor,
+  classSessionKey,
+} = require('../utils/coachingService');
 
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -366,6 +376,23 @@ const assertSlotForBooking = async (businessId, business, resourceId, startAt) =
 
 const intervalsOverlap = (aStart, aEnd, bStart, bEnd) => aStart < bEnd && bStart < aEnd;
 
+const totalPriceForServices = (selected) =>
+  selected.reduce((sum, s) => sum + computeBookingPrice(s, Number(s.durationMinutes) || 0), 0);
+
+const sessionCountMapFromBookings = (rows) => {
+  const map = new Map();
+  for (const row of rows) {
+    const svcId = row.services?.[0]?.id;
+    if (!svcId) continue;
+    const key = classSessionKey(svcId, row.resourceId, row.startAt.toISOString());
+    map.set(key, (map.get(key) ?? 0) + 1);
+  }
+  return map;
+};
+
+const countSessionFromMap = (map, serviceId, staffId, startAt) =>
+  map.get(classSessionKey(serviceId, staffId, startAt)) ?? 0;
+
 // Resolve the selected services from the setup, preserving setup order.
 const resolveSelectedServices = (business, serviceIdsRaw) => {
   const services = Array.isArray(business.setup?.services) ? business.setup.services : [];
@@ -427,53 +454,162 @@ const buildServiceAvailability = async (business, query, { publicView = false } 
 
   const selected = resolveSelectedServices(business, query.serviceIds);
   const totalDuration = selected.reduce((sum, s) => sum + Number(s.durationMinutes || 0), 0);
-  const totalPrice = selected.reduce((sum, s) => sum + Number(s.price || 0), 0);
+  const totalPrice = totalPriceForServices(selected);
   const eligible = eligibleStaffFor(business, selected, query.staffId);
+  const primary = selected[0] ?? null;
+  const groupMode = selected.length === 1 && primary && isGroupClass(primary);
+  const fixedTimings = groupMode && usesFixedTimings(primary);
+  const capacity = groupMode ? maxParticipantsFor(primary) : 1;
+  const pricingLabel = primary ? pricingUnitLabel(primary) : '';
 
   const slots = [];
   if (totalDuration > 0 && eligible.length) {
     const rangeStart = slotIso(fromDate, '00:00');
     const rangeEndExclusive = slotIso(addDays(toDate, 1), '00:00');
-    const states = await BusinessSlotState.listInRange(String(business._id), rangeStart, rangeEndExclusive);
-    const busyByStaff = busyIntervalsByStaff(states);
     const now = Date.now();
+
+    let sessionCounts = new Map();
+    let busyByStaff = new Map();
+    if (groupMode) {
+      const rows = await Booking.listActiveServiceBookingsInRange(
+        String(business._id),
+        rangeStart,
+        rangeEndExclusive,
+      );
+      sessionCounts = sessionCountMapFromBookings(rows);
+    } else {
+      const states = await BusinessSlotState.listInRange(String(business._id), rangeStart, rangeEndExclusive);
+      busyByStaff = busyIntervalsByStaff(states);
+    }
+
+    const addSlot = ({
+      cursor,
+      startMin,
+      durationMin,
+      staffRef,
+      available,
+      seatsLeft,
+      batchLabel,
+    }) => {
+      const startTime = minutesToTime(startMin);
+      const endTime = minutesToTime(startMin + durationMin);
+      const startAt = slotIso(cursor, startTime);
+      const endAt = slotIso(cursor, endTime);
+      const startMs = new Date(startAt).getTime();
+      if (startMs <= now) return;
+
+      slots.push({
+        id: slotKey(staffRef.id, startAt),
+        resourceId: staffRef.id,
+        resourceName: staffRef.name,
+        staffId: staffRef.id,
+        staffName: staffRef.name,
+        date: cursor,
+        startTime,
+        endTime,
+        startAt,
+        endAt,
+        pricePerSlot: totalPrice,
+        durationMinutes: durationMin,
+        ...(pricingLabel ? { pricingLabel } : {}),
+        ...(batchLabel ? { batchLabel } : {}),
+        ...(groupMode && seatsLeft != null ? { seatsLeft, maxParticipants: capacity, enrolledCount: capacity - seatsLeft } : {}),
+        status: available ? 'available' : publicView ? 'unavailable' : 'booked',
+      });
+    };
 
     let cursor = fromDate;
     while (cursor <= toDate) {
       const dayKey = dayKeyForDate(cursor);
       const hours = business.setup.weeklyHours?.[dayKey];
-      if (hours && !hours.closed) {
-        const openMin = timeToMinutes(hours.open);
-        const closeMin = timeToMinutes(hours.close);
+      if (!hours || hours.closed) {
+        cursor = addDays(cursor, 1);
+        continue;
+      }
+      const openMin = timeToMinutes(hours.open);
+      const closeMin = timeToMinutes(hours.close);
+
+      if (fixedTimings && primary?.classTimings?.length) {
+        const dayTimings = primary.classTimings.filter((t) => t.day === dayKey);
+        for (const timing of dayTimings) {
+          const startMin = timeToMinutes(timing.startTime);
+          const endMin = timing.endTime
+            ? timeToMinutes(timing.endTime)
+            : startMin + totalDuration;
+          const durationMin = endMin - startMin;
+          if (startMin < openMin || endMin > closeMin || durationMin < MIN_SERVICE_MINUTES) continue;
+
+          let bestStaff = null;
+          let bestSeats = 0;
+          for (const st of eligible) {
+            const booked = countSessionFromMap(
+              sessionCounts,
+              primary.id,
+              st.id,
+              slotIso(cursor, timing.startTime),
+            );
+            const seatsLeft = capacity - booked;
+            if (seatsLeft > bestSeats) {
+              bestSeats = seatsLeft;
+              bestStaff = st;
+            }
+          }
+          if (bestStaff) {
+            addSlot({
+              cursor,
+              startMin,
+              durationMin,
+              staffRef: bestStaff,
+              available: bestSeats > 0,
+              seatsLeft: bestSeats,
+              batchLabel: timing.batchLabel,
+            });
+          }
+        }
+      } else {
         for (let startMin = openMin; startMin + totalDuration <= closeMin; startMin += SERVICE_SLOT_STEP_MINUTES) {
-          const startTime = minutesToTime(startMin);
-          const endTime = minutesToTime(startMin + totalDuration);
-          const startAt = slotIso(cursor, startTime);
-          const endAt = slotIso(cursor, endTime);
+          const startAt = slotIso(cursor, minutesToTime(startMin));
+          const endAt = slotIso(cursor, minutesToTime(startMin + totalDuration));
           const startMs = new Date(startAt).getTime();
           const endMs = new Date(endAt).getTime();
-          if (startMs <= now) continue;
 
-          const freeStaff = eligible.find((st) => {
-            const busy = busyByStaff.get(st.id) ?? [];
-            return !busy.some(([bs, be]) => intervalsOverlap(startMs - bufMs, endMs + bufMs, bs, be));
-          });
-          const staffRef = freeStaff ?? eligible[0];
-
-          slots.push({
-            id: slotKey(staffRef.id, startAt),
-            resourceId: staffRef.id,
-            resourceName: staffRef.name,
-            ...(freeStaff ? { staffId: freeStaff.id, staffName: freeStaff.name } : {}),
-            date: cursor,
-            startTime,
-            endTime,
-            startAt,
-            endAt,
-            pricePerSlot: totalPrice,
-            durationMinutes: totalDuration,
-            status: freeStaff ? 'available' : publicView ? 'unavailable' : 'booked',
-          });
+          if (groupMode) {
+            let bestStaff = null;
+            let bestSeats = 0;
+            for (const st of eligible) {
+              const booked = countSessionFromMap(sessionCounts, primary.id, st.id, startAt);
+              const seatsLeft = capacity - booked;
+              if (seatsLeft > bestSeats) {
+                bestSeats = seatsLeft;
+                bestStaff = st;
+              }
+            }
+            if (bestStaff) {
+              addSlot({
+                cursor,
+                startMin,
+                durationMin: totalDuration,
+                staffRef: bestStaff,
+                available: bestSeats > 0,
+                seatsLeft: bestSeats,
+              });
+            }
+          } else {
+            const freeStaff = eligible.find((st) => {
+              const intervals = busyByStaff.get(st.id) ?? [];
+              return !intervals.some(([bs, be]) =>
+                intervalsOverlap(startMs - bufMs, endMs + bufMs, bs, be),
+              );
+            });
+            const staffRef = freeStaff ?? eligible[0];
+            addSlot({
+              cursor,
+              startMin,
+              durationMin: totalDuration,
+              staffRef,
+              available: Boolean(freeStaff),
+            });
+          }
         }
       }
       cursor = addDays(cursor, 1);
@@ -492,6 +628,7 @@ const buildServiceAvailability = async (business, query, { publicView = false } 
     selectedServiceIds: selected.map((s) => s.id),
     durationMinutes: totalDuration,
     pricePerSlot: totalPrice,
+    ...(pricingLabel ? { pricingLabel } : {}),
     slots,
   };
 };
@@ -502,8 +639,10 @@ const assertServiceSlotForBooking = async (businessId, business, { serviceIds, s
   if (!selected.length) {
     throw Object.assign(new Error('select at least one service'), { status: 400 });
   }
+  const primary = selected[0];
+  const groupMode = selected.length === 1 && isGroupClass(primary);
   const totalDuration = selected.reduce((sum, s) => sum + Number(s.durationMinutes || 0), 0);
-  const totalPrice = selected.reduce((sum, s) => sum + Number(s.price || 0), 0);
+  const totalPrice = totalPriceForServices(selected);
 
   const dateStr = String(startAt).slice(0, 10);
   const startTime = String(startAt).slice(11, 16);
@@ -518,13 +657,29 @@ const assertServiceSlotForBooking = async (businessId, business, { serviceIds, s
   const startMinutes = timeToMinutes(startTime);
   const openMin = timeToMinutes(hours.open);
   const closeMin = timeToMinutes(hours.close);
-  if (startMinutes < openMin || startMinutes + totalDuration > closeMin) {
+
+  let normalizedStartAt = slotIso(dateStr, startTime);
+  let normalizedEndAt = slotIso(dateStr, minutesToTime(startMinutes + totalDuration));
+  let durationForSlot = totalDuration;
+
+  if (groupMode && usesFixedTimings(primary)) {
+    const timing = (primary.classTimings ?? []).find(
+      (t) => t.day === dayKey && t.startTime === startTime,
+    );
+    if (!timing) {
+      throw Object.assign(new Error('that class time is not offered on this day'), { status: 409 });
+    }
+    const endMin = timing.endTime
+      ? timeToMinutes(timing.endTime)
+      : startMinutes + totalDuration;
+    durationForSlot = endMin - startMinutes;
+    normalizedEndAt = slotIso(dateStr, minutesToTime(endMin));
+    if (startMinutes < openMin || endMin > closeMin) {
+      throw Object.assign(new Error('that time is outside opening hours'), { status: 409 });
+    }
+  } else if (startMinutes < openMin || startMinutes + totalDuration > closeMin) {
     throw Object.assign(new Error('that time is outside opening hours'), { status: 409 });
   }
-
-  const normalizedStartAt = slotIso(dateStr, startTime);
-  const endTime = minutesToTime(startMinutes + totalDuration);
-  const normalizedEndAt = slotIso(dateStr, endTime);
 
   const eligible = eligibleStaffFor(business, selected, staffId);
   if (!eligible.length) {
@@ -538,18 +693,39 @@ const assertServiceSlotForBooking = async (businessId, business, { serviceIds, s
   const conflictStart = new Date(startMs - bufMs);
   const conflictEnd = new Date(endMs + bufMs);
 
-  // Pick the first eligible staff member who is free for the whole window.
   let chosen = null;
-  for (const st of eligible) {
-    const overlap = await BusinessSlotState.findOverlap(businessId, st.id, conflictStart, conflictEnd);
-    if (!overlap) {
-      chosen = st;
-      break;
+  if (groupMode) {
+    const capacity = maxParticipantsFor(primary);
+    for (const st of eligible) {
+      const booked = await Booking.countClassSessionParticipants(businessId, {
+        serviceId: primary.id,
+        staffId: st.id,
+        startAt: normalizedStartAt,
+      });
+      if (booked < capacity) {
+        chosen = st;
+        break;
+      }
+    }
+    if (!chosen) {
+      throw Object.assign(new Error('this class is full; pick another time or batch'), { status: 409 });
+    }
+  } else {
+    for (const st of eligible) {
+      const overlap = await BusinessSlotState.findOverlap(businessId, st.id, conflictStart, conflictEnd);
+      if (!overlap) {
+        chosen = st;
+        break;
+      }
+    }
+    if (!chosen) {
+      throw Object.assign(new Error('that time was just taken; pick another'), { status: 409 });
     }
   }
-  if (!chosen) {
-    throw Object.assign(new Error('that time was just taken; pick another'), { status: 409 });
-  }
+
+  const sessionKey = groupMode
+    ? classSessionKey(primary.id, chosen.id, normalizedStartAt)
+    : undefined;
 
   return {
     staffId: chosen.id,
@@ -557,13 +733,17 @@ const assertServiceSlotForBooking = async (businessId, business, { serviceIds, s
     startAt: normalizedStartAt,
     endAt: normalizedEndAt,
     startTime,
-    endTime,
+    endTime: minutesToTime(startMinutes + durationForSlot),
     conflictStart,
     conflictEnd,
-    durationMinutes: totalDuration,
+    durationMinutes: durationForSlot,
     pricePerSlot: totalPrice,
     services: selected.map((s) => ({ id: s.id, name: s.name })),
     serviceLabel: selected.map((s) => s.name).join(', '),
+    groupClass: groupMode,
+    classSessionKey: sessionKey,
+    maxParticipants: groupMode ? maxParticipantsFor(primary) : 1,
+    primaryServiceId: primary.id,
   };
 };
 
