@@ -210,9 +210,35 @@ const listExpiredPending = async () => {
   return rows.map((r) => ({ ...sanitize(r), _raw: r }));
 };
 
+// ── Admin ──
+
+const listAllAdmin = async ({ status, eventId, vendorId, search, page = 1, limit = 20 } = {}) => {
+  const filter = {};
+  if (status) filter.status = status;
+  if (eventId && ObjectId.isValid(String(eventId))) filter.eventId = toObjectId(eventId);
+  if (vendorId && ObjectId.isValid(String(vendorId))) filter.vendorId = toObjectId(vendorId);
+  if (search) {
+    const rx = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    filter.$or = [
+      { refId: rx },
+      { eventTitle: rx },
+      { teamName: rx },
+      { customerName: rx },
+      { customerMobile: rx },
+    ];
+  }
+  const skip = (Math.max(1, Number(page)) - 1) * Number(limit);
+  const [rows, total] = await Promise.all([
+    collection().find(filter).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).toArray(),
+    collection().countDocuments(filter),
+  ]);
+  return { items: rows.map(sanitize), total };
+};
+
 module.exports = {
   sanitize,
   ensureIndexes,
+  listAllAdmin,
   insertConfirmed,
   insertPending,
   findById,

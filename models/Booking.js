@@ -386,11 +386,54 @@ const listActiveServiceBookingsInRange = async (businessId, from, to) => {
   return rows;
 };
 
+// ── Admin ──
+
+// Global, paginated booking list with optional filters and ref/customer search.
+const listAllAdmin = async ({ status, businessId, vendorId, search, page = 1, limit = 20 } = {}) => {
+  const filter = {};
+  if (status) filter.status = status;
+  if (businessId && ObjectId.isValid(String(businessId))) filter.businessId = toObjectId(businessId);
+  if (vendorId && ObjectId.isValid(String(vendorId))) filter.vendorId = toObjectId(vendorId);
+  if (search) {
+    const rx = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    filter.$or = [
+      { refId: rx },
+      { paymentRefId: rx },
+      { customerName: rx },
+      { customerMobile: rx },
+      { businessName: rx },
+    ];
+  }
+  const skip = (Math.max(1, Number(page)) - 1) * Number(limit);
+  const [rows, total] = await Promise.all([
+    collection().find(filter).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).toArray(),
+    collection().countDocuments(filter),
+  ]);
+  return { items: rows.map(sanitize), total };
+};
+
+// Admin force-cancel (any confirmed booking, regardless of owner).
+const adminCancel = async (id) => {
+  if (!id) return null;
+  const result = await collection().findOneAndUpdate(
+    { _id: String(id), status: { $in: ['confirmed', 'pending_payment'] } },
+    { $set: { status: 'cancelled', updatedAt: new Date() } },
+    { returnDocument: 'after' },
+  );
+  const doc = result?.value ?? result;
+  return doc ? sanitize(doc) : null;
+};
+
+const countConfirmed = () => collection().countDocuments({ status: 'confirmed' });
+
 module.exports = {
   ensureIndexes,
   insert,
   insertPending,
   findById,
+  listAllAdmin,
+  adminCancel,
+  countConfirmed,
   setPaymentRefId,
   attachPaymentSession,
   findByIdForCustomer,

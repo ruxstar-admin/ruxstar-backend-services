@@ -184,11 +184,45 @@ const confirmSpot = async (id, { session } = {}) => {
   );
 };
 
+// ── Admin ──
+
+const listAllAdmin = async ({ status, kind, vendorId, search, page = 1, limit = 20 } = {}) => {
+  const filter = {};
+  if (status) filter.status = status;
+  if (kind) filter.kind = kind;
+  if (vendorId && ObjectId.isValid(String(vendorId))) filter.vendorId = toObjectId(vendorId);
+  if (search) {
+    const rx = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    filter.$or = [{ title: rx }, { businessName: rx }, { venue: rx }];
+  }
+  const skip = (Math.max(1, Number(page)) - 1) * Number(limit);
+  const [rows, total] = await Promise.all([
+    collection().find(filter).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).toArray(),
+    collection().countDocuments(filter),
+  ]);
+  return { items: rows.map(sanitize), total };
+};
+
+const setStatusAdmin = async (id, status) => {
+  if (!ObjectId.isValid(String(id))) return null;
+  const result = await collection().findOneAndUpdate(
+    { _id: toObjectId(id) },
+    { $set: { status, updatedAt: new Date() } },
+    { returnDocument: 'after' },
+  );
+  return sanitize(result?.value ?? result);
+};
+
+const countAll = () => collection().countDocuments({});
+
 module.exports = {
   sanitize,
   ensureIndexes,
   insert,
   listByVendor,
+  listAllAdmin,
+  setStatusAdmin,
+  countAll,
   findByIdForVendor,
   updateForVendor,
   deleteForVendor,

@@ -98,6 +98,51 @@ const becomeCustomer = (userId) =>
     { returnDocument: 'after' },
   );
 
+// ── Admin ──
+
+// Global, paginated user list with optional role/status filter and search
+// (name / mobile / refId). Never returns password hashes.
+const listAllAdmin = async ({ role, status, search, page = 1, limit = 20 } = {}) => {
+  const filter = {};
+  if (role) filter.roles = role;
+  if (status) filter.status = status;
+  if (search) {
+    const rx = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    filter.$or = [{ name: rx }, { mobile: rx }, { refId: rx }, { 'vendorProfile.businessName': rx }];
+  }
+  const skip = (Math.max(1, Number(page)) - 1) * Number(limit);
+  const [rows, total] = await Promise.all([
+    collection()
+      .find(filter, { projection: { passwordHash: 0 } })
+      .sort({ createdAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .toArray(),
+    collection().countDocuments(filter),
+  ]);
+  return { items: rows.map(sanitize), total };
+};
+
+// Counts grouped by primary role plus disabled count, for the dashboard.
+const countByRole = async () => {
+  const rows = await collection()
+    .aggregate([
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          customers: { $sum: { $cond: [{ $in: ['customer', '$roles'] }, 1, 0] } },
+          vendors: { $sum: { $cond: [{ $in: ['vendor', '$roles'] }, 1, 0] } },
+          admins: { $sum: { $cond: [{ $in: ['admin', '$roles'] }, 1, 0] } },
+          employees: { $sum: { $cond: [{ $in: ['employee', '$roles'] }, 1, 0] } },
+          disabled: { $sum: { $cond: [{ $eq: ['$status', 'disabled'] }, 1, 0] } },
+        },
+      },
+    ])
+    .toArray();
+  return rows[0] || { total: 0, customers: 0, vendors: 0, admins: 0, employees: 0, disabled: 0 };
+};
+
 const ensureIndexes = async () => {
   await collection().createIndex({ mobile: 1 }, { unique: true });
   await collection().createIndex({ roles: 1, 'vendorProfile.kyc.status': 1 });
@@ -121,5 +166,7 @@ module.exports = {
   updateProfile,
   becomeVendor,
   becomeCustomer,
+  listAllAdmin,
+  countByRole,
   ensureIndexes,
 };

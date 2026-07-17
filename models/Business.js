@@ -32,12 +32,17 @@ const LIST_PUBLIC_PROJECTION = {
   createdAt: 1,
   status: 1,
   setupComplete: 1,
+  suspended: 1,
 };
 
 const sanitize = (doc) => {
   if (!doc) return doc;
   const { vendorId, ...rest } = doc;
-  return { ...rest, vendorId: vendorId ? String(vendorId) : undefined };
+  return {
+    ...rest,
+    vendorId: vendorId ? String(vendorId) : undefined,
+    suspended: doc.suspended === true,
+  };
 };
 
 const findOpts = ({ withPhotoData = true } = {}) =>
@@ -63,7 +68,7 @@ const findByIdForVendor = async (id, vendorId, { withPhotoData = true } = {}) =>
 const findLiveById = async (id, { withPhotoData = false } = {}) => {
   if (!ObjectId.isValid(String(id))) return null;
   const doc = await collection().findOne(
-    { _id: toObjectId(id), status: 'live', setupComplete: true },
+    { _id: toObjectId(id), status: 'live', setupComplete: true, suspended: { $ne: true } },
     findOpts({ withPhotoData }),
   );
   return sanitize(doc);
@@ -73,6 +78,7 @@ const listLivePublic = async ({ module } = {}) => {
   const filter = {
     status: 'live',
     setupComplete: true,
+    suspended: { $ne: true },
   };
   if (module) filter.module = module;
 
@@ -101,6 +107,7 @@ const listLivePrintForCategory = async (categoryId, city) => {
   const filter = {
     status: 'live',
     setupComplete: true,
+    suspended: { $ne: true },
     module: 'print',
     'setup.printProfile.serviceCategories': String(categoryId),
   };
@@ -118,7 +125,13 @@ const listLivePrintForCategory = async (categoryId, city) => {
 const listLivePrintByVendor = async (vendorId) => {
   const rows = await collection()
     .find(
-      { vendorId: toObjectId(vendorId), status: 'live', setupComplete: true, module: 'print' },
+      {
+        vendorId: toObjectId(vendorId),
+        status: 'live',
+        setupComplete: true,
+        suspended: { $ne: true },
+        module: 'print',
+      },
       { projection: LIVE_PRINT_PROJECTION },
     )
     .toArray();
@@ -170,6 +183,87 @@ const findSetupPhoto = async (businessId, photoId) => {
 const countByVendor = (vendorId) =>
   collection().countDocuments({ vendorId: toObjectId(vendorId) });
 
+// ── Admin ──
+
+// Global, paginated list with optional filters/search. Excludes heavy blobs.
+const listAllAdmin = async ({ status, module, suspended, vendorId, search, page = 1, limit = 20 } = {}) => {
+  const filter = {};
+  if (status) filter.status = status;
+  if (module) filter.module = module;
+  if (suspended === true) filter.suspended = true;
+  if (suspended === false) filter.suspended = { $ne: true };
+  if (vendorId && ObjectId.isValid(String(vendorId))) filter.vendorId = toObjectId(vendorId);
+  if (search) {
+    const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    filter.$or = [{ name: rx }, { address: rx }, { typeLabel: rx }, { categoryLabel: rx }];
+  }
+  const skip = (Math.max(1, Number(page)) - 1) * Number(limit);
+  const [rows, total] = await Promise.all([
+    collection()
+      .find(filter, { projection: WITHOUT_PHOTO_DATA })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .toArray(),
+    collection().countDocuments(filter),
+  ]);
+  return { items: rows.map(sanitize), total };
+};
+
+const findByIdAny = async (id, { withPhotoData = false } = {}) => {
+  if (!ObjectId.isValid(String(id))) return null;
+  const doc = await collection().findOne({ _id: toObjectId(id) }, findOpts({ withPhotoData }));
+  return sanitize(doc);
+};
+
+const setSuspended = async (id, suspended, reason) => {
+  if (!ObjectId.isValid(String(id))) return null;
+  const $set = { suspended: suspended === true, updatedAt: new Date() };
+  if (suspended) {
+    $set.suspendedAt = new Date();
+    $set.suspendedReason = reason || 'suspended by admin';
+  } else {
+    $set.suspendedReason = null;
+    $set.suspendedAt = null;
+  }
+  const result = await collection().findOneAndUpdate(
+    { _id: toObjectId(id) },
+    { $set },
+    { returnDocument: 'after', projection: WITHOUT_PHOTO_DATA },
+  );
+  return sanitize(result?.value ?? result);
+};
+
+const countByStatus = async () => {
+  const rows = await collection()
+    .aggregate([
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          live: { $sum: { $cond: [{ $eq: ['$status', 'live'] }, 1, 0] } },
+          suspended: { $sum: { $cond: [{ $eq: ['$suspended', true] }, 1, 0] } },
+        },
+      },
+    ])
+    .toArray();
+  return rows[0] || { total: 0, live: 0, suspended: 0 };
+};
+
+const countBusinessesByVendorIds = async (vendorIds) => {
+  const oids = [...new Set(vendorIds)]
+    .filter((id) => id && ObjectId.isValid(String(id)))
+    .map((id) => toObjectId(id));
+  if (!oids.length) return {};
+  const rows = await collection()
+    .aggregate([
+      { $match: { vendorId: { $in: oids } } },
+      { $group: { _id: '$vendorId', count: { $sum: 1 } } },
+    ])
+    .toArray();
+  return Object.fromEntries(rows.map((r) => [String(r._id), r.count]));
+};
+
 const ensureIndexes = async () => {
   await collection().createIndex({ vendorId: 1, createdAt: -1 });
   await collection().createIndex({ status: 1, setupComplete: 1, module: 1, createdAt: -1 });
@@ -189,4 +283,9 @@ module.exports = {
   findSetupPhoto,
   listLivePrintForCategory,
   listLivePrintByVendor,
+  listAllAdmin,
+  findByIdAny,
+  setSuspended,
+  countByStatus,
+  countBusinessesByVendorIds,
 };

@@ -100,4 +100,88 @@ const listByCustomer = async (customerUserId) => {
   return rows.map(sanitize);
 };
 
-module.exports = { sanitize, ensureIndexes, record, listByVendor, listByCustomer };
+// ── Admin ──
+
+const listAllAdmin = async ({ source, vendorId, search, page = 1, limit = 20 } = {}) => {
+  const filter = {};
+  if (source) filter.source = source;
+  if (vendorId && toObjectId(vendorId)) filter.vendorId = toObjectId(vendorId);
+  if (search) {
+    const rx = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    filter.$or = [{ refId: rx }, { sourceRef: rx }, { cashfreeOrderId: rx }, { gatewayPaymentId: rx }];
+  }
+  const skip = (Math.max(1, Number(page)) - 1) * Number(limit);
+  const [rows, total] = await Promise.all([
+    collection().find(filter).sort({ paidAt: -1 }).skip(skip).limit(Number(limit)).toArray(),
+    collection().countDocuments(filter),
+  ]);
+  return { items: rows.map(sanitize), total };
+};
+
+// Grand totals across the whole ledger.
+const revenueTotals = async () => {
+  const rows = await collection()
+    .aggregate([
+      { $match: { status: 'paid' } },
+      { $group: { _id: null, amount: { $sum: '$amount' }, count: { $sum: 1 } } },
+    ])
+    .toArray();
+  return rows[0] ? { amount: rows[0].amount, count: rows[0].count } : { amount: 0, count: 0 };
+};
+
+// Revenue grouped by source (booking / event / print).
+const revenueBySource = async () => {
+  const rows = await collection()
+    .aggregate([
+      { $match: { status: 'paid' } },
+      { $group: { _id: '$source', amount: { $sum: '$amount' }, count: { $sum: 1 } } },
+      { $sort: { amount: -1 } },
+    ])
+    .toArray();
+  return rows.map((r) => ({ source: r._id || 'unknown', amount: r.amount, count: r.count }));
+};
+
+// Top vendors by revenue. Returns raw vendorId strings — caller can hydrate names.
+const revenueByVendor = async ({ limit = 20 } = {}) => {
+  const rows = await collection()
+    .aggregate([
+      { $match: { status: 'paid', vendorId: { $ne: null } } },
+      { $group: { _id: '$vendorId', amount: { $sum: '$amount' }, count: { $sum: 1 } } },
+      { $sort: { amount: -1 } },
+      { $limit: Number(limit) },
+    ])
+    .toArray();
+  return rows.map((r) => ({ vendorId: r._id ? String(r._id) : null, amount: r.amount, count: r.count }));
+};
+
+// Daily revenue for the last N days (IST-naive, uses paidAt UTC date).
+const revenueTimeSeries = async ({ days = 30 } = {}) => {
+  const since = new Date(Date.now() - Number(days) * 86400000);
+  const rows = await collection()
+    .aggregate([
+      { $match: { status: 'paid', paidAt: { $gte: since } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$paidAt' } },
+          amount: { $sum: '$amount' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ])
+    .toArray();
+  return rows.map((r) => ({ date: r._id, amount: r.amount, count: r.count }));
+};
+
+module.exports = {
+  sanitize,
+  ensureIndexes,
+  record,
+  listByVendor,
+  listByCustomer,
+  listAllAdmin,
+  revenueTotals,
+  revenueBySource,
+  revenueByVendor,
+  revenueTimeSeries,
+};

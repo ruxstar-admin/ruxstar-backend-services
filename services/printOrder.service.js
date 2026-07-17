@@ -422,7 +422,7 @@ const initiatePayment = async (customerUserId, orderId) => {
 const settlePaid = async (raw, { cashfreeOrderId, paymentRef } = {}) => {
   const paid = await PrintOrder.markPaid(raw._id ?? raw.id, { cashfreeOrderId, paymentRef });
   if (paid) {
-    await paymentService.recordPayment({
+    const payment = await paymentService.recordPayment({
       source: 'print',
       sourceId: paid.id,
       vendorId: paid.assignedVendorId,
@@ -432,6 +432,7 @@ const settlePaid = async (raw, { cashfreeOrderId, paymentRef } = {}) => {
       cashfreeOrderId,
       gatewayPaymentId: paymentRef,
     });
+    if (payment?.refId) await PrintOrder.setPaymentRefId(paid.id, payment.refId);
   }
   if (paid && paid.assignedVendorId) {
     await notificationService.notify(paid.assignedVendorId, {

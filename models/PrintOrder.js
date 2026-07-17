@@ -40,6 +40,8 @@ const sanitize = (doc, { withDesign = false } = {}) => {
     quoteAmount: typeof doc.quoteAmount === 'number' ? doc.quoteAmount : null,
     currency: doc.currency || 'INR',
     paymentStatus: doc.paymentStatus || null,
+    paymentRef: doc.paymentRef || null,
+    paymentRefId: doc.paymentRefId || null,
     paymentSessionId: doc.paymentSessionId || null,
     cashfreeOrderId: doc.cashfreeOrderId || null,
     acceptedAt: iso(doc.acceptedAt),
@@ -168,6 +170,14 @@ const markPaid = async (id, { cashfreeOrderId, paymentRef } = {}) => {
   return doc ? sanitize(doc) : null;
 };
 
+const setPaymentRefId = async (id, paymentRefId) => {
+  if (!paymentRefId) return;
+  await collection().updateOne(
+    { _id: String(id) },
+    { $set: { paymentRefId: String(paymentRefId), updatedAt: new Date() } },
+  );
+};
+
 const markPaymentFailed = async (id) => {
   await collection().updateOne(
     { _id: String(id), status: 'pending_payment' },
@@ -189,10 +199,56 @@ const cancelByCustomer = async (id, customerUserId) => {
   return doc ? sanitize(doc) : null;
 };
 
+// ── Admin ──
+
+const listAllAdmin = async ({ status, assignedVendorId, search, page = 1, limit = 20 } = {}) => {
+  const filter = {};
+  if (status) filter.status = status;
+  if (assignedVendorId && ObjectId.isValid(String(assignedVendorId))) {
+    filter.assignedVendorId = toObjectId(assignedVendorId);
+  }
+  if (search) {
+    const rx = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    filter.$or = [
+      { customerName: rx },
+      { customerMobile: rx },
+      { categoryLabel: rx },
+      { businessName: rx },
+      { paymentRefId: rx },
+    ];
+  }
+  const skip = (Math.max(1, Number(page)) - 1) * Number(limit);
+  const [rows, total] = await Promise.all([
+    collection()
+      .find(filter, { projection: WITHOUT_DESIGN })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .toArray(),
+    collection().countDocuments(filter),
+  ]);
+  return { items: rows.map((r) => sanitize(r)), total };
+};
+
+const adminCancel = async (id) => {
+  const res = await collection().findOneAndUpdate(
+    { _id: String(id), status: { $nin: ['completed', 'cancelled', 'expired'] } },
+    { $set: { status: 'cancelled', updatedAt: new Date() } },
+    { returnDocument: 'after', projection: WITHOUT_DESIGN },
+  );
+  const doc = res?.value ?? res;
+  return doc ? sanitize(doc) : null;
+};
+
+const countAll = () => collection().countDocuments({});
+
 module.exports = {
   sanitize,
   ensureIndexes,
   insert,
+  listAllAdmin,
+  adminCancel,
+  countAll,
   findById,
   findByIdWithDesign,
   getForCustomer,
@@ -202,6 +258,7 @@ module.exports = {
   updateStatusForVendor,
   attachPaymentSession,
   markPaid,
+  setPaymentRefId,
   markPaymentFailed,
   cancelByCustomer,
 };

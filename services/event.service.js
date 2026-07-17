@@ -272,6 +272,10 @@ const registerForEvent = async (customerUserId, eventId, body) => {
   const event = eventRaw;
   assertRegistrable(event);
 
+  // Block registrations for events whose host business has been suspended by an admin.
+  const hostBusiness = await Business.findByIdAny(event.businessId);
+  if (hostBusiness?.suspended) throw badRequest('registrations are closed for this event');
+
   if (await EventRegistration.hasActiveRegistration(eventId, customerUserId)) {
     throw Object.assign(new Error('you are already registered for this event'), { status: 409 });
   }
