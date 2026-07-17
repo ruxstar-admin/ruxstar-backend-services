@@ -133,7 +133,7 @@ const getPublicBusiness = async (businessId) => {
 
 const listPublicSlots = async (businessId, query) => {
   const business = await getLiveBusiness(businessId);
-  if (isServiceBusiness(business)) return buildServiceAvailability(business, query);
+  if (isServiceBusiness(business)) return buildServiceAvailability(business, query, { publicView: true });
   return buildSlotsPayload(business, query, { publicView: true });
 };
 

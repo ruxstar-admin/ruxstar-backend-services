@@ -418,7 +418,7 @@ const busyIntervalsByStaff = (states) => {
   return map;
 };
 
-const buildServiceAvailability = async (business, query) => {
+const buildServiceAvailability = async (business, query, { publicView = false } = {}) => {
   const { fromDate, toDate } = parseRange(query.from, query.to);
   const services = Array.isArray(business.setup?.services) ? business.setup.services : [];
   const staff = Array.isArray(business.setup?.staff) ? business.setup.staff : [];
@@ -458,14 +458,13 @@ const buildServiceAvailability = async (business, query) => {
             const busy = busyByStaff.get(st.id) ?? [];
             return !busy.some(([bs, be]) => intervalsOverlap(startMs - bufMs, endMs + bufMs, bs, be));
           });
-          if (!freeStaff) continue;
+          const staffRef = freeStaff ?? eligible[0];
 
           slots.push({
-            id: slotKey(freeStaff.id, startAt),
-            resourceId: freeStaff.id,
-            resourceName: freeStaff.name,
-            staffId: freeStaff.id,
-            staffName: freeStaff.name,
+            id: slotKey(staffRef.id, startAt),
+            resourceId: staffRef.id,
+            resourceName: staffRef.name,
+            ...(freeStaff ? { staffId: freeStaff.id, staffName: freeStaff.name } : {}),
             date: cursor,
             startTime,
             endTime,
@@ -473,7 +472,7 @@ const buildServiceAvailability = async (business, query) => {
             endAt,
             pricePerSlot: totalPrice,
             durationMinutes: totalDuration,
-            status: 'available',
+            status: freeStaff ? 'available' : publicView ? 'unavailable' : 'booked',
           });
         }
       }
