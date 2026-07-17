@@ -27,6 +27,7 @@ const {
   normalizeEnrollmentType,
   normalizeMaxParticipants,
   normalizeClassTimings,
+  normalizePriceOptions,
 } = require('../utils/coachingService');
 
 const defaultPrintProfile = () => ({
@@ -366,17 +367,29 @@ const normalizeServices = (raw, staff = []) => {
         );
       }
 
+      // A class can offer several payment options at once (hourly/daily/
+      // weekly/monthly), each with its own vendor-set price. Weekly/monthly
+      // billing only makes sense against a fixed recurring schedule, so
+      // those options are dropped if no class timings were set.
+      let priceOptions = normalizePriceOptions(item.priceOptions, { price, pricingModel });
+      if (!classTimings.length) {
+        priceOptions = priceOptions.filter((o) => o.pricingModel !== 'weekly' && o.pricingModel !== 'monthly');
+      }
+      if (!priceOptions.length) priceOptions = [{ pricingModel: 'per_session', price }];
+      const primaryOption = priceOptions[0];
+
       return {
         id,
         name: name.slice(0, 80),
         durationMinutes,
-        price,
+        price: primaryOption.price,
         staffIds,
         ...(description ? { description: description.slice(0, 300) } : {}),
-        ...(pricingModel !== 'per_session' ? { pricingModel } : {}),
+        ...(primaryOption.pricingModel !== 'per_session' ? { pricingModel: primaryOption.pricingModel } : {}),
         ...(enrollmentType !== 'open' ? { enrollmentType } : {}),
         ...(maxParticipants > 1 ? { maxParticipants } : {}),
         ...(classTimings.length ? { classTimings } : {}),
+        ...(priceOptions.length > 1 ? { priceOptions } : {}),
       };
     })
     .filter(Boolean);

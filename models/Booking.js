@@ -1,5 +1,6 @@
 const { ObjectId } = require('mongodb');
 const { getDb } = require('../config/database');
+const { monthKeyFromIso, countActiveForOccurrence } = require('../utils/coachingService');
 
 const collection = () => getDb().collection('bookings');
 
@@ -31,6 +32,30 @@ const sanitize = (doc) => {
     expiresAt: doc.expiresAt ? doc.expiresAt.toISOString() : null,
     paidAt: doc.paidAt ? doc.paidAt.toISOString?.() ?? doc.paidAt : null,
     createdAt: doc.createdAt?.toISOString?.() ?? doc.createdAt,
+    groupClass: doc.groupClass === true,
+    maxParticipants: typeof doc.maxParticipants === 'number' ? doc.maxParticipants : undefined,
+    pricingModel: doc.pricingModel || undefined,
+    // Period-billed enrollments (weekly/monthly) pay once for every session
+    // in that week/month — periodKind + periodKey identify which one.
+    periodKind: doc.periodKind || undefined,
+    periodKey: doc.periodKey || undefined,
+  };
+};
+
+// Bounds (as absolute instants) for a period key — "week" keys are the
+// Monday date ("YYYY-MM-DD"), "month" keys are "YYYY-MM".
+const periodKeyToBounds = (periodKind, periodKey) => {
+  if (periodKind === 'week') {
+    const start = new Date(`${periodKey}T00:00:00+05:30`);
+    return { start, endExclusive: new Date(start.getTime() + 7 * 86400000) };
+  }
+  const [y, m] = String(periodKey).split('-').map(Number);
+  const pad = (n) => String(n).padStart(2, '0');
+  const nextY = m === 12 ? y + 1 : y;
+  const nextM = m === 12 ? 1 : m + 1;
+  return {
+    start: new Date(`${y}-${pad(m)}-01T00:00:00+05:30`),
+    endExclusive: new Date(`${nextY}-${pad(nextM)}-01T00:00:00+05:30`),
   };
 };
 
@@ -258,41 +283,59 @@ const cancelById = async (id, customerUserId, { session } = {}) => {
   return sanitize(doc);
 };
 
-// Count active seats for a group class session (confirmed + live pending holds).
-const countClassSessionParticipants = async (
+// All active (confirmed + live pending) bookings for a class+coach that
+// could occupy a seat during the given IST calendar month — the widest
+// window any single payment option (exact/week/month) can cover.
+const listActiveClassBookingsInMonth = async (
   businessId,
-  { serviceId, staffId, startAt },
-  { session, excludeBookingId } = {},
+  { serviceId, staffId, monthKey },
+  { session, customerUserId } = {},
 ) => {
+  const { start, endExclusive } = periodKeyToBounds('month', monthKey);
   const now = new Date();
   const filter = {
     businessId: toObjectId(businessId),
     resourceId: String(staffId),
-    startAt: new Date(startAt),
+    startAt: { $gte: start, $lt: endExclusive },
+    services: { $elemMatch: { id: String(serviceId) } },
     $or: [
       { status: 'confirmed' },
       { status: 'pending_payment', expiresAt: { $gt: now } },
     ],
-    services: { $elemMatch: { id: String(serviceId) } },
-    ...(excludeBookingId ? { _id: { $ne: String(excludeBookingId) } } : {}),
+    ...(customerUserId ? { customerUserId: toObjectId(customerUserId) } : {}),
   };
-  return collection().countDocuments(filter, session ? { session } : {});
+  return collection().find(filter, session ? { session } : {}).toArray();
 };
 
-const hasCustomerClassBooking = async (businessId, customerUserId, { serviceId, staffId, startAt }) => {
-  const now = new Date();
-  const doc = await collection().findOne({
-    businessId: toObjectId(businessId),
-    customerUserId: toObjectId(customerUserId),
-    resourceId: String(staffId),
-    startAt: new Date(startAt),
-    services: { $elemMatch: { id: String(serviceId) } },
-    $or: [
-      { status: 'confirmed' },
-      { status: 'pending_payment', expiresAt: { $gt: now } },
-    ],
-  });
-  return Boolean(doc);
+// Seats already taken for one specific class occurrence, combining exact
+// bookings for that session with any weekly/monthly enrollment whose period
+// covers it (a monthly student occupies a seat at every session that month).
+const countActiveOccurrenceBookings = async (
+  businessId,
+  { serviceId, staffId, startAt },
+  { session, excludeBookingId } = {},
+) => {
+  const rows = await listActiveClassBookingsInMonth(
+    businessId,
+    { serviceId, staffId, monthKey: monthKeyFromIso(startAt) },
+    { session },
+  );
+  return countActiveForOccurrence(rows, startAt, excludeBookingId);
+};
+
+// Whether this customer already has an active booking (of any payment type)
+// covering this occurrence — prevents accidental double-booking.
+const hasCustomerActiveForOccurrence = async (
+  businessId,
+  customerUserId,
+  { serviceId, staffId, startAt },
+) => {
+  const rows = await listActiveClassBookingsInMonth(
+    businessId,
+    { serviceId, staffId, monthKey: monthKeyFromIso(startAt) },
+    { customerUserId },
+  );
+  return countActiveForOccurrence(rows, startAt) > 0;
 };
 
 const listActiveServiceBookingsInRange = async (businessId, from, to) => {
@@ -324,7 +367,8 @@ module.exports = {
   markPaid,
   markUnpaid,
   cancelById,
-  countClassSessionParticipants,
-  hasCustomerClassBooking,
+  listActiveClassBookingsInMonth,
+  countActiveOccurrenceBookings,
+  hasCustomerActiveForOccurrence,
   listActiveServiceBookingsInRange,
 };

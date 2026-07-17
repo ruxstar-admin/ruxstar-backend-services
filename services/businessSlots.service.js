@@ -21,10 +21,15 @@ const {
 const {
   isGroupClass,
   usesFixedTimings,
+  resolvePriceOption,
+  servicePriceOptions,
+  periodKindForModel,
+  periodKeyForModel,
   computeBookingPrice,
   pricingUnitLabel,
   maxParticipantsFor,
   classSessionKey,
+  countActiveForOccurrence,
 } = require('../utils/coachingService');
 
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -376,22 +381,50 @@ const assertSlotForBooking = async (businessId, business, resourceId, startAt) =
 
 const intervalsOverlap = (aStart, aEnd, bStart, bEnd) => aStart < bEnd && bStart < aEnd;
 
-const totalPriceForServices = (selected) =>
-  selected.reduce((sum, s) => sum + computeBookingPrice(s, Number(s.durationMinutes) || 0), 0);
+// A single service's price under a specific (or its default) payment option;
+// for the rare multi-service selection (non-coaching), each keeps its own
+// default option since there's no single "chosen payment type" to apply.
+const priceForSelection = (selected, requestedModel) => {
+  if (selected.length === 1) {
+    return computeBookingPrice(selected[0], Number(selected[0].durationMinutes) || 0, requestedModel);
+  }
+  return selected.reduce((sum, s) => sum + computeBookingPrice(s, Number(s.durationMinutes) || 0), 0);
+};
 
-const sessionCountMapFromBookings = (rows) => {
+// Bookings grouped by "serviceId:staffId" so occurrence-level seat counts can
+// be computed by combining exact/weekly/monthly rows that cover a given slot.
+const groupRowsByServiceStaff = (rows) => {
   const map = new Map();
   for (const row of rows) {
     const svcId = row.services?.[0]?.id;
     if (!svcId) continue;
-    const key = classSessionKey(svcId, row.resourceId, row.startAt.toISOString());
-    map.set(key, (map.get(key) ?? 0) + 1);
+    const key = `${svcId}:${row.resourceId}`;
+    const list = map.get(key) ?? [];
+    list.push(row);
+    map.set(key, list);
   }
   return map;
 };
 
-const countSessionFromMap = (map, serviceId, staffId, startAt) =>
-  map.get(classSessionKey(serviceId, staffId, startAt)) ?? 0;
+const countOccurrenceFromGroups = (rowsByKey, serviceId, staffId, occurrenceIso) =>
+  countActiveForOccurrence(rowsByKey.get(`${serviceId}:${staffId}`) ?? [], occurrenceIso);
+
+// Widen the query range to cover full calendar months when the class offers
+// any period-billed option, so seat counts stay consistent no matter which
+// week the customer happens to be browsing (a monthly booking made while
+// looking at week 1 must still count against week 3's chips).
+const monthSpanRangeIso = (fromDate, toDate) => {
+  const fromMonth = fromDate.slice(0, 7);
+  const toMonth = toDate.slice(0, 7);
+  const [fy, fm] = fromMonth.split('-').map(Number);
+  const [ty, tm] = toMonth.split('-').map(Number);
+  const nextY = tm === 12 ? ty + 1 : ty;
+  const nextM = tm === 12 ? 1 : tm + 1;
+  return {
+    rangeStart: `${fy}-${String(fm).padStart(2, '0')}-01T00:00:00+05:30`,
+    rangeEndExclusive: `${nextY}-${String(nextM).padStart(2, '0')}-01T00:00:00+05:30`,
+  };
+};
 
 // Resolve the selected services from the setup, preserving setup order.
 const resolveSelectedServices = (business, serviceIdsRaw) => {
@@ -454,13 +487,17 @@ const buildServiceAvailability = async (business, query, { publicView = false } 
 
   const selected = resolveSelectedServices(business, query.serviceIds);
   const totalDuration = selected.reduce((sum, s) => sum + Number(s.durationMinutes || 0), 0);
-  const totalPrice = totalPriceForServices(selected);
   const eligible = eligibleStaffFor(business, selected, query.staffId);
   const primary = selected[0] ?? null;
   const groupMode = selected.length === 1 && primary && isGroupClass(primary);
   const fixedTimings = groupMode && usesFixedTimings(primary);
+  const priceOption = primary ? resolvePriceOption(primary, query.pricingModel) : null;
+  const requestedModel = priceOption?.pricingModel;
+  const totalPrice = priceForSelection(selected, requestedModel);
   const capacity = groupMode ? maxParticipantsFor(primary) : 1;
-  const pricingLabel = primary ? pricingUnitLabel(primary) : '';
+  const pricingLabel = primary ? pricingUnitLabel(primary, requestedModel) : '';
+  const priceOptions = primary ? servicePriceOptions(primary) : [];
+  const hasPeriodOptions = priceOptions.some((o) => periodKindForModel(o.pricingModel) !== 'exact');
 
   const slots = [];
   if (totalDuration > 0 && eligible.length) {
@@ -468,15 +505,18 @@ const buildServiceAvailability = async (business, query, { publicView = false } 
     const rangeEndExclusive = slotIso(addDays(toDate, 1), '00:00');
     const now = Date.now();
 
-    let sessionCounts = new Map();
+    let rowsByKey = new Map();
     let busyByStaff = new Map();
     if (groupMode) {
+      const bookingRange = hasPeriodOptions
+        ? monthSpanRangeIso(fromDate, toDate)
+        : { rangeStart, rangeEndExclusive };
       const rows = await Booking.listActiveServiceBookingsInRange(
         String(business._id),
-        rangeStart,
-        rangeEndExclusive,
+        bookingRange.rangeStart,
+        bookingRange.rangeEndExclusive,
       );
-      sessionCounts = sessionCountMapFromBookings(rows);
+      rowsByKey = groupRowsByServiceStaff(rows);
     } else {
       const states = await BusinessSlotState.listInRange(String(business._id), rangeStart, rangeEndExclusive);
       busyByStaff = busyIntervalsByStaff(states);
@@ -542,8 +582,8 @@ const buildServiceAvailability = async (business, query, { publicView = false } 
           let bestStaff = null;
           let bestSeats = 0;
           for (const st of eligible) {
-            const booked = countSessionFromMap(
-              sessionCounts,
+            const booked = countOccurrenceFromGroups(
+              rowsByKey,
               primary.id,
               st.id,
               slotIso(cursor, timing.startTime),
@@ -577,7 +617,7 @@ const buildServiceAvailability = async (business, query, { publicView = false } 
             let bestStaff = null;
             let bestSeats = 0;
             for (const st of eligible) {
-              const booked = countSessionFromMap(sessionCounts, primary.id, st.id, startAt);
+              const booked = countOccurrenceFromGroups(rowsByKey, primary.id, st.id, startAt);
               const seatsLeft = capacity - booked;
               if (seatsLeft > bestSeats) {
                 bestSeats = seatsLeft;
@@ -629,12 +669,18 @@ const buildServiceAvailability = async (business, query, { publicView = false } 
     durationMinutes: totalDuration,
     pricePerSlot: totalPrice,
     ...(pricingLabel ? { pricingLabel } : {}),
+    ...(requestedModel ? { pricingModel: requestedModel } : {}),
+    ...(priceOptions.length > 1 ? { priceOptions } : {}),
     slots,
   };
 };
 
 // Validate a service booking request and resolve the concrete staff + window.
-const assertServiceSlotForBooking = async (businessId, business, { serviceIds, staffId, startAt }) => {
+const assertServiceSlotForBooking = async (
+  businessId,
+  business,
+  { serviceIds, staffId, startAt, pricingModel },
+) => {
   const selected = resolveSelectedServices(business, serviceIds);
   if (!selected.length) {
     throw Object.assign(new Error('select at least one service'), { status: 400 });
@@ -642,7 +688,8 @@ const assertServiceSlotForBooking = async (businessId, business, { serviceIds, s
   const primary = selected[0];
   const groupMode = selected.length === 1 && isGroupClass(primary);
   const totalDuration = selected.reduce((sum, s) => sum + Number(s.durationMinutes || 0), 0);
-  const totalPrice = totalPriceForServices(selected);
+  const requestedModel = resolvePriceOption(primary, pricingModel).pricingModel;
+  const totalPrice = priceForSelection(selected, requestedModel);
 
   const dateStr = String(startAt).slice(0, 10);
   const startTime = String(startAt).slice(11, 16);
@@ -693,11 +740,14 @@ const assertServiceSlotForBooking = async (businessId, business, { serviceIds, s
   const conflictStart = new Date(startMs - bufMs);
   const conflictEnd = new Date(endMs + bufMs);
 
+  const periodKind = groupMode ? periodKindForModel(requestedModel) : 'exact';
+  const periodKey = groupMode ? periodKeyForModel(requestedModel, normalizedStartAt) : undefined;
+
   let chosen = null;
   if (groupMode) {
     const capacity = maxParticipantsFor(primary);
     for (const st of eligible) {
-      const booked = await Booking.countClassSessionParticipants(businessId, {
+      const booked = await Booking.countActiveOccurrenceBookings(businessId, {
         serviceId: primary.id,
         staffId: st.id,
         startAt: normalizedStartAt,
@@ -744,6 +794,9 @@ const assertServiceSlotForBooking = async (businessId, business, { serviceIds, s
     classSessionKey: sessionKey,
     maxParticipants: groupMode ? maxParticipantsFor(primary) : 1,
     primaryServiceId: primary.id,
+    pricingModel: requestedModel,
+    periodKind,
+    periodKey,
   };
 };
 

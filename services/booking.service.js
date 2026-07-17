@@ -175,6 +175,10 @@ const createBooking = async (customerUserId, body) => {
         classSessionKey: target.classSessionKey,
         holdResourceId: slotResourceIdForTarget(target, String(customerUserId)),
         maxParticipants: target.maxParticipants,
+        ...(target.pricingModel ? { pricingModel: target.pricingModel } : {}),
+        ...(target.periodKind && target.periodKind !== 'exact'
+          ? { periodKind: target.periodKind, periodKey: target.periodKey }
+          : {}),
       }
     : {};
 
@@ -183,13 +187,9 @@ const createBooking = async (customerUserId, body) => {
   // mongod we fall back to a manual compensating delete.
   const booking = await withTransaction(async (session) => {
     if (target.serviceMode && target.groupClass) {
-      const booked = await Booking.countClassSessionParticipants(
+      const booked = await Booking.countActiveOccurrenceBookings(
         businessId,
-        {
-          serviceId: target.primaryServiceId,
-          staffId: target.resourceId,
-          startAt: target.startAt,
-        },
+        { serviceId: target.primaryServiceId, staffId: target.resourceId, startAt: target.startAt },
         { session },
       );
       if (booked >= target.maxParticipants) {
@@ -288,7 +288,7 @@ const settlePaid = async (booking, { cashfreeOrderId, paymentRef } = {}) => {
       );
       const serviceId = raw.services?.[0]?.id;
       const maxParticipants = Number(raw.maxParticipants) || 1;
-      const booked = await Booking.countClassSessionParticipants(
+      const booked = await Booking.countActiveOccurrenceBookings(
         booking.businessId,
         { serviceId, staffId: booking.resourceId, startAt: booking.startAt },
         { session, excludeBookingId: booking.id },
@@ -367,6 +367,7 @@ const resolveBookingTarget = async (business, body) => {
       serviceIds,
       staffId: String(body.staffId ?? '').trim() || undefined,
       startAt,
+      pricingModel: String(body.pricingModel ?? '').trim() || undefined,
     });
     return {
       serviceMode: true,
@@ -384,6 +385,9 @@ const resolveBookingTarget = async (business, body) => {
       classSessionKey: resolved.classSessionKey,
       maxParticipants: resolved.maxParticipants,
       primaryServiceId: resolved.primaryServiceId,
+      pricingModel: resolved.pricingModel,
+      periodKind: resolved.periodKind,
+      periodKey: resolved.periodKey,
     };
   }
 
@@ -412,7 +416,7 @@ const claimPendingForTarget = async (businessId, target, { expiresAt, booking },
     : target.resourceId;
 
   if (target.serviceMode && target.groupClass) {
-    const booked = await Booking.countClassSessionParticipants(businessId, {
+    const booked = await Booking.countActiveOccurrenceBookings(businessId, {
       serviceId: target.primaryServiceId,
       staffId: target.resourceId,
       startAt: target.startAt,
@@ -420,13 +424,20 @@ const claimPendingForTarget = async (businessId, target, { expiresAt, booking },
     if (booked >= target.maxParticipants) {
       throw Object.assign(new Error('this class is full; pick another time or batch'), { status: 409 });
     }
-    const already = await Booking.hasCustomerClassBooking(businessId, booking.customerUserId, {
+    const already = await Booking.hasCustomerActiveForOccurrence(businessId, booking.customerUserId, {
       serviceId: target.primaryServiceId,
       staffId: target.resourceId,
       startAt: target.startAt,
     });
     if (already) {
-      throw Object.assign(new Error('you already have a booking for this class'), { status: 409 });
+      throw Object.assign(
+        new Error(
+          target.periodKind && target.periodKind !== 'exact'
+            ? `you are already enrolled in this class for this ${target.periodKind}`
+            : 'you already have a booking for this class',
+        ),
+        { status: 409 },
+      );
     }
   } else if (target.serviceMode) {
     const overlap = await BusinessSlotState.findOverlap(
@@ -504,6 +515,10 @@ const initiateBooking = async (customerUserId, body) => {
         classSessionKey: target.classSessionKey,
         holdResourceId: slotResourceIdForTarget(target, String(customerUserId)),
         maxParticipants: target.maxParticipants,
+        ...(target.pricingModel ? { pricingModel: target.pricingModel } : {}),
+        ...(target.periodKind && target.periodKind !== 'exact'
+          ? { periodKind: target.periodKind, periodKey: target.periodKey }
+          : {}),
       }
     : {};
 
