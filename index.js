@@ -12,6 +12,7 @@ const slotsService = require('./services/businessSlots.service');
 const bookingService = require('./services/booking.service');
 const eventService = require('./services/event.service');
 const printOrderService = require('./services/printOrder.service');
+const paymentService = require('./services/payment.service');
 const notificationService = require('./services/notification.service');
 
 const port = process.env.PORT || 8080;
@@ -27,6 +28,7 @@ const ensureAllIndexes = async () => {
   await bookingService.ensureIndexes();
   await eventService.ensureIndexes();
   await printOrderService.ensureIndexes();
+  await paymentService.ensureIndexes();
   await notificationService.ensureIndexes();
   await Business.ensureIndexes();
   await User.ensureIndexes();

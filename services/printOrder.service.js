@@ -3,6 +3,7 @@ const PrintOrder = require('../models/PrintOrder');
 const Business = require('../models/Business');
 const User = require('../models/User');
 const notificationService = require('./notification.service');
+const paymentService = require('./payment.service');
 const cashfreePayments = require('../utils/cashfreePayments');
 const { findPrintCategory, PRINT_ORDER_STATUS } = require('../constants/printCatalog');
 const { computePrice } = require('../utils/printPricing');
@@ -420,6 +421,18 @@ const initiatePayment = async (customerUserId, orderId) => {
 
 const settlePaid = async (raw, { cashfreeOrderId, paymentRef } = {}) => {
   const paid = await PrintOrder.markPaid(raw._id ?? raw.id, { cashfreeOrderId, paymentRef });
+  if (paid) {
+    await paymentService.recordPayment({
+      source: 'print',
+      sourceId: paid.id,
+      vendorId: paid.assignedVendorId,
+      customerUserId: paid.customerUserId,
+      amount: paid.quoteAmount,
+      currency: paid.currency || 'INR',
+      cashfreeOrderId,
+      gatewayPaymentId: paymentRef,
+    });
+  }
   if (paid && paid.assignedVendorId) {
     await notificationService.notify(paid.assignedVendorId, {
       type: 'pod_order_paid',

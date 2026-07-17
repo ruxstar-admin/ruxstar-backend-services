@@ -1,12 +1,24 @@
 const { ObjectId } = require('mongodb');
 const { getDb } = require('../config/database');
 const ROLES = require('../constants/roles');
+const { userRef } = require('../utils/referenceId');
 
 const collection = () => getDb().collection('users');
 
 const normalize = (mobile) => String(mobile).replace(/\D/g, '').slice(-10);
 
-const sanitize = ({ passwordHash, ...user }) => user;
+// Deterministic fallback for accounts created before member ids were stored —
+// matches the legacy Ruxstar Card format so existing cards stay consistent.
+const deriveRef = (userId) => {
+  const hex = String(userId).replace(/[^a-f0-9]/gi, '').toUpperCase();
+  const tail = hex.slice(-8).padStart(8, '0');
+  return `RUX-${tail.slice(0, 4)}-${tail.slice(4, 8)}`;
+};
+
+const sanitize = ({ passwordHash, ...user }) => ({
+  ...user,
+  refId: user.refId || (user._id ? deriveRef(user._id) : null),
+});
 
 const findByMobile = (mobile) => collection().findOne({ mobile: normalize(mobile) });
 
@@ -27,8 +39,9 @@ const findKycStatusById = (id) =>
   );
 
 const insert = async (doc) => {
-  const { insertedId } = await collection().insertOne(doc);
-  return { _id: insertedId, ...doc };
+  const row = { refId: userRef(), ...doc };
+  const { insertedId } = await collection().insertOne(row);
+  return { _id: insertedId, ...row };
 };
 
 const list = (filter = {}) => collection().find(filter).toArray();
@@ -88,6 +101,10 @@ const becomeCustomer = (userId) =>
 const ensureIndexes = async () => {
   await collection().createIndex({ mobile: 1 }, { unique: true });
   await collection().createIndex({ roles: 1, 'vendorProfile.kyc.status': 1 });
+  await collection().createIndex(
+    { refId: 1 },
+    { unique: true, partialFilterExpression: { refId: { $exists: true } } },
+  );
 };
 
 module.exports = {

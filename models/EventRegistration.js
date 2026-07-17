@@ -1,6 +1,7 @@
 const { ObjectId } = require('mongodb');
 const { getDb } = require('../config/database');
 const { REGISTRATION_STATUS } = require('../constants/events');
+const { withPrefix, REF_PREFIX } = require('../utils/referenceId');
 
 const collection = () => getDb().collection('event_registrations');
 
@@ -10,6 +11,7 @@ const sanitize = (doc) => {
   if (!doc) return doc;
   return {
     id: String(doc._id),
+    refId: doc.refId || null,
     eventId: String(doc.eventId),
     eventTitle: doc.eventTitle ?? '',
     businessId: String(doc.businessId),
@@ -26,6 +28,8 @@ const sanitize = (doc) => {
     paymentStatus: doc.paymentStatus || null,
     paymentSessionId: doc.paymentSessionId || null,
     cashfreeOrderId: doc.cashfreeOrderId || null,
+    paymentRef: doc.paymentRef || null,
+    paymentRefId: doc.paymentRefId || null,
     startAt: doc.startAt ? doc.startAt.toISOString() : null,
     venue: doc.venue ?? '',
     expiresAt: doc.expiresAt ? doc.expiresAt.toISOString() : null,
@@ -39,6 +43,10 @@ const ensureIndexes = async () => {
   await collection().createIndex({ eventId: 1, createdAt: -1 });
   await collection().createIndex({ vendorId: 1, createdAt: -1 });
   await collection().createIndex({ status: 1, expiresAt: 1 });
+  await collection().createIndex(
+    { refId: 1 },
+    { unique: true, partialFilterExpression: { refId: { $exists: true } } },
+  );
 };
 
 const buildRow = (doc, extra) => {
@@ -46,6 +54,7 @@ const buildRow = (doc, extra) => {
   return {
     ...doc,
     _id: String(doc._id),
+    refId: doc.refId || withPrefix(REF_PREFIX.REGISTRATION),
     eventId: toObjectId(doc.eventId),
     businessId: toObjectId(doc.businessId),
     vendorId: toObjectId(doc.vendorId),
@@ -94,6 +103,15 @@ const getForCustomer = async (id, customerUserId) => {
     customerUserId: toObjectId(customerUserId),
   });
   return sanitize(doc);
+};
+
+const setPaymentRefId = async (id, paymentRefId, { session } = {}) => {
+  if (!id || !paymentRefId) return;
+  await collection().updateOne(
+    { _id: String(id) },
+    { $set: { paymentRefId: String(paymentRefId), updatedAt: new Date() } },
+    session ? { session } : {},
+  );
 };
 
 const attachPaymentSession = async (id, { paymentSessionId, cashfreeOrderId } = {}) => {
@@ -199,6 +217,7 @@ module.exports = {
   insertPending,
   findById,
   getForCustomer,
+  setPaymentRefId,
   attachPaymentSession,
   markPaid,
   markUnpaid,

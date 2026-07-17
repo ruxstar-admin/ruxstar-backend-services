@@ -6,6 +6,7 @@ const EventRegistration = require('../models/EventRegistration');
 const User = require('../models/User');
 const photoStorage = require('./photoStorage.service');
 const cashfreePayments = require('../utils/cashfreePayments');
+const paymentService = require('./payment.service');
 const { HOLD_MINUTES } = require('../constants/payments');
 const {
   EVENT_MODULE,
@@ -82,6 +83,10 @@ const parseEventInput = (body, { partial = false } = {}) => {
     const n = num(body.capacity);
     out.capacity = n && n > 0 ? Math.round(n) : null;
   }
+  if (body.minCapacity !== undefined) {
+    const n = num(body.minCapacity);
+    out.minCapacity = n && n > 0 ? Math.round(n) : null;
+  }
   if (body.entryFee !== undefined) {
     const n = num(body.entryFee);
     out.entryFee = n && n > 0 ? Math.round(n) : 0;
@@ -99,6 +104,13 @@ const parseEventInput = (body, { partial = false } = {}) => {
   if (body.registrationDeadline !== undefined) {
     const rd = str(body.registrationDeadline);
     out.registrationDeadline = rd && !Number.isNaN(Date.parse(rd)) ? rd : null;
+  }
+  if (
+    typeof out.minCapacity === 'number' &&
+    typeof out.capacity === 'number' &&
+    out.minCapacity > out.capacity
+  ) {
+    throw badRequest('minimum capacity cannot exceed the maximum capacity');
   }
   return out;
 };
@@ -358,14 +370,33 @@ const registerForEvent = async (customerUserId, eventId, body) => {
 
 // Promote a pending registration to confirmed. Idempotent.
 const settlePaid = async (registration, { cashfreeOrderId, paymentRef } = {}) => {
+  const raw = registration._raw ?? {};
+  let confirmed = registration.status === REGISTRATION_STATUS.CONFIRMED;
   await withTransaction(async (session) => {
     const paid = await EventRegistration.markPaid(
       registration.id,
       { cashfreeOrderId, paymentRef },
       { session },
     );
-    if (paid) await Event.confirmSpot(registration.eventId, { session });
+    if (paid) {
+      await Event.confirmSpot(registration.eventId, { session });
+      confirmed = true;
+    }
   });
+
+  if (!confirmed) return;
+  const pay = await paymentService.recordPayment({
+    source: 'event',
+    sourceId: registration.id,
+    sourceRef: raw.refId || registration.refId,
+    vendorId: raw.vendorId,
+    customerUserId: raw.customerUserId,
+    amount: typeof raw.amount === 'number' ? raw.amount : registration.amount,
+    currency: raw.currency || registration.currency || 'INR',
+    cashfreeOrderId,
+    gatewayPaymentId: paymentRef,
+  });
+  if (pay?.refId) await EventRegistration.setPaymentRefId(registration.id, pay.refId);
 };
 
 // Release a reserved spot and move the registration to a terminal unpaid state.

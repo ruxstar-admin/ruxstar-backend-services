@@ -267,7 +267,7 @@ const getCard = async (userId) => {
   return {
     status: 'verified',
     card: {
-      ruxstarId: ruxstarIdFor(userId),
+      ruxstarId: user.refId || ruxstarIdFor(userId),
       name: kyc.aadhaar?.name || kyc.pan?.registeredName || user.name || null,
       mobile: user.mobile || null,
       aadhaar: maskAadhaar(kyc.aadhaar?.uid),

@@ -1,6 +1,7 @@
 const { ObjectId } = require('mongodb');
 const { getDb } = require('../config/database');
 const { monthKeyFromIso, countActiveForOccurrence } = require('../utils/coachingService');
+const { withPrefix, REF_PREFIX } = require('../utils/referenceId');
 
 const collection = () => getDb().collection('bookings');
 
@@ -10,6 +11,7 @@ const sanitize = (doc) => {
   if (!doc) return doc;
   return {
     id: String(doc._id),
+    refId: doc.refId || null,
     businessId: String(doc.businessId),
     businessName: doc.businessName,
     typeLabel: doc.typeLabel,
@@ -29,6 +31,9 @@ const sanitize = (doc) => {
     paymentStatus: doc.paymentStatus || null,
     paymentSessionId: doc.paymentSessionId || null,
     cashfreeOrderId: doc.cashfreeOrderId || null,
+    // paymentRef = payment gateway's id; paymentRefId = our PAY-xxxx ledger id.
+    paymentRef: doc.paymentRef || null,
+    paymentRefId: doc.paymentRefId || null,
     expiresAt: doc.expiresAt ? doc.expiresAt.toISOString() : null,
     paidAt: doc.paidAt ? doc.paidAt.toISOString?.() ?? doc.paidAt : null,
     createdAt: doc.createdAt?.toISOString?.() ?? doc.createdAt,
@@ -39,6 +44,17 @@ const sanitize = (doc) => {
     // in that week/month — periodKind + periodKey identify which one.
     periodKind: doc.periodKind || undefined,
     periodKey: doc.periodKey || undefined,
+    // Multi-slot bookings (e.g. a turf booked 6–9 in one paid order) list each
+    // covered slot; single-slot bookings leave this undefined.
+    slots: Array.isArray(doc.slots) && doc.slots.length
+      ? doc.slots.map((s) => ({
+          resourceId: s.resourceId,
+          resourceName: s.resourceName ?? '',
+          startAt: s.startAt?.toISOString?.() ?? s.startAt,
+          endAt: s.endAt?.toISOString?.() ?? s.endAt,
+          pricePerSlot: typeof s.pricePerSlot === 'number' ? s.pricePerSlot : undefined,
+        }))
+      : undefined,
   };
 };
 
@@ -77,6 +93,10 @@ const ensureIndexes = async () => {
   await collection().createIndex({ status: 1, expiresAt: 1 });
   // Vendor order views will query by vendor + slot time.
   await collection().createIndex({ vendorId: 1, startAt: 1 });
+  await collection().createIndex(
+    { refId: 1 },
+    { unique: true, partialFilterExpression: { refId: { $exists: true } } },
+  );
 
   // Enforce "at most one CONFIRMED solo booking per slot". Group-class rows
   // set groupClass:true and are excluded via the partial filter below.
@@ -131,6 +151,7 @@ const insert = async (doc, { session } = {}) => {
   const { _id, businessId, vendorId, customerUserId, ...rest } = doc;
   const row = {
     ...( _id ? { _id: String(_id) } : {}),
+    refId: doc.refId || withPrefix(REF_PREFIX.BOOKING),
     businessId: toObjectId(businessId),
     vendorId: vendorId ? toObjectId(vendorId) : undefined,
     customerUserId: toObjectId(customerUserId),
@@ -152,6 +173,7 @@ const insertPending = async (doc, { session } = {}) => {
   const { _id, businessId, vendorId, customerUserId, ...rest } = doc;
   const row = {
     ...( _id ? { _id: String(_id) } : {}),
+    refId: doc.refId || withPrefix(REF_PREFIX.BOOKING),
     businessId: toObjectId(businessId),
     vendorId: vendorId ? toObjectId(vendorId) : undefined,
     customerUserId: toObjectId(customerUserId),
@@ -172,6 +194,16 @@ const findById = async (id) => {
   if (!id) return null;
   const doc = await collection().findOne({ _id: String(id) });
   return doc ? { ...sanitize(doc), _raw: doc } : null;
+};
+
+// Link the confirmed booking to its ledger payment (PAY-xxxx). Idempotent.
+const setPaymentRefId = async (id, paymentRefId, { session } = {}) => {
+  if (!id || !paymentRefId) return;
+  await collection().updateOne(
+    { _id: String(id) },
+    { $set: { paymentRefId: String(paymentRefId), updatedAt: new Date() } },
+    session ? { session } : {},
+  );
 };
 
 const attachPaymentSession = async (id, { paymentSessionId, cashfreeOrderId } = {}) => {
@@ -359,6 +391,7 @@ module.exports = {
   insert,
   insertPending,
   findById,
+  setPaymentRefId,
   attachPaymentSession,
   findByIdForCustomer,
   getForCustomer,

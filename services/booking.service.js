@@ -7,6 +7,7 @@ const User = require('../models/User');
 const setupService = require('./businessSetup.service');
 const photoStorage = require('./photoStorage.service');
 const cashfreePayments = require('../utils/cashfreePayments');
+const paymentService = require('./payment.service');
 const { HOLD_MINUTES, BOOKING_STATUS } = require('../constants/payments');
 const { isServiceType } = require('../constants/businessSetup');
 const { pendingHoldResourceId } = require('../utils/coachingService');
@@ -209,18 +210,27 @@ const createBooking = async (customerUserId, body) => {
     }
 
     if (!target.groupClass) {
-      const slotOk = await BusinessSlotState.insertBooked(
-        businessId,
-        {
-          resourceId: target.resourceId,
-          startAt: target.startAt,
-          endAt: target.endAt,
-          booking: bookingMeta,
-        },
-        { session },
-      );
-      if (!slotOk) {
-        throw Object.assign(new Error('slot is no longer available'), { status: 409 });
+      const claimed = [];
+      for (const slot of slotsForTarget(target)) {
+        const slotOk = await BusinessSlotState.insertBooked(
+          businessId,
+          {
+            resourceId: slot.resourceId,
+            startAt: slot.startAt,
+            endAt: slot.endAt,
+            booking: bookingMeta,
+          },
+          { session },
+        );
+        if (!slotOk) {
+          if (!session) {
+            for (const done of claimed) {
+              await BusinessSlotState.removeBooked(businessId, done.resourceId, done.startAt);
+            }
+          }
+          throw Object.assign(new Error('slot is no longer available'), { status: 409 });
+        }
+        claimed.push(slot);
       }
     }
 
@@ -242,12 +252,15 @@ const createBooking = async (customerUserId, body) => {
           customerMobile: bookingMeta.customerMobile,
           ...serviceFields,
           ...groupFields,
+          ...(target.multiSlot ? { slots: target.slots } : {}),
         },
         { session },
       );
     } catch (err) {
       if (!session && !target.groupClass) {
-        await BusinessSlotState.removeBooked(businessId, target.resourceId, target.startAt);
+        for (const slot of slotsForTarget(target)) {
+          await BusinessSlotState.removeBooked(businessId, slot.resourceId, slot.startAt);
+        }
       }
       if (err?.code === 11000) {
         throw Object.assign(new Error('slot is no longer available'), { status: 409 });
@@ -277,6 +290,7 @@ const settlePaid = async (booking, { cashfreeOrderId, paymentRef } = {}) => {
     raw.holdResourceId ||
     pendingHoldResourceId(booking.resourceId, booking.startAt, String(raw.customerUserId ?? ''));
 
+  let settled = false;
   await withTransaction(async (session) => {
     if (isGroup) {
       await BusinessSlotState.releasePending(
@@ -298,56 +312,88 @@ const settlePaid = async (booking, { cashfreeOrderId, paymentRef } = {}) => {
         return;
       }
     } else {
-      const confirmed = await BusinessSlotState.confirmPending(
-        booking.businessId,
-        booking.resourceId,
-        booking.startAt,
-        booking.id,
-        { session },
-      );
-      if (!confirmed) {
-        const ok = await BusinessSlotState.insertBooked(
+      for (const slot of slotsForBooking(booking)) {
+        const confirmed = await BusinessSlotState.confirmPending(
           booking.businessId,
-          {
-            resourceId: booking.resourceId,
-            startAt: booking.startAt,
-            endAt: booking.endAt,
-            booking: {
-              bookingId: booking.id,
-              customerUserId: String(raw.customerUserId ?? ''),
-              customerName: booking.customerName,
-              customerMobile: booking.customerMobile,
-            },
-          },
+          slot.resourceId,
+          slot.startAt,
+          booking.id,
           { session },
         );
-        if (!ok) {
-          await Booking.markUnpaid(booking.id, BOOKING_STATUS.PAYMENT_FAILED, { session });
-          return;
+        if (!confirmed) {
+          const ok = await BusinessSlotState.insertBooked(
+            booking.businessId,
+            {
+              resourceId: slot.resourceId,
+              startAt: slot.startAt,
+              endAt: slot.endAt,
+              booking: {
+                bookingId: booking.id,
+                customerUserId: String(raw.customerUserId ?? ''),
+                customerName: booking.customerName,
+                customerMobile: booking.customerMobile,
+              },
+            },
+            { session },
+          );
+          if (!ok) {
+            await Booking.markUnpaid(booking.id, BOOKING_STATUS.PAYMENT_FAILED, { session });
+            return;
+          }
         }
       }
     }
     await Booking.markPaid(booking.id, { cashfreeOrderId, paymentRef }, { session });
+    settled = true;
   });
+
+  // Record the payment in the unified ledger (idempotent) and link it back onto
+  // the booking. Outside the slot transaction so a ledger issue can't unpay it.
+  if (settled) {
+    const pay = await paymentService.recordPayment({
+      source: 'booking',
+      sourceId: booking.id,
+      sourceRef: raw.refId || booking.refId,
+      vendorId: raw.vendorId,
+      customerUserId: raw.customerUserId,
+      amount: typeof raw.amount === 'number' ? raw.amount : booking.pricePerSlot,
+      currency: raw.currency || 'INR',
+      cashfreeOrderId,
+      gatewayPaymentId: paymentRef,
+    });
+    if (pay?.refId) await Booking.setPaymentRefId(booking.id, pay.refId);
+  }
 };
 
 // Release a pending hold and move the booking to a terminal unpaid state.
 const releaseHold = async (booking, status) => {
   const raw = booking._raw ?? {};
+  const isGroup = raw.groupClass === true;
   const holdResourceId =
     raw.holdResourceId ||
     pendingHoldResourceId(booking.resourceId, booking.startAt, String(raw.customerUserId ?? ''));
-  const slotResourceId = raw.groupClass === true ? holdResourceId : booking.resourceId;
 
   await withTransaction(async (session) => {
     await Booking.markUnpaid(booking.id, status, { session });
-    await BusinessSlotState.releasePending(
-      booking.businessId,
-      slotResourceId,
-      booking.startAt,
-      booking.id,
-      { session },
-    );
+    if (isGroup) {
+      await BusinessSlotState.releasePending(
+        booking.businessId,
+        holdResourceId,
+        booking.startAt,
+        booking.id,
+        { session },
+      );
+      return;
+    }
+    for (const slot of slotsForBooking(booking)) {
+      await BusinessSlotState.releasePending(
+        booking.businessId,
+        slot.resourceId,
+        slot.startAt,
+        booking.id,
+        { session },
+      );
+    }
   });
 };
 
@@ -392,25 +438,121 @@ const resolveBookingTarget = async (business, body) => {
   }
 
   const resourceId = String(body.resourceId ?? '').trim();
-  const startAt = String(body.startAt ?? '').trim();
-  if (!resourceId || !startAt) {
+  // Accept either a single `startAt` or a `startAts` array (multi-slot booking
+  // — e.g. booking 6–7, 7–8 and 8–9 on the same turf in one paid order).
+  const rawStarts =
+    Array.isArray(body.startAts) && body.startAts.length
+      ? body.startAts
+      : [body.startAt];
+  const starts = [...new Set(rawStarts.map((s) => String(s ?? '').trim()).filter(Boolean))];
+  if (!resourceId || !starts.length) {
     throw Object.assign(new Error('resourceId and startAt required'), { status: 400 });
   }
-  const slot = await assertSlotForBooking(businessId, business, resourceId, startAt);
   const resource = business.setup.resources.find((r) => r.id === resourceId);
+  const resourceName = resource?.name ?? '';
+
+  const slots = [];
+  for (const s of starts) {
+    const slot = await assertSlotForBooking(businessId, business, resourceId, s);
+    slots.push({
+      resourceId,
+      resourceName,
+      startAt: slot.startAt,
+      endAt: slot.endAt,
+      pricePerSlot: Number(slot.pricePerSlot) || 0,
+    });
+  }
+  slots.sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+
+  if (slots.length === 1) {
+    return {
+      serviceMode: false,
+      resourceId,
+      resourceName,
+      startAt: slots[0].startAt,
+      endAt: slots[0].endAt,
+      pricePerSlot: slots[0].pricePerSlot,
+    };
+  }
+
+  const total = slots.reduce((sum, s) => sum + s.pricePerSlot, 0);
   return {
     serviceMode: false,
+    multiSlot: true,
     resourceId,
-    resourceName: resource?.name ?? '',
-    startAt: slot.startAt,
-    endAt: slot.endAt,
-    pricePerSlot: slot.pricePerSlot,
+    resourceName,
+    startAt: slots[0].startAt,
+    endAt: slots[slots.length - 1].endAt,
+    pricePerSlot: total,
+    slots,
   };
+};
+
+// Every slot a target occupies — one entry for a normal booking, many for a
+// multi-slot booking. Used to hold/confirm/release/remove uniformly.
+const slotsForTarget = (target) =>
+  Array.isArray(target.slots) && target.slots.length
+    ? target.slots
+    : [
+        {
+          resourceId: target.resourceId,
+          resourceName: target.resourceName,
+          startAt: target.startAt,
+          endAt: target.endAt,
+          pricePerSlot: target.pricePerSlot,
+        },
+      ];
+
+// Slots recorded on a persisted booking doc (falls back to its single slot).
+const slotsForBooking = (booking) => {
+  const raw = booking._raw ?? booking;
+  return Array.isArray(raw.slots) && raw.slots.length
+    ? raw.slots.map((s) => ({
+        resourceId: s.resourceId,
+        startAt: s.startAt?.toISOString?.() ?? s.startAt,
+        endAt: s.endAt?.toISOString?.() ?? s.endAt,
+      }))
+    : [{ resourceId: booking.resourceId, startAt: booking.startAt, endAt: booking.endAt }];
 };
 
 // Claim a pending hold for the target inside a transaction. Service-mode also
 // guards against overlapping (different-start) appointments for the staff.
 const claimPendingForTarget = async (businessId, target, { expiresAt, booking }, session) => {
+  // Multi-slot bookings hold every selected slot under the same booking id.
+  if (target.multiSlot) {
+    const claimed = [];
+    for (const slot of slotsForTarget(target)) {
+      const ok = await BusinessSlotState.claimPending(
+        businessId,
+        {
+          resourceId: slot.resourceId,
+          startAt: slot.startAt,
+          endAt: slot.endAt,
+          expiresAt,
+          booking,
+        },
+        { session },
+      );
+      if (!ok) {
+        // On a standalone mongod there's no transaction to roll us back, so
+        // release the slots we already grabbed before failing.
+        if (!session) {
+          for (const done of claimed) {
+            await BusinessSlotState.releasePending(
+              businessId,
+              done.resourceId,
+              done.startAt,
+              booking.bookingId,
+            );
+          }
+        }
+        return false;
+      }
+      claimed.push(slot);
+    }
+    return true;
+  }
+
   const holdResourceId = target.groupClass
     ? pendingHoldResourceId(target.resourceId, target.startAt, booking.customerUserId)
     : target.resourceId;
@@ -549,17 +691,24 @@ const initiateBooking = async (customerUserId, body) => {
           expiresAt,
           ...serviceFields,
           ...groupFields,
+          ...(target.multiSlot ? { slots: target.slots } : {}),
         },
         { session },
       );
     } catch (err) {
       if (!session) {
-        await BusinessSlotState.releasePending(
-          businessId,
-          groupFields.holdResourceId ?? target.resourceId,
-          target.startAt,
-          bookingId,
-        );
+        if (target.multiSlot) {
+          for (const slot of slotsForTarget(target)) {
+            await BusinessSlotState.releasePending(businessId, slot.resourceId, slot.startAt, bookingId);
+          }
+        } else {
+          await BusinessSlotState.releasePending(
+            businessId,
+            groupFields.holdResourceId ?? target.resourceId,
+            target.startAt,
+            bookingId,
+          );
+        }
       }
       throw err;
     }
@@ -722,12 +871,14 @@ const cancelBooking = async (customerUserId, bookingId) => {
   await withTransaction(async (session) => {
     await Booking.cancelById(bookingId, customerUserId, { session });
     if (!isGroup) {
-      await BusinessSlotState.removeBooked(
-        booking.businessId,
-        booking.resourceId,
-        booking.startAt,
-        { session },
-      );
+      for (const slot of slotsForBooking(full ?? booking)) {
+        await BusinessSlotState.removeBooked(
+          booking.businessId,
+          slot.resourceId,
+          slot.startAt,
+          { session },
+        );
+      }
     }
   });
 
