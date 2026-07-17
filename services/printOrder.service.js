@@ -351,6 +351,26 @@ const initiatePayment = async (customerUserId, orderId) => {
   if (!Number.isFinite(amount) || amount < 1) throw bad('vendor has not set a valid quote yet');
 
   const user = await User.findById(customerUserId);
+  const phoneDigits = String(user?.mobile ?? '').replace(/\D/g, '').slice(-10);
+  if (phoneDigits.length !== 10) {
+    throw bad('add a valid 10-digit mobile number to your profile before paying', 400);
+  }
+
+  // Resume an in-flight checkout instead of creating a duplicate Cashfree order.
+  if (order.status === PRINT_ORDER_STATUS.PENDING_PAYMENT && order.paymentSessionId) {
+    return {
+      order,
+      payment: {
+        orderId,
+        cashfreeOrderId: order.cashfreeOrderId || orderId,
+        paymentSessionId: order.paymentSessionId,
+        amount,
+        currency: 'INR',
+        mode: process.env.CASHFREE_PG_ENV === 'production' ? 'production' : 'sandbox',
+      },
+    };
+  }
+
   let cfOrder;
   try {
     cfOrder = await cashfreePayments.createOrder({
@@ -367,8 +387,18 @@ const initiatePayment = async (customerUserId, orderId) => {
       note: `Print order · ${order.categoryLabel}`,
     });
   } catch (err) {
-    const clientMsg = err.detail || err.message || 'Could not start payment.';
-    throw Object.assign(new Error(clientMsg), { status: err.status === 401 || err.status === 403 ? 502 : err.status || 502 });
+    console.error(
+      'cashfree createOrder failed (print):',
+      err.detail || err.message,
+      err.data ? JSON.stringify(err.data) : '',
+    );
+    const clientMsg =
+      err.detail ||
+      err.message ||
+      'Could not start payment. Check Cashfree PG credentials and sandbox/prod mode match.';
+    throw Object.assign(new Error(clientMsg), {
+      status: err.status === 401 || err.status === 403 ? 502 : err.status || 502,
+    });
   }
 
   const paymentSessionId = cfOrder.payment_session_id;

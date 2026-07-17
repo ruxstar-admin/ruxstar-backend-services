@@ -30,7 +30,11 @@ exports.card = async (req, res) => {
 
 exports.startAadhaar = async (req, res) => {
   const redirectUrl = req.body?.redirectUrl || process.env.KYC_REDIRECT_URL;
-  if (!redirectUrl?.startsWith('https://')) {
+  const localDevRedirect =
+    process.env.NODE_ENV !== 'production' &&
+    typeof redirectUrl === 'string' &&
+    /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(redirectUrl);
+  if (!redirectUrl?.startsWith('https://') && !localDevRedirect) {
     return res.status(400).json({ message: 'redirectUrl required (must start with https)' });
   }
   try {
