@@ -36,6 +36,14 @@ const sanitize = (doc) => {
 
 const SLOT_UNIQUE_INDEX = 'businessId_1_resourceId_1_startAt_1';
 
+const SLOT_UNIQUE_PARTIAL = { status: 'confirmed', groupClass: { $ne: true } };
+
+const slotUniqueIndexNeedsRebuild = (index) => {
+  if (!index?.partialFilterExpression) return true;
+  const p = index.partialFilterExpression;
+  return !(p.status === 'confirmed' && p.groupClass?.$ne === true);
+};
+
 const ensureIndexes = async () => {
   await collection().createIndex({ customerUserId: 1, createdAt: -1 });
   await collection().createIndex({ customerUserId: 1, startAt: 1 });
@@ -45,27 +53,52 @@ const ensureIndexes = async () => {
   // Vendor order views will query by vendor + slot time.
   await collection().createIndex({ vendorId: 1, startAt: 1 });
 
-  // Enforce "at most one CONFIRMED booking per slot". A plain unique index would
-  // also count expired/failed/cancelled pending rows and permanently block the
-  // slot from being re-booked, so we use a partial index on confirmed only.
+  // Enforce "at most one CONFIRMED solo booking per slot". Group-class rows
+  // set groupClass:true and are excluded via the partial filter below.
   try {
     const existing = await collection().indexes();
     const found = existing.find((i) => i.name === SLOT_UNIQUE_INDEX);
-    if (found && !found.partialFilterExpression) {
+    if (found && slotUniqueIndexNeedsRebuild(found)) {
       await collection().dropIndex(SLOT_UNIQUE_INDEX);
     }
-  } catch {
-    // index may not exist yet — ignore
+  } catch (err) {
+    console.warn('[Booking] slot unique index migration:', err.message);
   }
-  await collection().createIndex(
-    { businessId: 1, resourceId: 1, startAt: 1 },
-    {
-      unique: true,
-      partialFilterExpression: { status: 'confirmed', groupClass: { $ne: true } },
-      name: SLOT_UNIQUE_INDEX,
-    },
-  );
-  await collection().createIndex({ businessId: 1, classSessionKey: 1, startAt: 1, status: 1 });
+
+  try {
+    await collection().createIndex(
+      { businessId: 1, resourceId: 1, startAt: 1 },
+      {
+        unique: true,
+        partialFilterExpression: SLOT_UNIQUE_PARTIAL,
+        name: SLOT_UNIQUE_INDEX,
+      },
+    );
+  } catch (err) {
+    // IndexOptionsConflict (85) when an older partial definition is still present.
+    if (err?.code === 85 || err?.codeName === 'IndexOptionsConflict') {
+      await collection().dropIndex(SLOT_UNIQUE_INDEX);
+      await collection().createIndex(
+        { businessId: 1, resourceId: 1, startAt: 1 },
+        {
+          unique: true,
+          partialFilterExpression: SLOT_UNIQUE_PARTIAL,
+          name: SLOT_UNIQUE_INDEX,
+        },
+      );
+    } else {
+      throw err;
+    }
+  }
+
+  try {
+    await collection().createIndex(
+      { businessId: 1, classSessionKey: 1, startAt: 1, status: 1 },
+      { sparse: true },
+    );
+  } catch (err) {
+    console.warn('[Booking] classSessionKey index:', err.message);
+  }
 };
 
 const insert = async (doc, { session } = {}) => {
