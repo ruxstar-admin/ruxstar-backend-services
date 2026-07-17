@@ -25,6 +25,12 @@ const {
   servicePriceOptions,
   periodKindForModel,
   periodKeyForModel,
+  selectionKindForOption,
+  periodKindForSelection,
+  periodKeyFromIso,
+  monthKeyFromIso,
+  weekKeyFromIso,
+  normalizeEnrollmentType,
   computeBookingPrice,
   pricingUnitLabel,
   maxParticipantsFor,
@@ -426,6 +432,93 @@ const monthSpanRangeIso = (fromDate, toDate) => {
   };
 };
 
+// Whether a class enforces a seat cap (limited/batch/monthly enrollment or an
+// explicit max > 1). Open classes are treated as unlimited for period passes.
+const enforcesSeatCap = (service) => {
+  const enrollment = normalizeEnrollmentType(service?.enrollmentType);
+  return (
+    enrollment === 'limited' ||
+    enrollment === 'batch' ||
+    enrollment === 'monthly' ||
+    maxParticipantsFor(service) > 1
+  );
+};
+
+// IST date bounds (inclusive "YYYY-MM-DD") for a period key.
+const periodDateBounds = (periodKind, periodKey) => {
+  if (periodKind === 'day') return { startDate: periodKey, endDate: periodKey };
+  if (periodKind === 'week') return { startDate: periodKey, endDate: addDays(periodKey, 6) };
+  const [y, m] = String(periodKey).split('-').map(Number);
+  const nextY = m === 12 ? y + 1 : y;
+  const nextM = m === 12 ? 1 : m + 1;
+  const firstNext = `${nextY}-${String(nextM).padStart(2, '0')}-01`;
+  return { startDate: `${periodKey}-01`, endDate: addDays(firstNext, -1) };
+};
+
+const nextPeriodKey = (periodKind, periodKey) => {
+  if (periodKind === 'week') return addDays(periodKey, 7);
+  const [y, m] = String(periodKey).split('-').map(Number);
+  const ny = m === 12 ? y + 1 : y;
+  const nm = m === 12 ? 1 : m + 1;
+  return `${ny}-${String(nm).padStart(2, '0')}`;
+};
+
+// First real, still-bookable session within a period — used as the concrete
+// representative instant a week/month pass is anchored to (so capacity and
+// "no past bookings" checks have a definite occurrence to reason about).
+const firstBookableSession = (business, primary, totalDuration, periodKind, periodKey, nowMs) => {
+  const { startDate, endDate } = periodDateBounds(periodKind, periodKey);
+  const today = todayInIst();
+  let cursor = startDate < today ? today : startDate;
+  while (cursor <= endDate) {
+    const dayKey = dayKeyForDate(cursor);
+    const hours = business.setup.weeklyHours?.[dayKey];
+    if (hours && !hours.closed) {
+      const openMin = timeToMinutes(hours.open);
+      const closeMin = timeToMinutes(hours.close);
+      const timings = (primary.classTimings ?? []).filter((t) => t.day === dayKey);
+      const candidates = timings.length
+        ? timings.map((t) => ({ startTime: t.startTime, endTime: t.endTime }))
+        : [{ startTime: hours.open, endTime: undefined }];
+      for (const c of candidates) {
+        const startMin = timeToMinutes(c.startTime);
+        const endMin = c.endTime ? timeToMinutes(c.endTime) : startMin + totalDuration;
+        if (startMin < openMin || endMin > closeMin) continue;
+        const startAt = slotIso(cursor, c.startTime);
+        if (new Date(startAt).getTime() <= nowMs) continue;
+        return {
+          startAt,
+          endAt: slotIso(cursor, minutesToTime(endMin)),
+          startTime: c.startTime,
+          endTime: minutesToTime(endMin),
+          durationMin: endMin - startMin,
+        };
+      }
+    }
+    cursor = addDays(cursor, 1);
+  }
+  return null;
+};
+
+// Pick the eligible coach with the most seats left for an occurrence.
+const bestStaffSeats = async (businessId, serviceId, eligible, capacity, startAt) => {
+  let best = -1;
+  let bestStaff = null;
+  for (const st of eligible) {
+    const booked = await Booking.countActiveOccurrenceBookings(businessId, {
+      serviceId,
+      staffId: st.id,
+      startAt,
+    });
+    const left = capacity - booked;
+    if (left > best) {
+      best = left;
+      bestStaff = st;
+    }
+  }
+  return { staffRef: bestStaff ?? eligible[0], seatsLeft: Math.max(0, best) };
+};
+
 // Resolve the selected services from the setup, preserving setup order.
 const resolveSelectedServices = (business, serviceIdsRaw) => {
   const services = Array.isArray(business.setup?.services) ? business.setup.services : [];
@@ -499,7 +592,139 @@ const buildServiceAvailability = async (business, query, { publicView = false } 
   const priceOptions = primary ? servicePriceOptions(primary) : [];
   const hasPeriodOptions = priceOptions.some((o) => periodKindForModel(o.pricingModel) !== 'exact');
 
+  // How the customer selects for the chosen payment option: a specific time,
+  // a whole day, a week, or a month.
+  const selectionKind = priceOption ? selectionKindForOption(priceOption) : 'time';
+
+  const baseMeta = {
+    businessId: String(business._id),
+    from: fromDate,
+    to: toDate,
+    timezone: 'Asia/Kolkata',
+    bookingMode: 'services',
+    bufferMinutes: buffer,
+    services,
+    staff,
+    selectedServiceIds: selected.map((s) => s.id),
+    durationMinutes: totalDuration,
+    pricePerSlot: totalPrice,
+    selectionKind,
+    ...(pricingLabel ? { pricingLabel } : {}),
+    ...(requestedModel ? { pricingModel: requestedModel } : {}),
+    ...(priceOptions.length > 1 ? { priceOptions } : {}),
+  };
+
+  // ── Week / month passes: the customer picks a period (chips), not a time ──
+  if (primary && (selectionKind === 'week' || selectionKind === 'month')) {
+    const periods = [];
+    if (totalDuration > 0 && eligible.length) {
+      const now = Date.now();
+      const enforceCap = enforcesSeatCap(primary);
+      const capForPeriod = maxParticipantsFor(primary);
+      const nowIso = new Date(now).toISOString();
+      let key = selectionKind === 'month' ? monthKeyFromIso(nowIso) : weekKeyFromIso(nowIso);
+      const count = selectionKind === 'month' ? 3 : 6;
+      for (let i = 0; i < count; i += 1) {
+        const session = firstBookableSession(business, primary, totalDuration, selectionKind, key, now);
+        if (session) {
+          let staffRef = eligible[0];
+          let seatFields = {};
+          let status = 'available';
+          if (enforceCap) {
+            const { staffRef: chosen, seatsLeft } = await bestStaffSeats(
+              String(business._id),
+              primary.id,
+              eligible,
+              capForPeriod,
+              session.startAt,
+            );
+            staffRef = chosen;
+            seatFields = { seatsLeft, maxParticipants: capForPeriod, enrolledCount: capForPeriod - seatsLeft };
+            status = seatsLeft > 0 ? 'available' : publicView ? 'unavailable' : 'booked';
+          }
+          periods.push({
+            id: slotKey(staffRef.id, session.startAt),
+            periodKind: selectionKind,
+            periodKey: key,
+            resourceId: staffRef.id,
+            resourceName: staffRef.name,
+            staffId: staffRef.id,
+            staffName: staffRef.name,
+            date: session.startAt.slice(0, 10),
+            startTime: session.startTime,
+            endTime: session.endTime,
+            startAt: session.startAt,
+            endAt: session.endAt,
+            pricePerSlot: totalPrice,
+            durationMinutes: session.durationMin,
+            ...(pricingLabel ? { pricingLabel } : {}),
+            ...seatFields,
+            status,
+          });
+        }
+        key = nextPeriodKey(selectionKind, key);
+      }
+    }
+    return { ...baseMeta, periods, slots: [] };
+  }
+
   const slots = [];
+
+  // ── Whole-day daily: one bookable slot per open day (no time picking) ──
+  if (primary && selectionKind === 'day') {
+    if (totalDuration > 0 && eligible.length) {
+      const now = Date.now();
+      const enforceCap = enforcesSeatCap(primary);
+      const capForDay = maxParticipantsFor(primary);
+      let cursor = fromDate;
+      while (cursor <= toDate) {
+        const dayKey = dayKeyForDate(cursor);
+        const hours = business.setup.weeklyHours?.[dayKey];
+        if (hours && !hours.closed) {
+          const startAt = slotIso(cursor, hours.open);
+          const endAt = slotIso(cursor, hours.close);
+          if (new Date(startAt).getTime() > now) {
+            let staffRef = eligible[0];
+            let seatFields = {};
+            let available = true;
+            if (enforceCap) {
+              const { staffRef: chosen, seatsLeft } = await bestStaffSeats(
+                String(business._id),
+                primary.id,
+                eligible,
+                capForDay,
+                startAt,
+              );
+              staffRef = chosen;
+              seatFields = { seatsLeft, maxParticipants: capForDay, enrolledCount: capForDay - seatsLeft };
+              available = seatsLeft > 0;
+            }
+            slots.push({
+              id: slotKey(staffRef.id, startAt),
+              resourceId: staffRef.id,
+              resourceName: staffRef.name,
+              staffId: staffRef.id,
+              staffName: staffRef.name,
+              date: cursor,
+              startTime: hours.open,
+              endTime: hours.close,
+              startAt,
+              endAt,
+              pricePerSlot: totalPrice,
+              durationMinutes: timeToMinutes(hours.close) - timeToMinutes(hours.open),
+              wholeDay: true,
+              ...(pricingLabel ? { pricingLabel } : {}),
+              ...seatFields,
+              status: available ? 'available' : publicView ? 'unavailable' : 'booked',
+            });
+          }
+        }
+        cursor = addDays(cursor, 1);
+      }
+    }
+    return { ...baseMeta, slots };
+  }
+
   if (totalDuration > 0 && eligible.length) {
     const rangeStart = slotIso(fromDate, '00:00');
     const rangeEndExclusive = slotIso(addDays(toDate, 1), '00:00');
@@ -656,23 +881,7 @@ const buildServiceAvailability = async (business, query, { publicView = false } 
     }
   }
 
-  return {
-    businessId: String(business._id),
-    from: fromDate,
-    to: toDate,
-    timezone: 'Asia/Kolkata',
-    bookingMode: 'services',
-    bufferMinutes: buffer,
-    services,
-    staff,
-    selectedServiceIds: selected.map((s) => s.id),
-    durationMinutes: totalDuration,
-    pricePerSlot: totalPrice,
-    ...(pricingLabel ? { pricingLabel } : {}),
-    ...(requestedModel ? { pricingModel: requestedModel } : {}),
-    ...(priceOptions.length > 1 ? { priceOptions } : {}),
-    slots,
-  };
+  return { ...baseMeta, slots };
 };
 
 // Validate a service booking request and resolve the concrete staff + window.
@@ -686,10 +895,16 @@ const assertServiceSlotForBooking = async (
     throw Object.assign(new Error('select at least one service'), { status: 400 });
   }
   const primary = selected[0];
-  const groupMode = selected.length === 1 && isGroupClass(primary);
   const totalDuration = selected.reduce((sum, s) => sum + Number(s.durationMinutes || 0), 0);
-  const requestedModel = resolvePriceOption(primary, pricingModel).pricingModel;
+  const priceOption = resolvePriceOption(primary, pricingModel);
+  const requestedModel = priceOption.pricingModel;
   const totalPrice = priceForSelection(selected, requestedModel);
+
+  // How this option is selected/booked: a specific time, a whole day, or a
+  // week/month pass. Day/week/month always book against a shared, capacity-
+  // based occurrence (never an exclusive 1:1 slot).
+  const selectionKind = selectionKindForOption(priceOption);
+  const isTimeSelection = selectionKind === 'time';
 
   const dateStr = String(startAt).slice(0, 10);
   const startTime = String(startAt).slice(11, 16);
@@ -704,21 +919,29 @@ const assertServiceSlotForBooking = async (
   const startMinutes = timeToMinutes(startTime);
   const openMin = timeToMinutes(hours.open);
   const closeMin = timeToMinutes(hours.close);
+  const hasTimings = (primary.classTimings ?? []).length > 0;
 
   let normalizedStartAt = slotIso(dateStr, startTime);
   let normalizedEndAt = slotIso(dateStr, minutesToTime(startMinutes + totalDuration));
   let durationForSlot = totalDuration;
+  let normalizedStartTime = startTime;
 
-  if (groupMode && usesFixedTimings(primary)) {
+  if (selectionKind === 'day') {
+    // Whole-day booking: normalise to the full open window that day.
+    normalizedStartTime = hours.open;
+    normalizedStartAt = slotIso(dateStr, hours.open);
+    normalizedEndAt = slotIso(dateStr, hours.close);
+    durationForSlot = closeMin - openMin;
+  } else if (hasTimings) {
+    // Fixed-schedule class (incl. the anchor session of a week/month pass):
+    // the chosen start must match a real class timing.
     const timing = (primary.classTimings ?? []).find(
       (t) => t.day === dayKey && t.startTime === startTime,
     );
     if (!timing) {
       throw Object.assign(new Error('that class time is not offered on this day'), { status: 409 });
     }
-    const endMin = timing.endTime
-      ? timeToMinutes(timing.endTime)
-      : startMinutes + totalDuration;
+    const endMin = timing.endTime ? timeToMinutes(timing.endTime) : startMinutes + totalDuration;
     durationForSlot = endMin - startMinutes;
     normalizedEndAt = slotIso(dateStr, minutesToTime(endMin));
     if (startMinutes < openMin || endMin > closeMin) {
@@ -740,25 +963,35 @@ const assertServiceSlotForBooking = async (
   const conflictStart = new Date(startMs - bufMs);
   const conflictEnd = new Date(endMs + bufMs);
 
-  const periodKind = groupMode ? periodKindForModel(requestedModel) : 'exact';
-  const periodKey = groupMode ? periodKeyForModel(requestedModel, normalizedStartAt) : undefined;
+  // Time selections on a multi-seat class, and every day/week/month pass, share
+  // capacity at the occurrence/period level. Plain 1:1 appointments use the
+  // exclusive-slot path.
+  const capacityMode = !isTimeSelection || isGroupClass(primary);
+  const enforceCap = isTimeSelection ? isGroupClass(primary) : enforcesSeatCap(primary);
+
+  const periodKind = periodKindForSelection(selectionKind);
+  const periodKey = periodKeyFromIso(periodKind, normalizedStartAt);
 
   let chosen = null;
-  if (groupMode) {
+  if (capacityMode) {
     const capacity = maxParticipantsFor(primary);
-    for (const st of eligible) {
-      const booked = await Booking.countActiveOccurrenceBookings(businessId, {
-        serviceId: primary.id,
-        staffId: st.id,
-        startAt: normalizedStartAt,
-      });
-      if (booked < capacity) {
-        chosen = st;
-        break;
+    if (enforceCap) {
+      for (const st of eligible) {
+        const booked = await Booking.countActiveOccurrenceBookings(businessId, {
+          serviceId: primary.id,
+          staffId: st.id,
+          startAt: normalizedStartAt,
+        });
+        if (booked < capacity) {
+          chosen = st;
+          break;
+        }
       }
-    }
-    if (!chosen) {
-      throw Object.assign(new Error('this class is full; pick another time or batch'), { status: 409 });
+      if (!chosen) {
+        throw Object.assign(new Error('this class is full; pick another time or batch'), { status: 409 });
+      }
+    } else {
+      chosen = eligible[0];
     }
   } else {
     for (const st of eligible) {
@@ -773,28 +1006,38 @@ const assertServiceSlotForBooking = async (
     }
   }
 
-  const sessionKey = groupMode
+  const sessionKey = capacityMode
     ? classSessionKey(primary.id, chosen.id, normalizedStartAt)
     : undefined;
+
+  // Shared bookings without a hard cap (open classes) still track a max so the
+  // settle-time capacity check is a no-op; use a large sentinel.
+  const UNLIMITED_SEATS = 1_000_000;
+  const maxParticipants = capacityMode
+    ? enforceCap
+      ? maxParticipantsFor(primary)
+      : UNLIMITED_SEATS
+    : 1;
 
   return {
     staffId: chosen.id,
     staffName: chosen.name,
     startAt: normalizedStartAt,
     endAt: normalizedEndAt,
-    startTime,
-    endTime: minutesToTime(startMinutes + durationForSlot),
+    startTime: normalizedStartTime,
+    endTime: minutesToTime(timeToMinutes(normalizedStartTime) + durationForSlot),
     conflictStart,
     conflictEnd,
     durationMinutes: durationForSlot,
     pricePerSlot: totalPrice,
     services: selected.map((s) => ({ id: s.id, name: s.name })),
     serviceLabel: selected.map((s) => s.name).join(', '),
-    groupClass: groupMode,
+    groupClass: capacityMode,
     classSessionKey: sessionKey,
-    maxParticipants: groupMode ? maxParticipantsFor(primary) : 1,
+    maxParticipants,
     primaryServiceId: primary.id,
     pricingModel: requestedModel,
+    selectionKind,
     periodKind,
     periodKey,
   };

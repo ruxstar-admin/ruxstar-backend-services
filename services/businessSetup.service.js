@@ -367,14 +367,11 @@ const normalizeServices = (raw, staff = []) => {
         );
       }
 
-      // A class can offer several payment options at once (hourly/daily/
-      // weekly/monthly), each with its own vendor-set price. Weekly/monthly
-      // billing only makes sense against a fixed recurring schedule, so
-      // those options are dropped if no class timings were set.
+      // A class can offer several payment options at once (hourly / daily /
+      // weekly / monthly), each with its own vendor-set price. All types are
+      // allowed on any class — a monthly/weekly pass simply grants access for
+      // that period, whether or not the class has a fixed weekly schedule.
       let priceOptions = normalizePriceOptions(item.priceOptions, { price, pricingModel });
-      if (!classTimings.length) {
-        priceOptions = priceOptions.filter((o) => o.pricingModel !== 'weekly' && o.pricingModel !== 'monthly');
-      }
       if (!priceOptions.length) priceOptions = [{ pricingModel: 'per_session', price }];
       const primaryOption = priceOptions[0];
 

@@ -57,7 +57,11 @@ const normalizePriceOptions = (raw, fallback) => {
       const price = Math.round(Number(opt.price));
       if (!Number.isFinite(price) || price < 0) continue;
       if (seen.has(model)) continue;
-      seen.set(model, { pricingModel: model, price });
+      const entry = { pricingModel: model, price };
+      // `pickTime` only applies to daily: when true the customer chooses a
+      // specific time slot that day; otherwise daily is a whole-day booking.
+      if (model === 'daily' && opt.pickTime === true) entry.pickTime = true;
+      seen.set(model, entry);
     }
   }
   if (!seen.size) {
@@ -155,6 +159,12 @@ const monthKeyFromIso = (iso) => {
   return `${p.y}-${String(p.m).padStart(2, '0')}`;
 };
 
+// "YYYY-MM-DD" for the IST calendar day a UTC-backed startAt instant falls in.
+const dateKeyFromIso = (iso) => {
+  const p = istPartsFromIso(iso);
+  return `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
+};
+
 // "YYYY-MM-DD" of the Monday that starts the IST week an instant falls in.
 const weekKeyFromIso = (iso) => {
   const p = istPartsFromIso(iso);
@@ -172,10 +182,40 @@ const periodKindForModel = (pricingModel) => {
   return 'exact';
 };
 
+// How the customer selects when booking a given payment option:
+//  time  → pick a specific start time (hourly / per_session / daily-with-time)
+//  day   → pick a whole day (daily whole-day)
+//  week  → pick a week (weekly pass)
+//  month → pick a month (monthly pass)
+const selectionKindForOption = (option) => {
+  const model = normalizePricingModel(option?.pricingModel);
+  if (model === 'monthly') return 'month';
+  if (model === 'weekly') return 'week';
+  if (model === 'daily') return option?.pickTime === true ? 'time' : 'day';
+  return 'time';
+};
+
+// The capacity/dedup period kind for a selection kind.
+const periodKindForSelection = (selectionKind) => {
+  if (selectionKind === 'month') return 'month';
+  if (selectionKind === 'week') return 'week';
+  if (selectionKind === 'day') return 'day';
+  return 'exact';
+};
+
+// Bounds for a period key relative to a reference instant, used to compute a
+// booking's representative startAt/endAt when selecting a whole period.
+const periodKeyFromIso = (periodKind, iso) => {
+  if (periodKind === 'month') return monthKeyFromIso(iso);
+  if (periodKind === 'week') return weekKeyFromIso(iso);
+  if (periodKind === 'day') return dateKeyFromIso(iso);
+  return undefined;
+};
+
 const isPeriodEnrollment = (pricingModel) => periodKindForModel(pricingModel) !== 'exact';
 
 // Stable grouping key for capacity/dedup checks: exact session for one-off
-// payments, or the shared week/month key for period-billed enrollments.
+// payments, or the shared day/week/month key for period-billed enrollments.
 const enrollmentGroupKey = (serviceId, staffId, pricingModel, startAtIso) => {
   const kind = periodKindForModel(pricingModel);
   if (kind === 'month') return `${serviceId}:${staffId}:m:${monthKeyFromIso(startAtIso)}`;
@@ -183,27 +223,35 @@ const enrollmentGroupKey = (serviceId, staffId, pricingModel, startAtIso) => {
   return classSessionKey(serviceId, staffId, startAtIso);
 };
 
-const periodKeyForModel = (pricingModel, startAtIso) => {
-  const kind = periodKindForModel(pricingModel);
-  if (kind === 'month') return monthKeyFromIso(startAtIso);
-  if (kind === 'week') return weekKeyFromIso(startAtIso);
-  return undefined;
+const periodKeyForModel = (pricingModel, startAtIso) => periodKeyFromIso(periodKindForModel(pricingModel), startAtIso);
+
+// The period kind a stored booking row occupies. Prefers the explicitly saved
+// `periodKind` (which knows about whole-day daily bookings) and falls back to
+// deriving it from the pricing model for older rows.
+const rowPeriodKind = (row) => {
+  if (row?.periodKind === 'month' || row?.periodKind === 'week' || row?.periodKind === 'day') {
+    return row.periodKind;
+  }
+  return periodKindForModel(row?.pricingModel);
 };
 
-// Combined seat usage for one specific occurrence, across bookings made
-// under ANY of a class's payment options: a monthly/weekly booking occupies
-// a seat at every occurrence within its period, an exact one just its own.
+// Combined seat usage for one specific occurrence, across bookings made under
+// ANY of a class's payment options: a monthly/weekly booking occupies a seat
+// at every occurrence within its period, a whole-day booking at every session
+// that day, an exact one just its own session.
 const countActiveForOccurrence = (rows, occurrenceIso, excludeBookingId) => {
   const occExact = new Date(occurrenceIso).toISOString();
   let count = 0;
   for (const row of rows) {
     if (excludeBookingId && String(row._id) === String(excludeBookingId)) continue;
     const rowIso = row.startAt instanceof Date ? row.startAt.toISOString() : new Date(row.startAt).toISOString();
-    const kind = periodKindForModel(row.pricingModel);
+    const kind = rowPeriodKind(row);
     if (kind === 'month') {
       if (monthKeyFromIso(rowIso) === monthKeyFromIso(occExact)) count += 1;
     } else if (kind === 'week') {
       if (weekKeyFromIso(rowIso) === weekKeyFromIso(occExact)) count += 1;
+    } else if (kind === 'day') {
+      if (dateKeyFromIso(rowIso) === dateKeyFromIso(occExact)) count += 1;
     } else if (rowIso === occExact) {
       count += 1;
     }
@@ -229,7 +277,11 @@ module.exports = {
   isMonthlyEnrollment,
   monthKeyFromIso,
   weekKeyFromIso,
+  dateKeyFromIso,
   periodKindForModel,
+  selectionKindForOption,
+  periodKindForSelection,
+  periodKeyFromIso,
   isPeriodEnrollment,
   enrollmentGroupKey,
   periodKeyForModel,
