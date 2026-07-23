@@ -3,6 +3,7 @@ const vendorController = require('../controllers/vendor.controller');
 const vendorKycController = require('../controllers/vendor.kyc.controller');
 const businessController = require('../controllers/business.controller');
 const eventController = require('../controllers/event.controller');
+const supportController = require('../controllers/support.controller');
 const authenticate = require('../middlewares/auth');
 const requireRole = require('../middlewares/role');
 const requireKyc = require('../middlewares/requireKyc');
@@ -20,10 +21,17 @@ router.post('/kyc/pan', vendorKycController.verifyPan);
 router.post('/kyc/face', vendorKycController.verifyFace);
 router.post('/become-customer', vendorController.becomeCustomer);
 
+// Support is reachable without KYC — vendors may need help before/while verifying.
+router.get('/support/tickets', supportController.vendor.list);
+router.post('/support/tickets', supportController.vendor.create);
+router.get('/support/tickets/:id', supportController.vendor.get);
+router.post('/support/tickets/:id/reply', supportController.vendor.reply);
+
 router.use(requireKyc);
 router.get('/profile', vendorController.getProfile);
 router.patch('/profile', vendorController.updateProfile);
 router.get('/bookings', vendorController.listBookings);
+router.get('/payments', vendorController.listPayments);
 
 router.get('/events', eventController.listVendorEvents);
 router.post('/events', eventController.createEvent);

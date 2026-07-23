@@ -8,6 +8,7 @@ const setupService = require('./businessSetup.service');
 const photoStorage = require('./photoStorage.service');
 const cashfreePayments = require('../utils/cashfreePayments');
 const paymentService = require('./payment.service');
+const refundService = require('./refund.service');
 const { HOLD_MINUTES, BOOKING_STATUS } = require('../constants/payments');
 const { isServiceType } = require('../constants/businessSetup');
 const { pendingHoldResourceId } = require('../utils/coachingService');
@@ -882,7 +883,18 @@ const cancelBooking = async (customerUserId, bookingId) => {
     }
   });
 
-  return { ok: true };
+  // Refund the customer if this booking was paid and not yet paid out to the vendor.
+  let refund = { refunded: false, reason: 'not_paid' };
+  if (booking.paymentStatus === 'paid') {
+    refund = await refundService.issueRefund({
+      source: 'booking',
+      sourceId: bookingId,
+      note: `Refund for cancelled booking ${booking.refId || bookingId}`,
+    });
+    if (refund.refunded) await Booking.markRefunded(bookingId);
+  }
+
+  return { ok: true, refund };
 };
 
 const ensureIndexes = () => Booking.ensureIndexes();

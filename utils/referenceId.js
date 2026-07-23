@@ -24,6 +24,8 @@ const REF_PREFIX = {
   BOOKING: 'BKG',
   REGISTRATION: 'REG',
   PAYMENT: 'PAY',
+  PAYOUT: 'PO',
+  TICKET: 'TCK',
 };
 
 module.exports = { randomCode, withPrefix, userRef, REF_PREFIX };

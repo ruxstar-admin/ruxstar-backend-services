@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const userController = require('../controllers/user.controller');
 const eventController = require('../controllers/event.controller');
+const supportController = require('../controllers/support.controller');
 const authenticate = require('../middlewares/auth');
 const requireRole = require('../middlewares/role');
 const ROLES = require('../constants/roles');
@@ -22,5 +23,10 @@ router.delete('/bookings/:id', userController.cancelBooking);
 router.get('/event-registrations', eventController.listMyRegistrations);
 router.get('/event-registrations/:id', eventController.getRegistrationStatus);
 router.post('/events/:id/register', eventController.register);
+
+router.get('/support/tickets', supportController.customer.list);
+router.post('/support/tickets', supportController.customer.create);
+router.get('/support/tickets/:id', supportController.customer.get);
+router.post('/support/tickets/:id/reply', supportController.customer.reply);
 
 module.exports = router;

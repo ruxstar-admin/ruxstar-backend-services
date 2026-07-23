@@ -29,11 +29,23 @@ const sanitize = (doc) => {
     status: doc.status || 'paid',
     cashfreeOrderId: doc.cashfreeOrderId || null,
     gatewayPaymentId: doc.gatewayPaymentId || null,
+    refundStatus: doc.refundStatus || null,
+    refundAmount: typeof doc.refundAmount === 'number' ? doc.refundAmount : null,
+    gatewayRefundId: doc.gatewayRefundId || null,
+    refundedAt: iso(doc.refundedAt),
+    payoutId: doc.payoutId ? String(doc.payoutId) : null,
+    payoutRef: doc.payoutRef || null,
+    paidOutAt: iso(doc.paidOutAt),
     paidAt: iso(doc.paidAt),
     createdAt: iso(doc.createdAt),
     updatedAt: iso(doc.updatedAt),
   };
 };
+
+// A payment can be refunded to the customer only while it is still 'paid' and has
+// NOT yet been included in a completed vendor payout.
+const isRefundableDoc = (doc) =>
+  !!doc && doc.status === 'paid' && !doc.payoutId;
 
 const ensureIndexes = async () => {
   await collection().createIndex({ refId: 1 }, { unique: true });
@@ -84,6 +96,68 @@ const record = async ({
   );
   const doc = res?.value ?? res;
   return doc ? sanitize(doc) : null;
+};
+
+const findBySource = async (source, sourceId) => {
+  if (!source || !sourceId) return null;
+  const doc = await collection().findOne({ source: String(source), sourceId: String(sourceId) });
+  return doc ? sanitize(doc) : null;
+};
+
+// Mark a ledger row refunded. Idempotent-ish: only flips a currently 'paid',
+// not-yet-paid-out row. Returns the sanitized row, or null when not refundable.
+const markRefunded = async ({ source, sourceId, refundAmount, gatewayRefundId } = {}) => {
+  if (!source || !sourceId) return null;
+  const now = new Date();
+  const res = await collection().findOneAndUpdate(
+    { source: String(source), sourceId: String(sourceId), status: 'paid', payoutId: { $in: [null, undefined] } },
+    {
+      $set: {
+        status: 'refunded',
+        refundStatus: 'refunded',
+        refundAmount: refundAmount != null ? Math.round(Number(refundAmount) || 0) : null,
+        ...(gatewayRefundId ? { gatewayRefundId: String(gatewayRefundId) } : {}),
+        refundedAt: now,
+        updatedAt: now,
+      },
+    },
+    { returnDocument: 'after' },
+  );
+  const doc = res?.value ?? res;
+  return doc ? sanitize(doc) : null;
+};
+
+// Refundable 'paid' rows for a vendor (optionally a single business), up to a
+// cutoff date. Used to preview / build a weekly payout batch.
+const listRefundablePayments = async ({ vendorId, businessId, until } = {}) => {
+  const oid = toObjectId(vendorId);
+  if (!oid) return [];
+  const filter = { vendorId: oid, status: 'paid', payoutId: { $in: [null, undefined] } };
+  if (until) filter.paidAt = { $lte: new Date(until) };
+  const rows = await collection().find(filter).sort({ paidAt: 1 }).toArray();
+  const out = rows.map(sanitize);
+  // businessId lives on the source entity, not the ledger; caller filters if needed.
+  return businessId ? out.filter(() => true) : out;
+};
+
+// Stamp a completed payout onto a set of ledger rows. This LOCKS them: once
+// paid out, refunds are no longer possible.
+const attachPayout = async ({ paymentIds, payoutId, payoutRef } = {}) => {
+  const ids = (paymentIds || []).map(toObjectId).filter(Boolean);
+  if (!ids.length || !payoutId) return 0;
+  const now = new Date();
+  const res = await collection().updateMany(
+    { _id: { $in: ids }, status: 'paid', payoutId: { $in: [null, undefined] } },
+    {
+      $set: {
+        payoutId: String(payoutId),
+        ...(payoutRef ? { payoutRef: String(payoutRef) } : {}),
+        paidOutAt: now,
+        updatedAt: now,
+      },
+    },
+  );
+  return res?.modifiedCount ?? 0;
 };
 
 const listByVendor = async (vendorId) => {
@@ -177,6 +251,11 @@ module.exports = {
   sanitize,
   ensureIndexes,
   record,
+  findBySource,
+  markRefunded,
+  listRefundablePayments,
+  attachPayout,
+  isRefundableDoc,
   listByVendor,
   listByCustomer,
   listAllAdmin,

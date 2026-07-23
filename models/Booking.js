@@ -34,6 +34,8 @@ const sanitize = (doc) => {
     // paymentRef = payment gateway's id; paymentRefId = our PAY-xxxx ledger id.
     paymentRef: doc.paymentRef || null,
     paymentRefId: doc.paymentRefId || null,
+    refundStatus: doc.refundStatus || null,
+    refundedAt: doc.refundedAt ? doc.refundedAt.toISOString?.() ?? doc.refundedAt : null,
     expiresAt: doc.expiresAt ? doc.expiresAt.toISOString() : null,
     paidAt: doc.paidAt ? doc.paidAt.toISOString?.() ?? doc.paidAt : null,
     createdAt: doc.createdAt?.toISOString?.() ?? doc.createdAt,
@@ -426,6 +428,19 @@ const adminCancel = async (id) => {
 
 const countConfirmed = () => collection().countDocuments({ status: 'confirmed' });
 
+// Flag a booking as refunded (money returned to the customer). Purely cosmetic
+// bookkeeping on the entity; the ledger row is the source of truth.
+const markRefunded = async (id) => {
+  if (!id) return null;
+  const result = await collection().findOneAndUpdate(
+    { _id: String(id) },
+    { $set: { paymentStatus: 'refunded', refundStatus: 'refunded', refundedAt: new Date(), updatedAt: new Date() } },
+    { returnDocument: 'after' },
+  );
+  const doc = result?.value ?? result;
+  return doc ? sanitize(doc) : null;
+};
+
 module.exports = {
   ensureIndexes,
   insert,
@@ -433,6 +448,7 @@ module.exports = {
   findById,
   listAllAdmin,
   adminCancel,
+  markRefunded,
   countConfirmed,
   setPaymentRefId,
   attachPaymentSession,

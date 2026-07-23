@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const authService = require('../services/auth.service');
 const bookingService = require('../services/booking.service');
+const paymentService = require('../services/payment.service');
+const payoutService = require('../services/payout.service');
 
 const signToken = (user) =>
   jwt.sign({ id: String(user._id), roles: user.roles }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -34,6 +36,15 @@ exports.listBookings = async (req, res) => {
   const businessId = req.query.businessId ? String(req.query.businessId) : undefined;
   const { bookings } = await bookingService.listVendorBookings(req.user.id, { businessId });
   res.json({ bookings });
+};
+
+/** Full payment ledger for the vendor (bookings + print + events), incl. payouts */
+exports.listPayments = async (req, res) => {
+  const [ledger, payouts] = await Promise.all([
+    paymentService.listVendorPayments(req.user.id),
+    payoutService.listVendorPayouts(req.user.id),
+  ]);
+  res.json({ payments: ledger.payments, payouts });
 };
 
 /** Logged-in vendor → customer */

@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const adminController = require('../controllers/admin.controller');
 const adminCatalogController = require('../controllers/admin.catalog.controller');
+const supportController = require('../controllers/support.controller');
 const authenticate = require('../middlewares/auth');
 const requireRole = require('../middlewares/role');
 const ROLES = require('../constants/roles');
@@ -42,6 +43,20 @@ router.patch('/print-orders/:id/cancel', adminOnly, adminController.cancelPrintO
 // Payments & revenue — staff read.
 router.get('/payments', adminController.listPayments);
 router.get('/revenue', adminController.revenue);
+
+// Vendor payouts — staff read; admin-only to complete a payout (locks refunds).
+router.get('/payouts', adminController.listPayouts);
+router.get('/payouts/preview', adminController.previewPayout);
+router.post('/payouts', adminOnly, adminController.completePayout);
+
+// Support tickets — staff read + reply; admin/employee may action.
+router.get('/support/tickets', supportController.adminList);
+router.get('/support/tickets/:id', supportController.adminGet);
+router.post('/support/tickets/:id/reply', supportController.adminReply);
+router.patch('/support/tickets/:id/status', supportController.adminSetStatus);
+
+// Customer activity (bookings/orders/payments) for one user — staff read.
+router.get('/users/:id/activity', adminController.getUserActivity);
 
 // Vendor KYC review — admins and employees.
 router.get('/kyc', adminController.listKyc);

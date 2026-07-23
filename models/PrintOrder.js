@@ -44,6 +44,8 @@ const sanitize = (doc, { withDesign = false } = {}) => {
     paymentRefId: doc.paymentRefId || null,
     paymentSessionId: doc.paymentSessionId || null,
     cashfreeOrderId: doc.cashfreeOrderId || null,
+    refundStatus: doc.refundStatus || null,
+    refundedAt: iso(doc.refundedAt),
     acceptedAt: iso(doc.acceptedAt),
     paidAt: iso(doc.paidAt),
     expiresAt: iso(doc.expiresAt),
@@ -190,10 +192,24 @@ const cancelByCustomer = async (id, customerUserId) => {
     {
       _id: String(id),
       customerUserId: toObjectId(customerUserId),
-      status: { $in: ['accepted', 'pending_payment'] },
+      // Paid orders (confirmed) can still be cancelled until the vendor starts
+      // production; a refund is issued for those in the service layer.
+      status: { $in: ['accepted', 'pending_payment', 'confirmed'] },
     },
     { $set: { status: 'cancelled', updatedAt: new Date() } },
     { returnDocument: 'after' },
+  );
+  const doc = res?.value ?? res;
+  return doc ? sanitize(doc) : null;
+};
+
+// Cosmetic refund flag on the entity; ledger row is the source of truth.
+const markRefunded = async (id) => {
+  if (!id) return null;
+  const res = await collection().findOneAndUpdate(
+    { _id: String(id) },
+    { $set: { paymentStatus: 'refunded', refundStatus: 'refunded', refundedAt: new Date(), updatedAt: new Date() } },
+    { returnDocument: 'after', projection: WITHOUT_DESIGN },
   );
   const doc = res?.value ?? res;
   return doc ? sanitize(doc) : null;
@@ -261,4 +277,5 @@ module.exports = {
   setPaymentRefId,
   markPaymentFailed,
   cancelByCustomer,
+  markRefunded,
 };

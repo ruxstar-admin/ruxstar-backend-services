@@ -1,6 +1,7 @@
 const authService = require('../services/auth.service');
 const kycService = require('../services/vendor.kyc.service');
 const dashboard = require('../services/admin.dashboard.service');
+const payoutService = require('../services/payout.service');
 const ROLES = require('../constants/roles');
 
 const ADMIN_CREATE_ROLES = [ROLES.ADMIN, ROLES.EMPLOYEE];
@@ -204,4 +205,43 @@ exports.listPayments = async (req, res) => {
 exports.revenue = async (req, res) => {
   const days = Math.min(365, Math.max(1, Number(req.query.days) || 30));
   res.json(await dashboard.getRevenue({ days }));
+};
+
+// ── Vendor payouts ──
+exports.listPayouts = async (req, res) => {
+  const { items, total } = await payoutService.listPayouts({
+    vendorId: req.query.vendorId || undefined,
+    page: Math.max(1, Number(req.query.page) || 1),
+    limit: Math.min(100, Math.max(1, Number(req.query.limit) || 50)),
+  });
+  res.json({ payouts: items, total });
+};
+
+exports.previewPayout = async (req, res) => {
+  try {
+    const preview = await payoutService.previewPayout({
+      vendorId: req.query.vendorId,
+      until: req.query.until || undefined,
+    });
+    res.json(preview);
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message });
+  }
+};
+
+exports.completePayout = async (req, res) => {
+  try {
+    const { vendorId, until, note } = req.body || {};
+    const result = await payoutService.completePayout({ vendorId, until, note, adminId: req.user.id });
+    res.status(201).json(result);
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message });
+  }
+};
+
+// ── Customer module visibility ──
+exports.getUserActivity = async (req, res) => {
+  const activity = await dashboard.getUserActivity(req.params.id);
+  if (!activity) return res.status(404).json({ message: 'user not found' });
+  res.json(activity);
 };
