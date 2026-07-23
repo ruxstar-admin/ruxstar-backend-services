@@ -36,26 +36,34 @@ const issueRefund = async ({ source, sourceId, note } = {}) => {
   if (!Payment.withinRefundWindow(ledger.paidAt)) {
     return { refunded: false, reason: REASON.WINDOW_EXPIRED, payment: ledger };
   }
-  if (!ledger.cashfreeOrderId) return { refunded: false, reason: REASON.NO_GATEWAY_ORDER, payment: ledger };
+  // Cashfree's refund path is /orders/{order_id}/refunds where order_id is OUR
+  // merchant id (booking / print / event sourceId), NOT Cashfree's cf_order_id.
+  // We still require a gateway link so we know money actually moved through PG.
+  if (!ledger.cashfreeOrderId && !ledger.sourceId) {
+    return { refunded: false, reason: REASON.NO_GATEWAY_ORDER, payment: ledger };
+  }
 
   const amount = ledger.amount;
-  const refundId = `RFND-${randomCode(10)}`;
+  const refundId = `RFND${randomCode(10)}`;
   let gatewayRefundId = refundId;
+  const merchantOrderId = String(ledger.sourceId);
 
   if (cashfree.isConfigured()) {
     try {
       const res = await cashfree.refundOrder({
-        orderId: ledger.cashfreeOrderId,
+        orderId: merchantOrderId,
         refundId,
         amount,
-        note: note || 'Order cancelled by customer',
+        note: note || 'Refund issued via support',
       });
       gatewayRefundId = res?.cf_refund_id ? String(res.cf_refund_id) : refundId;
     } catch (err) {
+      const detail = err.detail || err.message || 'Cashfree refund failed';
+      console.error('cashfree refund failed:', merchantOrderId, detail, err.data ? JSON.stringify(err.data) : '');
       return {
         refunded: false,
         reason: REASON.GATEWAY_ERROR,
-        error: err.detail || err.message,
+        error: detail,
         payment: ledger,
       };
     }

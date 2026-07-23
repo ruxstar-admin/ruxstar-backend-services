@@ -273,7 +273,12 @@ exports.issueRefund = async (req, res) => {
   const result = await refundService.issueRefundByRef(String(paymentRefId).trim(), { note });
   if (!result.refunded) {
     const status = result.reason === refundService.REASON.NO_PAYMENT ? 404 : 400;
-    return res.status(status).json({ refunded: false, reason: result.reason, message: refundMessage(result.reason) });
+    return res.status(status).json({
+      refunded: false,
+      reason: result.reason,
+      message: refundMessage(result.reason, result.error),
+      ...(result.error ? { error: result.error } : {}),
+    });
   }
   if (result.payment?.customerUserId && result.reason === refundService.REASON.REFUNDED) {
     void notificationService.notify(result.payment.customerUserId, {
@@ -286,7 +291,7 @@ exports.issueRefund = async (req, res) => {
   res.json(result);
 };
 
-const refundMessage = (reason) => {
+const refundMessage = (reason, detail) => {
   switch (reason) {
     case refundService.REASON.PAID_OUT:
       return 'This payment has already been paid out to the vendor and can no longer be refunded.';
@@ -300,8 +305,12 @@ const refundMessage = (reason) => {
       return 'This payment is not in a refundable state.';
     case refundService.REASON.NO_PAYMENT:
       return 'No payment found for that reference.';
+    case refundService.REASON.GATEWAY_ERROR:
+      return detail
+        ? `Cashfree rejected the refund: ${detail}`
+        : 'Cashfree rejected the refund. Check PG credentials and sandbox/prod mode.';
     default:
-      return 'Refund could not be processed.';
+      return detail || 'Refund could not be processed.';
   }
 };
 
