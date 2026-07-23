@@ -16,6 +16,7 @@ const iso = (d) => (d ? d.toISOString?.() ?? d : null);
 
 const STATUSES = ['open', 'pending', 'resolved', 'closed'];
 const CATEGORIES = ['payment', 'booking', 'order', 'refund', 'account', 'other'];
+const SUMMARY_PROJECTION = { messages: 0 };
 
 const sanitizeMessage = (m) => ({
   authorUserId: m.authorUserId ? String(m.authorUserId) : null,
@@ -48,8 +49,11 @@ const sanitize = (doc) => {
 
 const ensureIndexes = async () => {
   await collection().createIndex({ ticketRef: 1 }, { unique: true });
-  await collection().createIndex({ raisedByUserId: 1, createdAt: -1 });
+  await collection().createIndex({ raisedByUserId: 1, updatedAt: -1 });
+  await collection().createIndex({ updatedAt: -1 });
   await collection().createIndex({ status: 1, updatedAt: -1 });
+  await collection().createIndex({ raisedByRole: 1, updatedAt: -1 });
+  await collection().createIndex({ status: 1, raisedByRole: 1, updatedAt: -1 });
 };
 
 const create = async ({
@@ -104,10 +108,15 @@ const findByIdAdmin = async (id) => {
   return doc ? sanitize(doc) : null;
 };
 
-const listByUser = async (userId) => {
+const listByUser = async (userId, { limit = 50 } = {}) => {
   const oid = toObjectId(userId);
   if (!oid) return [];
-  const rows = await collection().find({ raisedByUserId: oid }).sort({ updatedAt: -1 }).toArray();
+  const safeLimit = Math.min(100, Math.max(1, Number(limit) || 50));
+  const rows = await collection()
+    .find({ raisedByUserId: oid }, { projection: SUMMARY_PROJECTION })
+    .sort({ updatedAt: -1 })
+    .limit(safeLimit)
+    .toArray();
   return rows.map(sanitize);
 };
 
@@ -151,9 +160,15 @@ const listAllAdmin = async ({ status, role, search, page = 1, limit = 20 } = {})
     const rx = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     filter.$or = [{ ticketRef: rx }, { subject: rx }, { raisedByName: rx }, { relatedId: rx }];
   }
-  const skip = (Math.max(1, Number(page)) - 1) * Number(limit);
+  const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
+  const skip = (Math.max(1, Number(page)) - 1) * safeLimit;
   const [rows, total] = await Promise.all([
-    collection().find(filter).sort({ updatedAt: -1 }).skip(skip).limit(Number(limit)).toArray(),
+    collection()
+      .find(filter, { projection: SUMMARY_PROJECTION })
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(safeLimit)
+      .toArray(),
     collection().countDocuments(filter),
   ]);
   return { items: rows.map(sanitize), total };

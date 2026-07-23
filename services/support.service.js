@@ -1,26 +1,13 @@
 const SupportTicket = require('../models/SupportTicket');
-const User = require('../models/User');
 const notificationService = require('./notification.service');
 
 const bad = (message, status = 400) => Object.assign(new Error(message), { status });
 
-const resolveName = async (userId, role) => {
-  try {
-    const user = await User.findById(userId);
-    if (!user) return null;
-    if (role === 'vendor') return user.vendorProfile?.businessName || user.name || null;
-    return user.name || null;
-  } catch {
-    return null;
-  }
-};
-
 // ── User (customer / vendor) ──
 
-const createTicket = async ({ userId, role, subject, category, message, relatedType, relatedId }) => {
+const createTicket = async ({ userId, role, name, subject, category, message, relatedType, relatedId }) => {
   if (!subject || !String(subject).trim()) throw bad('a subject is required');
   if (!message || !String(message).trim()) throw bad('please describe your issue');
-  const name = await resolveName(userId, role);
   const ticket = await SupportTicket.create({
     raisedByUserId: userId,
     raisedByRole: role,
@@ -45,8 +32,7 @@ const getMyTicket = async (userId, ticketId) => {
   return { ticket };
 };
 
-const replyAsUser = async ({ userId, role, ticketId, body }) => {
-  const name = await resolveName(userId, role);
+const replyAsUser = async ({ userId, name, ticketId, body }) => {
   const ticket = await SupportTicket.addMessage(
     ticketId,
     { userId, role: 'user', name, body },
@@ -75,7 +61,7 @@ const replyAsAdmin = async ({ adminId, adminName, ticketId, body }) => {
   });
   if (!ticket) throw bad('ticket not found or empty reply', 404);
   if (ticket.raisedByUserId) {
-    await notificationService.notify(ticket.raisedByUserId, {
+    void notificationService.notify(ticket.raisedByUserId, {
       type: 'support_reply',
       title: 'Support replied',
       body: `Support responded to your ticket ${ticket.ticketRef}.`,
@@ -89,7 +75,7 @@ const setStatus = async ({ adminId, ticketId, status }) => {
   const ticket = await SupportTicket.setStatus(ticketId, status, adminId);
   if (!ticket) throw bad('ticket not found or invalid status', 404);
   if ((status === 'resolved' || status === 'closed') && ticket.raisedByUserId) {
-    await notificationService.notify(ticket.raisedByUserId, {
+    void notificationService.notify(ticket.raisedByUserId, {
       type: 'support_status',
       title: `Ticket ${status}`,
       body: `Your support ticket ${ticket.ticketRef} was marked ${status}.`,

@@ -8,6 +8,11 @@ const handle = (fn) => async (req, res) => {
   }
 };
 
+const requesterName = (req, role) =>
+  role === 'vendor'
+    ? req.currentUser?.vendorProfile?.businessName || req.currentUser?.name || null
+    : req.currentUser?.name || null;
+
 // Customer/vendor handlers share logic; only the raiser role differs.
 const userHandlers = (role) => ({
   list: handle(async (req, res) => {
@@ -18,6 +23,7 @@ const userHandlers = (role) => ({
     const result = await supportService.createTicket({
       userId: req.user.id,
       role,
+      name: requesterName(req, role),
       subject,
       category,
       message,
@@ -31,7 +37,12 @@ const userHandlers = (role) => ({
   }),
   reply: handle(async (req, res) => {
     const { body } = req.body || {};
-    res.json(await supportService.replyAsUser({ userId: req.user.id, role, ticketId: req.params.id, body }));
+    res.json(await supportService.replyAsUser({
+      userId: req.user.id,
+      name: requesterName(req, role),
+      ticketId: req.params.id,
+      body,
+    }));
   }),
 });
 
@@ -54,7 +65,7 @@ exports.adminReply = handle(async (req, res) => {
   const { body } = req.body || {};
   res.json(await supportService.replyAsAdmin({
     adminId: req.user.id,
-    adminName: req.user.name,
+    adminName: req.currentUser?.name,
     ticketId: req.params.id,
     body,
   }));

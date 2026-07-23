@@ -28,7 +28,7 @@ module.exports = async (req, res, next) => {
       .collection('users')
       .findOne(
         { _id: new ObjectId(String(decoded.id)) },
-        { projection: { status: 1, roles: 1 } },
+        { projection: { status: 1, roles: 1, name: 1, 'vendorProfile.businessName': 1 } },
       );
     if (!user) return res.status(401).json({ message: 'invalid token' });
     if (user.status === 'disabled') return res.status(403).json({ message: DISABLED_MESSAGE });
