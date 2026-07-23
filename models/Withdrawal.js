@@ -97,6 +97,12 @@ const findById = async (id) => {
   return doc ? sanitize(doc) : null;
 };
 
+const findByRef = async (withdrawalRef) => {
+  if (!withdrawalRef) return null;
+  const doc = await collection().findOne({ withdrawalRef: String(withdrawalRef) });
+  return doc ? sanitize(doc) : null;
+};
+
 const findActiveByVendor = async (vendorId) => {
   const oid = toObjectId(vendorId);
   if (!oid) return null;
@@ -144,6 +150,7 @@ module.exports = {
   ensureIndexes,
   create,
   findById,
+  findByRef,
   findActiveByVendor,
   listByVendor,
   listAll,

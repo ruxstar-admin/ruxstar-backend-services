@@ -83,6 +83,7 @@ const markSourceRefunded = async (source, sourceId) => {
   try {
     if (source === 'booking') await require('../models/Booking').markRefunded(sourceId);
     else if (source === 'print') await require('../models/PrintOrder').markRefunded(sourceId);
+    else if (source === 'event') await require('../models/EventRegistration').markRefunded(sourceId);
   } catch {
     /* cosmetic sync only */
   }

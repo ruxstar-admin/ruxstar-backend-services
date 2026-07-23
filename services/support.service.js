@@ -1,4 +1,5 @@
 const SupportTicket = require('../models/SupportTicket');
+const Payment = require('../models/Payment');
 const notificationService = require('./notification.service');
 
 const bad = (message, status = 400) => Object.assign(new Error(message), { status });
@@ -8,6 +9,20 @@ const bad = (message, status = 400) => Object.assign(new Error(message), { statu
 const createTicket = async ({ userId, role, name, subject, category, message, relatedType, relatedId }) => {
   if (!subject || !String(subject).trim()) throw bad('a subject is required');
   if (!message || !String(message).trim()) throw bad('please describe your issue');
+
+  // A customer refund ticket must be linked to one of that customer's payments.
+  // This prevents spoofing another user's PAY reference and gives support the
+  // exact transaction to action without searching or copying identifiers.
+  if (role === 'customer' && category === 'refund') {
+    if (relatedType !== 'payment' || !relatedId) {
+      throw bad('select the order or booking you want refunded');
+    }
+    const payment = await Payment.findByRefId(relatedId);
+    if (!payment || payment.customerUserId !== String(userId)) {
+      throw bad('that payment does not belong to your account', 403);
+    }
+  }
+
   const ticket = await SupportTicket.create({
     raisedByUserId: userId,
     raisedByRole: role,
@@ -19,6 +34,28 @@ const createTicket = async ({ userId, role, name, subject, category, message, re
     message,
   });
   return { ticket };
+};
+
+// Unified paid-order picker for customer refund tickets. Payment rows already
+// span bookings, print orders and events, so the customer sees everything in
+// one list without three separate requests.
+const listRefundOptions = async (userId) => {
+  const payments = await Payment.listByCustomer(userId);
+  return {
+    payments: payments.map((p) => ({
+      id: p.id,
+      refId: p.refId,
+      source: p.source,
+      sourceRef: p.sourceRef,
+      amount: p.amount,
+      currency: p.currency,
+      status: p.status,
+      paidAt: p.paidAt,
+      refundable: p.refundable,
+      matured: p.matured,
+      paidOut: Boolean(p.payoutId || p.withdrawalId),
+    })),
+  };
 };
 
 const listMyTickets = async (userId) => {
@@ -90,6 +127,7 @@ const ensureIndexes = () => SupportTicket.ensureIndexes();
 module.exports = {
   ensureIndexes,
   createTicket,
+  listRefundOptions,
   listMyTickets,
   getMyTicket,
   replyAsUser,

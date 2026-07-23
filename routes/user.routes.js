@@ -24,6 +24,7 @@ router.get('/event-registrations', eventController.listMyRegistrations);
 router.get('/event-registrations/:id', eventController.getRegistrationStatus);
 router.post('/events/:id/register', eventController.register);
 
+router.get('/support/refund-options', supportController.customerRefundOptions);
 router.get('/support/tickets', supportController.customer.list);
 router.post('/support/tickets', supportController.customer.create);
 router.get('/support/tickets/:id', supportController.customer.get);

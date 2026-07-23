@@ -44,8 +44,10 @@ router.patch('/print-orders/:id/cancel', adminOnly, adminController.cancelPrintO
 router.get('/payments', adminController.listPayments);
 router.get('/revenue', adminController.revenue);
 
-// Vendor withdrawals — staff read; admin-only to approve/reject (moves money).
+// Vendor withdrawals — staff read; admin-only to approve/reject/push (moves money).
 router.get('/withdrawals', adminController.listWithdrawals);
+router.get('/withdrawals/preview', adminController.previewVendorPayout);
+router.post('/withdrawals/payout', adminOnly, adminController.payoutVendor);
 router.post('/withdrawals/:id/approve', adminOnly, adminController.approveWithdrawal);
 router.post('/withdrawals/:id/reject', adminOnly, adminController.rejectWithdrawal);
 router.post('/withdrawals/:id/refresh', adminController.refreshWithdrawal);

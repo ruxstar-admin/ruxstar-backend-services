@@ -68,22 +68,24 @@ const maskMethod = (method) => {
   };
 };
 
-// Vendor requests a withdrawal of their FULL matured balance. One active request
-// at a time. Reserves the matured payments so they can't be double-withdrawn.
-const requestWithdrawal = async (vendorId) => {
+// Build a withdrawal for a vendor's FULL matured balance and reserve those
+// payments. Shared by the vendor's self-service request and the admin push
+// payout. One active withdrawal per vendor at a time. `noMaturedMsg` tailors the
+// error copy to whoever triggered it.
+const buildWithdrawal = async (vendorId, { note, noMaturedMsg } = {}) => {
   if (!vendorId) throw bad('vendorId is required');
 
   const existing = await Withdrawal.findActiveByVendor(vendorId);
-  if (existing) throw bad('you already have a withdrawal in progress', 409);
+  if (existing) throw bad('a withdrawal is already in progress for this vendor', 409);
 
   const { user, name } = await vendorLabel(vendorId);
   const method = user?.vendorProfile?.payoutMethod;
   if (!method || (!method.vpa && !(method.accountNumber && method.ifsc))) {
-    throw bad('add your bank or UPI payout details before withdrawing', 400);
+    throw bad('the vendor has no bank or UPI payout details saved', 400);
   }
 
   const matured = await Payment.listMaturedPayments({ vendorId });
-  if (!matured.length) throw bad('you have no matured funds available to withdraw yet');
+  if (!matured.length) throw bad(noMaturedMsg || 'no matured funds available to withdraw yet');
 
   const amount = sum(matured);
   const paymentIds = matured.map((p) => p.id);
@@ -97,6 +99,7 @@ const requestWithdrawal = async (vendorId) => {
     payoutMethod: method,
     periodStart: matured[0].paidAt,
     periodEnd: new Date().toISOString(),
+    note,
   });
 
   const reserved = await Payment.reserveForWithdrawal({
@@ -107,6 +110,38 @@ const requestWithdrawal = async (vendorId) => {
   // If a race reserved fewer rows than expected, keep going — the amount reflects
   // what we snapshotted; admin review is the backstop before money moves.
   return { withdrawal, reserved };
+};
+
+// Vendor requests a withdrawal of their FULL matured balance.
+const requestWithdrawal = (vendorId) =>
+  buildWithdrawal(vendorId, { noMaturedMsg: 'you have no matured funds available to withdraw yet' });
+
+// Preview a vendor's payout for the admin "pay now" flow: how much has matured,
+// whether payout details exist, and whether a withdrawal is already in flight.
+const previewVendorPayout = async (vendorId) => {
+  if (!vendorId) throw bad('vendorId is required');
+  const [matured, active, vendor] = await Promise.all([
+    Payment.listMaturedPayments({ vendorId }),
+    Withdrawal.findActiveByVendor(vendorId),
+    User.findById(vendorId).catch(() => null),
+  ]);
+  return {
+    vendorId: String(vendorId),
+    amount: sum(matured),
+    count: matured.length,
+    hasPayoutMethod: Boolean(vendor?.vendorProfile?.payoutMethod),
+    activeWithdrawal: active,
+  };
+};
+
+// Admin pushes a payout to a vendor immediately: build the withdrawal from the
+// matured balance, then approve (transfer) it in one step.
+const adminPayout = async (vendorId, adminId) => {
+  const { withdrawal } = await buildWithdrawal(vendorId, {
+    note: 'Admin-initiated payout',
+    noMaturedMsg: 'this vendor has no matured funds available to pay out yet',
+  });
+  return approve(withdrawal.id, adminId);
 };
 
 const listVendorWithdrawals = (vendorId) => Withdrawal.listByVendor(vendorId);
@@ -229,6 +264,33 @@ const refreshStatus = async (id) => {
   return { withdrawal };
 };
 
+/**
+ * Handle a Cashfree Payouts transfer webhook. Cashfree posts the terminal
+ * status of a transfer; we match it to our withdrawal by transfer_id (which is
+ * our withdrawalRef) and settle or fail it. Idempotent — only acts on rows still
+ * in `processing`. Never throws.
+ */
+const handleTransferWebhook = async (payload) => {
+  const data = payload?.data?.transfer || payload?.data || payload || {};
+  const transferId = data.transfer_id || data.transferId || payload?.transferId;
+  const status = String(data.status || data.transfer_status || '').toUpperCase();
+  if (!transferId || !status) return { ignored: true };
+
+  const withdrawal = await Withdrawal.findByRef(transferId);
+  if (!withdrawal || withdrawal.status !== Withdrawal.STATUS.PROCESSING) return { ignored: true };
+
+  const cfTransferId = data.cf_transfer_id || data.cfTransferId;
+  if (SUCCESS_STATES.includes(status)) {
+    await settleCompleted(withdrawal, { cfTransferId, transferStatus: status });
+    return { handled: true };
+  }
+  if (FAILURE_STATES.includes(status)) {
+    await failWithdrawal(withdrawal, `transfer ${status.toLowerCase()}`, { cfTransferId, transferStatus: status });
+    return { handled: true };
+  }
+  return { ignored: true };
+};
+
 // Admin declines a pending request → release the reserved payments.
 const reject = async (id, adminId, reason) => {
   const withdrawal = await Withdrawal.findById(id);
@@ -252,10 +314,13 @@ module.exports = {
   ensureIndexes,
   getVendorSummary,
   requestWithdrawal,
+  previewVendorPayout,
+  adminPayout,
   listVendorWithdrawals,
   listAll,
   getById,
   approve,
   refreshStatus,
   reject,
+  handleTransferWebhook,
 };

@@ -3,6 +3,7 @@ const kycService = require('../services/vendor.kyc.service');
 const dashboard = require('../services/admin.dashboard.service');
 const withdrawalService = require('../services/withdrawal.service');
 const refundService = require('../services/refund.service');
+const notificationService = require('../services/notification.service');
 const ROLES = require('../constants/roles');
 
 const ADMIN_CREATE_ROLES = [ROLES.ADMIN, ROLES.EMPLOYEE];
@@ -246,6 +247,25 @@ exports.refreshWithdrawal = async (req, res) => {
   }
 };
 
+// Admin "pay a vendor now": preview the matured balance, then push the payout.
+exports.previewVendorPayout = async (req, res) => {
+  try {
+    const preview = await withdrawalService.previewVendorPayout(req.query.vendorId);
+    res.json(preview);
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message });
+  }
+};
+
+exports.payoutVendor = async (req, res) => {
+  try {
+    const result = await withdrawalService.adminPayout(req.body?.vendorId, req.user.id);
+    res.status(201).json(result);
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message });
+  }
+};
+
 // ── Refunds (issued by support against a customer's payment) ──
 exports.issueRefund = async (req, res) => {
   const { paymentRefId, note } = req.body || {};
@@ -254,6 +274,14 @@ exports.issueRefund = async (req, res) => {
   if (!result.refunded) {
     const status = result.reason === refundService.REASON.NO_PAYMENT ? 404 : 400;
     return res.status(status).json({ refunded: false, reason: result.reason, message: refundMessage(result.reason) });
+  }
+  if (result.payment?.customerUserId && result.reason === refundService.REASON.REFUNDED) {
+    void notificationService.notify(result.payment.customerUserId, {
+      type: 'payment_refunded',
+      title: 'Refund issued',
+      body: `Your refund of ₹${Number(result.amount || 0).toLocaleString('en-IN')} has been sent to your original payment method.`,
+      data: { paymentRefId: result.payment.refId, kind: 'refund' },
+    });
   }
   res.json(result);
 };

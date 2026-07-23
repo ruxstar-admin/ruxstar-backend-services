@@ -8,6 +8,8 @@
 //   POST /transfers          initiate a standard transfer
 //   GET  /transfers          fetch a transfer's status
 
+const crypto = require('crypto');
+
 const BASE =
   process.env.CASHFREE_PAYOUT_ENV === 'production'
     ? 'https://payout-api.cashfree.com/payout'
@@ -114,6 +116,25 @@ const getTransfer = (transferId) =>
     headers: headers(),
   }).then(parse);
 
+/**
+ * Verify a Cashfree Payouts webhook. Same scheme as the PG webhook:
+ * signature = base64(HMAC-SHA256(timestamp + rawBody)) using the client secret.
+ * `rawBody` must be the exact bytes received (not re-serialized JSON).
+ */
+const verifyWebhookSignature = (signature, timestamp, rawBody) => {
+  const secret = process.env.CASHFREE_PAYOUT_SECRET;
+  if (!secret || !signature || !timestamp) return false;
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(`${timestamp}${rawBody}`)
+    .digest('base64');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  } catch {
+    return false;
+  }
+};
+
 module.exports = {
   isConfigured,
   safeBeneId,
@@ -121,4 +142,5 @@ module.exports = {
   createBeneficiary,
   createTransfer,
   getTransfer,
+  verifyWebhookSignature,
 };

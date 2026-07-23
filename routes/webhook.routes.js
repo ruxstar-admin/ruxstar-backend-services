@@ -5,5 +5,6 @@ const router = Router();
 
 // Unauthenticated — secured via Cashfree webhook signature verification.
 router.post('/cashfree/payments', webhookController.cashfreePayments);
+router.post('/cashfree/payouts', webhookController.cashfreePayouts);
 
 module.exports = router;

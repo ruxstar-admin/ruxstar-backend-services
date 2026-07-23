@@ -49,6 +49,10 @@ const userHandlers = (role) => ({
 exports.customer = userHandlers('customer');
 exports.vendor = userHandlers('vendor');
 
+exports.customerRefundOptions = handle(async (req, res) => {
+  res.json(await supportService.listRefundOptions(req.user.id));
+});
+
 // ── Admin ──
 
 exports.adminList = handle(async (req, res) => {

@@ -30,6 +30,8 @@ const sanitize = (doc) => {
     cashfreeOrderId: doc.cashfreeOrderId || null,
     paymentRef: doc.paymentRef || null,
     paymentRefId: doc.paymentRefId || null,
+    refundStatus: doc.refundStatus || null,
+    refundedAt: doc.refundedAt ? doc.refundedAt.toISOString?.() ?? doc.refundedAt : null,
     startAt: doc.startAt ? doc.startAt.toISOString() : null,
     venue: doc.venue ?? '',
     expiresAt: doc.expiresAt ? doc.expiresAt.toISOString() : null,
@@ -235,6 +237,24 @@ const listAllAdmin = async ({ status, eventId, vendorId, search, page = 1, limit
   return { items: rows.map(sanitize), total };
 };
 
+const markRefunded = async (id) => {
+  if (!id) return null;
+  const res = await collection().findOneAndUpdate(
+    { _id: String(id) },
+    {
+      $set: {
+        paymentStatus: 'refunded',
+        refundStatus: 'refunded',
+        refundedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    },
+    { returnDocument: 'after' },
+  );
+  const doc = res?.value ?? res;
+  return doc ? sanitize(doc) : null;
+};
+
 module.exports = {
   sanitize,
   ensureIndexes,
@@ -247,6 +267,7 @@ module.exports = {
   attachPaymentSession,
   markPaid,
   markUnpaid,
+  markRefunded,
   listByCustomer,
   listByEvent,
   hasActiveRegistration,
