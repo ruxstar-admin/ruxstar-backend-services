@@ -1,7 +1,8 @@
 const authService = require('../services/auth.service');
 const kycService = require('../services/vendor.kyc.service');
 const dashboard = require('../services/admin.dashboard.service');
-const payoutService = require('../services/payout.service');
+const withdrawalService = require('../services/withdrawal.service');
+const refundService = require('../services/refund.service');
 const ROLES = require('../constants/roles');
 
 const ADMIN_CREATE_ROLES = [ROLES.ADMIN, ROLES.EMPLOYEE];
@@ -207,35 +208,72 @@ exports.revenue = async (req, res) => {
   res.json(await dashboard.getRevenue({ days }));
 };
 
-// ── Vendor payouts ──
-exports.listPayouts = async (req, res) => {
-  const { items, total } = await payoutService.listPayouts({
+// ── Vendor withdrawals (vendor-initiated, admin-approved) ──
+exports.listWithdrawals = async (req, res) => {
+  const { items, total } = await withdrawalService.listAll({
+    status: req.query.status || undefined,
     vendorId: req.query.vendorId || undefined,
     page: Math.max(1, Number(req.query.page) || 1),
     limit: Math.min(100, Math.max(1, Number(req.query.limit) || 50)),
   });
-  res.json({ payouts: items, total });
+  res.json({ withdrawals: items, total });
 };
 
-exports.previewPayout = async (req, res) => {
+exports.approveWithdrawal = async (req, res) => {
   try {
-    const preview = await payoutService.previewPayout({
-      vendorId: req.query.vendorId,
-      until: req.query.until || undefined,
-    });
-    res.json(preview);
+    const result = await withdrawalService.approve(req.params.id, req.user.id);
+    res.json(result);
   } catch (err) {
     res.status(err.status || 500).json({ message: err.message });
   }
 };
 
-exports.completePayout = async (req, res) => {
+exports.rejectWithdrawal = async (req, res) => {
   try {
-    const { vendorId, until, note } = req.body || {};
-    const result = await payoutService.completePayout({ vendorId, until, note, adminId: req.user.id });
-    res.status(201).json(result);
+    const result = await withdrawalService.reject(req.params.id, req.user.id, req.body?.reason);
+    res.json(result);
   } catch (err) {
     res.status(err.status || 500).json({ message: err.message });
+  }
+};
+
+exports.refreshWithdrawal = async (req, res) => {
+  try {
+    const result = await withdrawalService.refreshStatus(req.params.id);
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message });
+  }
+};
+
+// ── Refunds (issued by support against a customer's payment) ──
+exports.issueRefund = async (req, res) => {
+  const { paymentRefId, note } = req.body || {};
+  if (!paymentRefId) return res.status(400).json({ message: 'paymentRefId is required' });
+  const result = await refundService.issueRefundByRef(String(paymentRefId).trim(), { note });
+  if (!result.refunded) {
+    const status = result.reason === refundService.REASON.NO_PAYMENT ? 404 : 400;
+    return res.status(status).json({ refunded: false, reason: result.reason, message: refundMessage(result.reason) });
+  }
+  res.json(result);
+};
+
+const refundMessage = (reason) => {
+  switch (reason) {
+    case refundService.REASON.PAID_OUT:
+      return 'This payment has already been paid out to the vendor and can no longer be refunded.';
+    case refundService.REASON.WINDOW_EXPIRED:
+      return 'The 7-day refund window for this payment has passed.';
+    case refundService.REASON.ALREADY_REFUNDED:
+      return 'This payment has already been refunded.';
+    case refundService.REASON.NO_GATEWAY_ORDER:
+      return 'No gateway order is linked to this payment.';
+    case refundService.REASON.NOT_PAID:
+      return 'This payment is not in a refundable state.';
+    case refundService.REASON.NO_PAYMENT:
+      return 'No payment found for that reference.';
+    default:
+      return 'Refund could not be processed.';
   }
 };
 

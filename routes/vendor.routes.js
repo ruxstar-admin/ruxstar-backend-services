@@ -32,6 +32,9 @@ router.get('/profile', vendorController.getProfile);
 router.patch('/profile', vendorController.updateProfile);
 router.get('/bookings', vendorController.listBookings);
 router.get('/payments', vendorController.listPayments);
+router.patch('/payout-method', vendorController.updatePayoutMethod);
+router.get('/withdrawals', vendorController.listWithdrawals);
+router.post('/withdrawals', vendorController.requestWithdrawal);
 
 router.get('/events', eventController.listVendorEvents);
 router.post('/events', eventController.createEvent);

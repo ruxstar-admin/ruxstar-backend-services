@@ -25,6 +25,7 @@ const REF_PREFIX = {
   REGISTRATION: 'REG',
   PAYMENT: 'PAY',
   PAYOUT: 'PO',
+  WITHDRAWAL: 'WD',
   TICKET: 'TCK',
 };
 

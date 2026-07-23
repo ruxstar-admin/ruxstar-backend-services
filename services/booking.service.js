@@ -8,7 +8,6 @@ const setupService = require('./businessSetup.service');
 const photoStorage = require('./photoStorage.service');
 const cashfreePayments = require('../utils/cashfreePayments');
 const paymentService = require('./payment.service');
-const refundService = require('./refund.service');
 const { HOLD_MINUTES, BOOKING_STATUS } = require('../constants/payments');
 const { isServiceType } = require('../constants/businessSetup');
 const { pendingHoldResourceId } = require('../utils/coachingService');
@@ -883,17 +882,9 @@ const cancelBooking = async (customerUserId, bookingId) => {
     }
   });
 
-  // Refund the customer if this booking was paid and not yet paid out to the vendor.
-  let refund = { refunded: false, reason: 'not_paid' };
-  if (booking.paymentStatus === 'paid') {
-    refund = await refundService.issueRefund({
-      source: 'booking',
-      sourceId: bookingId,
-      note: `Refund for cancelled booking ${booking.refId || bookingId}`,
-    });
-    if (refund.refunded) await Booking.markRefunded(bookingId);
-  }
-
+  // Cancelling no longer auto-refunds. Refunds are issued by support after the
+  // customer raises a refund ticket (subject to the 7-day window / not-yet-paid-out).
+  const refund = { refunded: false, reason: booking.paymentStatus === 'paid' ? 'via_support' : 'not_paid' };
   return { ok: true, refund };
 };
 

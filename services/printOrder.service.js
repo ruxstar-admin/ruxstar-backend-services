@@ -4,7 +4,6 @@ const Business = require('../models/Business');
 const User = require('../models/User');
 const notificationService = require('./notification.service');
 const paymentService = require('./payment.service');
-const refundService = require('./refund.service');
 const cashfreePayments = require('../utils/cashfreePayments');
 const { findPrintCategory, PRINT_ORDER_STATUS } = require('../constants/printCatalog');
 const { computePrice } = require('../utils/printPricing');
@@ -257,19 +256,9 @@ const cancelOrder = async (customerUserId, orderId) => {
   const cancelled = await PrintOrder.cancelByCustomer(orderId, customerUserId);
   if (!cancelled) throw bad('order cannot be cancelled at this stage');
 
-  // Refund a paid order that hasn't been paid out to the vendor yet.
-  let refund = { refunded: false, reason: 'not_paid' };
-  if (cancelled.paymentStatus === 'paid') {
-    refund = await refundService.issueRefund({
-      source: 'print',
-      sourceId: orderId,
-      note: `Refund for cancelled print order ${cancelled.paymentRefId || orderId}`,
-    });
-    if (refund.refunded) {
-      const updated = await PrintOrder.markRefunded(orderId);
-      if (updated) Object.assign(cancelled, updated);
-    }
-  }
+  // Cancelling no longer auto-refunds — refunds are issued by support after the
+  // customer raises a refund ticket (subject to the 7-day window / not-yet-paid-out).
+  const refund = { refunded: false, reason: cancelled.paymentStatus === 'paid' ? 'via_support' : 'not_paid' };
 
   if (cancelled.assignedVendorId) {
     await notificationService.notify(cancelled.assignedVendorId, {

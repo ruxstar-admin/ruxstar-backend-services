@@ -14,6 +14,13 @@ const toObjectId = (id) => {
 
 const iso = (d) => (d ? d.toISOString?.() ?? d : null);
 
+// Refunds are only possible within this many days of payment. After that the
+// payment "matures" and becomes eligible for the weekly vendor withdrawal.
+const REFUND_WINDOW_DAYS = 7;
+const refundCutoff = () => new Date(Date.now() - REFUND_WINDOW_DAYS * 86400000);
+const withinRefundWindow = (paidAt) =>
+  !!paidAt && new Date(paidAt).getTime() >= refundCutoff().getTime();
+
 const sanitize = (doc) => {
   if (!doc) return doc;
   return {
@@ -36,22 +43,31 @@ const sanitize = (doc) => {
     payoutId: doc.payoutId ? String(doc.payoutId) : null,
     payoutRef: doc.payoutRef || null,
     paidOutAt: iso(doc.paidOutAt),
+    // Withdrawal reservation: set while a withdrawal is pending/processing.
+    withdrawalId: doc.withdrawalId ? String(doc.withdrawalId) : null,
+    withdrawalRef: doc.withdrawalRef || null,
+    withdrawalStatus: doc.withdrawalStatus || null,
     paidAt: iso(doc.paidAt),
+    // Convenience flags for the vendor ledger UI.
+    refundable: doc.status === 'paid' && !doc.payoutId && !doc.withdrawalId && withinRefundWindow(doc.paidAt),
+    matured: doc.status === 'paid' && !doc.payoutId && !doc.withdrawalId && !withinRefundWindow(doc.paidAt),
     createdAt: iso(doc.createdAt),
     updatedAt: iso(doc.updatedAt),
   };
 };
 
-// A payment can be refunded to the customer only while it is still 'paid' and has
-// NOT yet been included in a completed vendor payout.
+// A payment can be refunded to the customer only while it is still 'paid', has
+// NOT been reserved/settled for a vendor withdrawal, and is inside the 7-day
+// refund window (after which the money matures toward the vendor payout).
 const isRefundableDoc = (doc) =>
-  !!doc && doc.status === 'paid' && !doc.payoutId;
+  !!doc && doc.status === 'paid' && !doc.payoutId && !doc.withdrawalId && withinRefundWindow(doc.paidAt);
 
 const ensureIndexes = async () => {
   await collection().createIndex({ refId: 1 }, { unique: true });
   await collection().createIndex({ source: 1, sourceId: 1 }, { unique: true });
   await collection().createIndex({ vendorId: 1, paidAt: -1 });
   await collection().createIndex({ customerUserId: 1, paidAt: -1 });
+  await collection().createIndex({ withdrawalId: 1 });
 };
 
 // Idempotently record a successful payment. Keyed by (source, sourceId) so
@@ -104,13 +120,26 @@ const findBySource = async (source, sourceId) => {
   return doc ? sanitize(doc) : null;
 };
 
+const findByRefId = async (refId) => {
+  if (!refId) return null;
+  const doc = await collection().findOne({ refId: String(refId) });
+  return doc ? sanitize(doc) : null;
+};
+
 // Mark a ledger row refunded. Idempotent-ish: only flips a currently 'paid',
 // not-yet-paid-out row. Returns the sanitized row, or null when not refundable.
 const markRefunded = async ({ source, sourceId, refundAmount, gatewayRefundId } = {}) => {
   if (!source || !sourceId) return null;
   const now = new Date();
   const res = await collection().findOneAndUpdate(
-    { source: String(source), sourceId: String(sourceId), status: 'paid', payoutId: { $in: [null, undefined] } },
+    {
+      source: String(source),
+      sourceId: String(sourceId),
+      status: 'paid',
+      payoutId: { $in: [null, undefined] },
+      withdrawalId: { $in: [null, undefined] },
+      paidAt: { $gte: refundCutoff() },
+    },
     {
       $set: {
         status: 'refunded',
@@ -138,6 +167,80 @@ const listRefundablePayments = async ({ vendorId, businessId, until } = {}) => {
   const out = rows.map(sanitize);
   // businessId lives on the source entity, not the ledger; caller filters if needed.
   return businessId ? out.filter(() => true) : out;
+};
+
+// Matured 'paid' rows for a vendor: past the 7-day refund window and not yet
+// reserved for or settled by a withdrawal. This is the "withdrawable" balance.
+const listMaturedPayments = async ({ vendorId } = {}) => {
+  const oid = toObjectId(vendorId);
+  if (!oid) return [];
+  const rows = await collection()
+    .find({
+      vendorId: oid,
+      status: 'paid',
+      payoutId: { $in: [null, undefined] },
+      withdrawalId: { $in: [null, undefined] },
+      paidAt: { $lte: refundCutoff() },
+    })
+    .sort({ paidAt: 1 })
+    .toArray();
+  return rows.map(sanitize);
+};
+
+// Reserve a set of matured rows for a pending withdrawal. Only touches rows
+// that are still unreserved & unlocked. Returns the count actually reserved.
+const reserveForWithdrawal = async ({ paymentIds, withdrawalId, withdrawalRef } = {}) => {
+  const ids = (paymentIds || []).map(toObjectId).filter(Boolean);
+  if (!ids.length || !withdrawalId) return 0;
+  const now = new Date();
+  const res = await collection().updateMany(
+    {
+      _id: { $in: ids },
+      status: 'paid',
+      payoutId: { $in: [null, undefined] },
+      withdrawalId: { $in: [null, undefined] },
+    },
+    {
+      $set: {
+        withdrawalId: String(withdrawalId),
+        ...(withdrawalRef ? { withdrawalRef: String(withdrawalRef) } : {}),
+        withdrawalStatus: 'processing',
+        updatedAt: now,
+      },
+    },
+  );
+  return res?.modifiedCount ?? 0;
+};
+
+// Release a rejected/failed withdrawal's reservation so the rows are eligible
+// again for a future withdrawal.
+const releaseWithdrawal = async (withdrawalId) => {
+  if (!withdrawalId) return 0;
+  const res = await collection().updateMany(
+    { withdrawalId: String(withdrawalId), payoutId: { $in: [null, undefined] } },
+    { $unset: { withdrawalId: '', withdrawalRef: '', withdrawalStatus: '' }, $set: { updatedAt: new Date() } },
+  );
+  return res?.modifiedCount ?? 0;
+};
+
+// Settle a completed withdrawal: LOCK the reserved rows permanently by stamping
+// the payout ref. Once settled, refunds are no longer possible.
+const settleWithdrawal = async ({ withdrawalId, payoutRef } = {}) => {
+  if (!withdrawalId) return 0;
+  const now = new Date();
+  const res = await collection().updateMany(
+    { withdrawalId: String(withdrawalId), payoutId: { $in: [null, undefined] } },
+    {
+      $set: {
+        payoutId: String(withdrawalId),
+        ...(payoutRef ? { payoutRef: String(payoutRef) } : {}),
+        withdrawalStatus: 'paid',
+        paidOutAt: now,
+        updatedAt: now,
+      },
+    },
+  );
+  return res?.modifiedCount ?? 0;
 };
 
 // Stamp a completed payout onto a set of ledger rows. This LOCKS them: once
@@ -252,9 +355,16 @@ module.exports = {
   ensureIndexes,
   record,
   findBySource,
+  findByRefId,
   markRefunded,
   listRefundablePayments,
+  listMaturedPayments,
+  reserveForWithdrawal,
+  releaseWithdrawal,
+  settleWithdrawal,
   attachPayout,
+  REFUND_WINDOW_DAYS,
+  withinRefundWindow,
   isRefundableDoc,
   listByVendor,
   listByCustomer,

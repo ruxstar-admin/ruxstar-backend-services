@@ -9,6 +9,7 @@ const REASON = {
   NO_PAYMENT: 'no_payment',
   NOT_PAID: 'not_paid',
   PAID_OUT: 'paid_out',
+  WINDOW_EXPIRED: 'window_expired',
   NO_GATEWAY_ORDER: 'no_gateway_order',
   GATEWAY_ERROR: 'gateway_error',
 };
@@ -28,8 +29,13 @@ const issueRefund = async ({ source, sourceId, note } = {}) => {
   if (ledger.status === 'refunded') {
     return { refunded: true, reason: REASON.ALREADY_REFUNDED, payment: ledger, amount: ledger.refundAmount ?? ledger.amount };
   }
-  if (ledger.payoutId) return { refunded: false, reason: REASON.PAID_OUT, payment: ledger };
+  // Once a payment has been reserved for or settled by a vendor withdrawal, the
+  // money is on its way to (or with) the vendor and can no longer be reversed.
+  if (ledger.payoutId || ledger.withdrawalId) return { refunded: false, reason: REASON.PAID_OUT, payment: ledger };
   if (ledger.status !== 'paid') return { refunded: false, reason: REASON.NOT_PAID, payment: ledger };
+  if (!Payment.withinRefundWindow(ledger.paidAt)) {
+    return { refunded: false, reason: REASON.WINDOW_EXPIRED, payment: ledger };
+  }
   if (!ledger.cashfreeOrderId) return { refunded: false, reason: REASON.NO_GATEWAY_ORDER, payment: ledger };
 
   const amount = ledger.amount;
@@ -59,12 +65,39 @@ const issueRefund = async ({ source, sourceId, note } = {}) => {
   if (!updated) {
     // Someone paid out or refunded between our checks — re-read and report.
     const latest = await Payment.findBySource(source, sourceId);
-    if (latest?.payoutId) return { refunded: false, reason: REASON.PAID_OUT, payment: latest };
+    if (latest?.payoutId || latest?.withdrawalId) return { refunded: false, reason: REASON.PAID_OUT, payment: latest };
     if (latest?.status === 'refunded') {
       return { refunded: true, reason: REASON.ALREADY_REFUNDED, payment: latest, amount };
     }
+    if (latest && !Payment.withinRefundWindow(latest.paidAt)) {
+      return { refunded: false, reason: REASON.WINDOW_EXPIRED, payment: latest };
+    }
   }
+  await markSourceRefunded(source, sourceId);
   return { refunded: true, reason: REASON.REFUNDED, amount, gatewayRefundId, payment: updated || ledger };
 };
 
-module.exports = { issueRefund, REASON };
+// Flag the underlying source entity as refunded so its own status stays in sync
+// with the ledger. Best-effort — never throws.
+const markSourceRefunded = async (source, sourceId) => {
+  try {
+    if (source === 'booking') await require('../models/Booking').markRefunded(sourceId);
+    else if (source === 'print') await require('../models/PrintOrder').markRefunded(sourceId);
+  } catch {
+    /* cosmetic sync only */
+  }
+};
+
+/**
+ * Refund a payment identified by its ledger reference id (PAY-…). Used by the
+ * support flow: an admin resolves a customer's refund ticket by entering the
+ * payment reference. Resolves the source/sourceId, then delegates to
+ * issueRefund (which enforces the 7-day window + not-yet-withdrawn checks).
+ */
+const issueRefundByRef = async (refId, { note } = {}) => {
+  const ledger = await Payment.findByRefId(refId);
+  if (!ledger) return { refunded: false, reason: REASON.NO_PAYMENT };
+  return issueRefund({ source: ledger.source, sourceId: ledger.sourceId, note });
+};
+
+module.exports = { issueRefund, issueRefundByRef, REASON };

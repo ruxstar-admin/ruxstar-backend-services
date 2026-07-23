@@ -44,10 +44,14 @@ router.patch('/print-orders/:id/cancel', adminOnly, adminController.cancelPrintO
 router.get('/payments', adminController.listPayments);
 router.get('/revenue', adminController.revenue);
 
-// Vendor payouts — staff read; admin-only to complete a payout (locks refunds).
-router.get('/payouts', adminController.listPayouts);
-router.get('/payouts/preview', adminController.previewPayout);
-router.post('/payouts', adminOnly, adminController.completePayout);
+// Vendor withdrawals — staff read; admin-only to approve/reject (moves money).
+router.get('/withdrawals', adminController.listWithdrawals);
+router.post('/withdrawals/:id/approve', adminOnly, adminController.approveWithdrawal);
+router.post('/withdrawals/:id/reject', adminOnly, adminController.rejectWithdrawal);
+router.post('/withdrawals/:id/refresh', adminController.refreshWithdrawal);
+
+// Refunds — issued by staff against a customer's payment (e.g. from a support ticket).
+router.post('/refunds', adminController.issueRefund);
 
 // Support tickets — staff read + reply; admin/employee may action.
 router.get('/support/tickets', supportController.adminList);
