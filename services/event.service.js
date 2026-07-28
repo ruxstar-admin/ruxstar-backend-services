@@ -179,6 +179,9 @@ const setEventStatus = async (vendorId, eventId, status) => {
     if (new Date(existing.startAt).getTime() <= Date.now()) {
       throw badRequest('start date must be in the future to publish');
     }
+    if (!String(existing.venue ?? '').trim()) {
+      throw badRequest('add a venue before publishing');
+    }
   }
   const event = await Event.updateForVendor(eventId, vendorId, { status });
   return { event };

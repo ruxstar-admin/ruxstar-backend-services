@@ -1,7 +1,16 @@
 const Business = require('../models/Business');
+const Booking = require('../models/Booking');
+const PrintOrder = require('../models/PrintOrder');
+const Event = require('../models/Event');
 const catalogService = require('../services/businessCatalog.service');
 const setupService = require('../services/businessSetup.service');
 const slotsService = require('../services/businessSlots.service');
+const {
+  normalizeAddressParts,
+  normalizeGeo,
+  composeAddress,
+} = require('../utils/businessAddress');
+const { BUSINESS_STATUS } = require('../constants/businessStatus');
 
 const MAX_BUSINESSES = 25;
 
@@ -11,7 +20,11 @@ const handle = (fn) => async (req, res) => {
   try {
     await fn(req, res);
   } catch (err) {
-    res.status(err.status || 500).json({ message: err.message });
+    res.status(err.status || 500).json({
+      message: err.message,
+      // Go-live validation attaches the full list of unmet requirements.
+      ...(Array.isArray(err.issues) ? { issues: err.issues } : {}),
+    });
   }
 };
 
@@ -60,6 +73,10 @@ exports.create = async (req, res) => {
 
   const thumbnail = str(req.body.thumbnail);
 
+  const { parts: addressParts, error: addressError } = normalizeAddressParts(req.body.addressParts);
+  if (addressError) return res.status(400).json({ message: addressError });
+  const address = addressParts ? composeAddress(addressParts) : str(req.body.address);
+
   const business = await Business.insert(req.user.id, {
     name,
     typeId: businessType.id,
@@ -68,7 +85,9 @@ exports.create = async (req, res) => {
     categoryLabel: category.label,
     module: businessType.module,
     phone: str(req.body.phone),
-    address: str(req.body.address),
+    address,
+    ...(addressParts ? { addressParts } : {}),
+    ...(normalizeGeo(req.body.geo) ? { geo: normalizeGeo(req.body.geo) } : {}),
     description,
     setup: setupService.defaultSetup({ bookingMode: req.body.bookingMode, typeId: businessType.id }),
   });
@@ -125,8 +144,20 @@ exports.update = async (req, res) => {
     }
   }
 
+  if (req.body.addressParts !== undefined) {
+    const { parts, error } = normalizeAddressParts(req.body.addressParts, { require: true });
+    if (error) return res.status(400).json({ message: error });
+    patch.addressParts = parts;
+    // Keep the display string in sync with the structured fields.
+    patch.address = composeAddress(parts);
+  }
+
+  if (req.body.geo !== undefined) {
+    patch.geo = normalizeGeo(req.body.geo);
+  }
+
   for (const key of ['phone', 'address', 'description']) {
-    if (req.body[key] !== undefined) patch[key] = str(req.body[key]);
+    if (req.body[key] !== undefined && patch[key] === undefined) patch[key] = str(req.body[key]);
   }
 
   if (Object.keys(patch).length === 0) {
@@ -135,12 +166,49 @@ exports.update = async (req, res) => {
 
   const business = await Business.updateForVendor(req.params.id, req.user.id, patch);
   if (!business) return res.status(404).json({ message: 'business not found' });
+  const checked = await setupService.revalidateAfterProfileEdit(business, req.user.id);
   res.json({
-    business: setupService.stripSetupPhotos(setupService.formatBusinessForClient(business)),
+    business: setupService.stripSetupPhotos(setupService.formatBusinessForClient(checked)),
   });
 };
 
+// Deleting a business is irreversible and orphans anything still attached to
+// it, so a vendor must take it offline and clear open work first.
 exports.remove = async (req, res) => {
+  const business = await Business.findByIdForVendor(req.params.id, req.user.id, {
+    withPhotoData: false,
+  });
+  if (!business) return res.status(404).json({ message: 'business not found' });
+
+  if (business.status === BUSINESS_STATUS.LIVE) {
+    return res.status(400).json({
+      message: 'take this business offline before deleting it',
+    });
+  }
+
+  const businessId = String(business._id ?? business.id);
+  const [upcomingBookings, openPrintOrders, activeEvents] = await Promise.all([
+    Booking.countUpcomingActive(businessId),
+    PrintOrder.countOpenForBusiness(businessId),
+    Event.countActiveForBusiness(businessId),
+  ]);
+
+  if (upcomingBookings > 0) {
+    return res.status(400).json({
+      message: `${upcomingBookings} upcoming booking${upcomingBookings === 1 ? '' : 's'} must be completed or cancelled first`,
+    });
+  }
+  if (openPrintOrders > 0) {
+    return res.status(400).json({
+      message: `${openPrintOrders} open print order${openPrintOrders === 1 ? '' : 's'} must be completed or cancelled first`,
+    });
+  }
+  if (activeEvents > 0) {
+    return res.status(400).json({
+      message: `cancel or complete ${activeEvents} event${activeEvents === 1 ? '' : 's'} before deleting this business`,
+    });
+  }
+
   const ok = await Business.deleteForVendor(req.params.id, req.user.id);
   if (!ok) return res.status(404).json({ message: 'business not found' });
   res.json({ ok: true });
@@ -187,8 +255,23 @@ exports.completeSetup = handle(async (req, res) => {
   res.json({ business });
 });
 
+exports.publish = handle(async (req, res) => {
+  const business = await setupService.publish(req.params.id, req.user.id);
+  res.json({ business: setupService.stripSetupPhotos(business) });
+});
+
+exports.unpublish = handle(async (req, res) => {
+  const business = await setupService.unpublish(req.params.id, req.user.id);
+  res.json({ business: setupService.stripSetupPhotos(business) });
+});
+
 exports.listSlots = handle(async (req, res) => {
   const payload = await slotsService.listSlots(req.params.id, req.user.id, req.query);
+  res.json(payload);
+});
+
+exports.listStaffBlocks = handle(async (req, res) => {
+  const payload = await slotsService.listStaffBlocks(req.params.id, req.user.id, req.query);
   res.json(payload);
 });
 

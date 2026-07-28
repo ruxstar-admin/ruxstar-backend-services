@@ -30,6 +30,13 @@ const RETIRED_TYPE_IDS = [
 ];
 const RETIRED_CATEGORY_IDS = ['services'];
 
+// Commerce and Creator have no setup flow yet, so a vendor who picks one ends
+// up with a business that can never go live. They stay in the seed data (and
+// remain visible in the admin catalog) but are deactivated until the flows
+// exist — re-enabling is a single `active: true` toggle in admin.
+const UNAVAILABLE_CATEGORY_IDS = ['commerce', 'creator'];
+const UNAVAILABLE_TYPE_IDS = ['retail', 'online_store', 'creator', 'digital_products'];
+
 // Migrate an already-seeded database to the current catalog shape. Idempotent.
 const reconcileCatalog = async () => {
   const now = new Date();
@@ -71,6 +78,16 @@ const reconcileCatalog = async () => {
     if (type && type.active !== false) await BusinessType.updateById(id, { active: false });
   }
 
+  // 4. Hide modules that have no setup flow yet.
+  for (const id of UNAVAILABLE_CATEGORY_IDS) {
+    const cat = await BusinessCategory.findById(id);
+    if (cat && cat.active !== false) await BusinessCategory.updateById(id, { active: false });
+  }
+  for (const id of UNAVAILABLE_TYPE_IDS) {
+    const type = await BusinessType.findById(id);
+    if (type && type.active !== false) await BusinessType.updateById(id, { active: false });
+  }
+
   invalidateCatalogCache();
 };
 
@@ -97,10 +114,20 @@ const seedIfEmpty = async () => {
 
   const now = new Date();
   await BusinessCategory.insertMany(
-    BUSINESS_CATEGORIES.map((c) => ({ ...c, active: true, createdAt: now, updatedAt: now })),
+    BUSINESS_CATEGORIES.map((c) => ({
+      ...c,
+      active: !UNAVAILABLE_CATEGORY_IDS.includes(c.id),
+      createdAt: now,
+      updatedAt: now,
+    })),
   );
   await BusinessType.insertMany(
-    BUSINESS_TYPES.map((t) => ({ ...t, active: true, createdAt: now, updatedAt: now })),
+    BUSINESS_TYPES.map((t) => ({
+      ...t,
+      active: !UNAVAILABLE_TYPE_IDS.includes(t.id),
+      createdAt: now,
+      updatedAt: now,
+    })),
   );
 
   return { seeded: true, categories: BUSINESS_CATEGORIES.length, types: BUSINESS_TYPES.length };

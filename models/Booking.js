@@ -428,6 +428,17 @@ const adminCancel = async (id) => {
 
 const countConfirmed = () => collection().countDocuments({ status: 'confirmed' });
 
+// Bookings a vendor still owes the customer — blocks deleting the business or
+// switching its booking mode out from under them.
+const countUpcomingActive = async (businessId) => {
+  if (!ObjectId.isValid(String(businessId))) return 0;
+  return collection().countDocuments({
+    businessId: toObjectId(businessId),
+    status: { $in: ['confirmed', 'pending_payment'] },
+    startAt: { $gte: new Date() },
+  });
+};
+
 // Flag a booking as refunded (money returned to the customer). Purely cosmetic
 // bookkeeping on the entity; the ledger row is the source of truth.
 const markRefunded = async (id) => {
@@ -450,6 +461,7 @@ module.exports = {
   adminCancel,
   markRefunded,
   countConfirmed,
+  countUpcomingActive,
   setPaymentRefId,
   attachPaymentSession,
   findByIdForCustomer,

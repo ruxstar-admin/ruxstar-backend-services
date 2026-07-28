@@ -23,7 +23,6 @@ const DEFAULT_WEEKLY_HOURS = Object.fromEntries(
 
 const MAX_PHOTOS = 3;
 const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
-const SLOT_MINUTES_OPTIONS = [15, 30, 45, 60, 90, 120];
 // Modules whose vendors run the post-create setup wizard (photos + config).
 const SETUP_MODULES = ['appointments', 'print'];
 
@@ -54,7 +53,6 @@ module.exports = {
   DEFAULT_WEEKLY_HOURS,
   MAX_PHOTOS,
   MAX_PHOTO_BYTES,
-  SLOT_MINUTES_OPTIONS,
   SETUP_MODULES,
   SERVICE_TYPES,
   isServiceType,

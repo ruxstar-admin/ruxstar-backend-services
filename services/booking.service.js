@@ -10,6 +10,7 @@ const cashfreePayments = require('../utils/cashfreePayments');
 const paymentService = require('./payment.service');
 const { HOLD_MINUTES, BOOKING_STATUS } = require('../constants/payments');
 const { isServiceType } = require('../constants/businessSetup');
+const { PUBLIC_BOOKING_MODULES } = require('../constants/businessModules');
 const { pendingHoldResourceId } = require('../utils/coachingService');
 const {
   getLiveBusiness,
@@ -110,7 +111,7 @@ const formatPublicBusinessSummary = (business, vendorName = '') => {
 };
 
 const listPublicBusinesses = async () => {
-  const rows = await Business.listLivePublic({ module: 'appointments' });
+  const rows = await Business.listLivePublic({ modules: PUBLIC_BOOKING_MODULES });
   const vendorIds = rows.map((row) => row.vendorId).filter(Boolean);
   const users = await User.findByIds(vendorIds);
   const vendorNames = new Map(

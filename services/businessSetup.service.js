@@ -1,5 +1,6 @@
 const { randomUUID } = require('crypto');
 const Business = require('../models/Business');
+const Booking = require('../models/Booking');
 const photoStorage = require('./photoStorage.service');
 const {
   DAYS,
@@ -17,6 +18,7 @@ const {
   MAX_PRINT_CITIES,
   MAX_TURNAROUND_DAYS,
 } = require('../constants/businessSetup');
+const { BUSINESS_STATUS } = require('../constants/businessStatus');
 const {
   PRINT_CATEGORY_IDS,
   findPrintCategory,
@@ -28,6 +30,7 @@ const {
   normalizeMaxParticipants,
   normalizeClassTimings,
   normalizePriceOptions,
+  servicePriceOptions,
 } = require('../utils/coachingService');
 
 const defaultPrintProfile = () => ({
@@ -180,29 +183,6 @@ const normalizePrintProfile = (raw) => {
     acceptingOrders,
     pricing,
   };
-};
-
-const validatePrintReady = (setup) => {
-  const profile = setup.printProfile || defaultPrintProfile();
-  if (!profile.serviceCategories.length) {
-    throw Object.assign(new Error('select at least one print category you offer'), { status: 400 });
-  }
-  if (!profile.serveAll && !profile.cities.length) {
-    throw Object.assign(
-      new Error('add at least one service city or enable "serve everywhere"'),
-      { status: 400 },
-    );
-  }
-  const pricing = profile.pricing || {};
-  for (const catId of profile.serviceCategories) {
-    if (!hasValidPrice(catId, pricing[catId])) {
-      const category = findPrintCategory(catId);
-      throw Object.assign(
-        new Error(`set a price for "${category ? category.label : catId}" before going live`),
-        { status: 400 },
-      );
-    }
-  }
 };
 
 const defaultSetup = (options = {}) => {
@@ -473,12 +453,18 @@ const formatBusinessForClient = (business) => {
     (typeof business.thumbnailPhotoId === 'string' && business.thumbnailPhotoId) ||
     formattedSetup.photos[0]?.id ||
     '';
-  return {
+  const out = {
     ...rest,
     thumbnailUrl,
     ...(thumbnailPhotoId ? { thumbnailPhotoId } : {}),
     setup: formattedSetup,
   };
+  // Readiness only means something for modules that have a setup flow.
+  if (SETUP_MODULES.includes(business.module)) {
+    const issues = collectGoLiveIssues(out, formattedSetup);
+    out.readiness = { ready: issues.length === 0, issues };
+  }
+  return out;
 };
 
 const stripSetupPhotos = (business) => {
@@ -521,39 +507,116 @@ const resourcePrice = (resource, setup) => {
   return Math.round(Number(setup?.pricePerSlot) || 0);
 };
 
-const validateServiceSetup = (setup) => {
-  const staff = Array.isArray(setup.staff) ? setup.staff : [];
-  const services = Array.isArray(setup.services) ? setup.services : [];
-  if (!staff.length) {
-    throw Object.assign(new Error('add at least one staff member'), { status: 400 });
+// ── Go-live readiness ──────────────────────────────────────────────────────
+// Collects EVERY unmet requirement instead of throwing on the first one, so the
+// vendor sees a complete checklist rather than fixing issues one refresh at a
+// time. Each issue is { step, field, message } — `step` maps to a setup wizard
+// step so the UI can deep-link the vendor straight to the fix.
+
+const TEN_DIGITS = /^\d{10}$/;
+
+const hasText = (v) => Boolean(String(v ?? '').trim());
+
+// The highest price a service can be booked at, across all of its payment
+// options (coaching classes can price hourly/daily/weekly/monthly at once).
+const bestServicePrice = (service) => {
+  const options = servicePriceOptions(service);
+  return options.reduce((max, o) => Math.max(max, Math.round(Number(o.price) || 0)), 0);
+};
+
+const collectProfileIssues = (business, setup, add) => {
+  if (!hasText(business.address)) {
+    add('profile', 'address', 'Add your business address so customers know where to find you');
   }
-  if (!services.length) {
-    throw Object.assign(new Error('add at least one service'), { status: 400 });
+  if (!TEN_DIGITS.test(String(business.phone ?? '').replace(/\D/g, '').slice(-10))) {
+    add('profile', 'phone', 'Add a valid 10-digit contact number');
   }
-  const staffIds = new Set(staff.map((s) => s.id));
-  for (const service of services) {
-    const duration = Math.round(Number(service.durationMinutes));
-    if (!Number.isFinite(duration) || duration < MIN_SERVICE_MINUTES) {
-      throw Object.assign(new Error(`"${service.name}" needs a valid duration`), { status: 400 });
-    }
-    const price = Math.round(Number(service.price));
-    if (!Number.isFinite(price) || price < 0) {
-      throw Object.assign(new Error(`"${service.name}" needs a valid price`), { status: 400 });
-    }
-    const assigned = (service.staffIds ?? []).filter((id) => staffIds.has(id));
-    if (!assigned.length) {
-      throw Object.assign(
-        new Error(`assign at least one staff member to "${service.name}"`),
-        { status: 400 },
-      );
+  if (!hasText(business.description)) {
+    add('profile', 'description', 'Add a short description of your business');
+  }
+  // A cover image OR at least one gallery photo — customers will not book a
+  // listing with no imagery at all.
+  const hasCover = hasText(business.thumbnailUrl);
+  const hasGallery = Array.isArray(setup.photos) && setup.photos.length > 0;
+  if (!hasCover && !hasGallery) {
+    add('photos', 'photos', 'Add at least one photo of your business');
+  }
+};
+
+const collectPrintIssues = (setup, add) => {
+  const profile = setup.printProfile || defaultPrintProfile();
+  if (!profile.serviceCategories.length) {
+    add('printProfile', 'serviceCategories', 'Select at least one print category you offer');
+  }
+  if (!profile.serveAll && !profile.cities.length) {
+    add('printProfile', 'cities', 'Add at least one service city or enable "serve everywhere"');
+  }
+  const pricing = profile.pricing || {};
+  for (const catId of profile.serviceCategories) {
+    if (!hasValidPrice(catId, pricing[catId])) {
+      const category = findPrintCategory(catId);
+      add('printPricing', `pricing.${catId}`, `Set a price for "${category ? category.label : catId}"`);
     }
   }
 };
 
-const validateReadyToComplete = (setup, typeId, module) => {
-  if (module === 'print') {
-    validatePrintReady(setup);
+const collectServiceIssues = (setup, add) => {
+  const staff = Array.isArray(setup.staff) ? setup.staff : [];
+  const services = Array.isArray(setup.services) ? setup.services : [];
+  if (!staff.length) add('staff', 'staff', 'Add at least one staff member');
+  if (!services.length) {
+    add('services', 'services', 'Add at least one service');
     return;
+  }
+  const staffIds = new Set(staff.map((s) => s.id));
+  for (const service of services) {
+    const label = service.name || 'service';
+    const duration = Math.round(Number(service.durationMinutes));
+    if (!Number.isFinite(duration) || duration < MIN_SERVICE_MINUTES) {
+      add('services', `service.${service.id}.duration`, `"${label}" needs a valid duration`);
+    }
+    if (bestServicePrice(service) <= 0) {
+      add('services', `service.${service.id}.price`, `"${label}" needs a price above ₹0`);
+    }
+    const assigned = (service.staffIds ?? []).filter((id) => staffIds.has(id));
+    if (!assigned.length) {
+      add('services', `service.${service.id}.staffIds`, `Assign at least one staff member to "${label}"`);
+    }
+  }
+};
+
+const collectResourceIssues = (setup, add) => {
+  const bookingMode = normalizeBookingMode(setup.bookingMode);
+  if (bookingMode !== 'fullDay') {
+    const slotMinutes = Number(setup.slotMinutes);
+    if (!Number.isFinite(slotMinutes) || slotMinutes < 15 || slotMinutes > 480) {
+      add('hours', 'slotMinutes', 'Slot duration must be between 15 and 480 minutes');
+    }
+  }
+
+  const resources = setup.resources ?? [];
+  if (!resources.length) {
+    add('resources', 'resources', 'Add at least one bookable resource (court, hall, room)');
+    return;
+  }
+  for (const resource of resources) {
+    const price = resourcePrice(resource, setup);
+    if (!Number.isFinite(price) || price <= 0) {
+      add('resources', `resource.${resource.id}.price`, `"${resource.name || 'Resource'}" needs a price above ₹0`);
+    }
+  }
+};
+
+/** Every unmet go-live requirement for a business. Empty array = ready. */
+const collectGoLiveIssues = (business, setup) => {
+  const issues = [];
+  const add = (step, field, message) => issues.push({ step, field, message });
+
+  collectProfileIssues(business, setup, add);
+
+  if (business.module === 'print') {
+    collectPrintIssues(setup, add);
+    return issues;
   }
 
   const hours = setup.weeklyHours ?? {};
@@ -561,34 +624,42 @@ const validateReadyToComplete = (setup, typeId, module) => {
     const row = hours[day];
     return row && row.closed !== true;
   });
-  if (!hasOpenDay) {
-    throw Object.assign(new Error('set at least one open day'), { status: 400 });
-  }
+  if (!hasOpenDay) add('hours', 'weeklyHours', 'Set at least one open day');
 
-  if (isServiceType(typeId)) {
-    validateServiceSetup(setup);
-    return;
-  }
+  if (isServiceType(business.typeId)) collectServiceIssues(setup, add);
+  else collectResourceIssues(setup, add);
 
-  const bookingMode = normalizeBookingMode(setup.bookingMode);
-  if (bookingMode !== 'fullDay') {
-    const slotMinutes = Number(setup.slotMinutes);
-    if (!Number.isFinite(slotMinutes) || slotMinutes < 15 || slotMinutes > 480) {
-      throw Object.assign(new Error('slot duration must be between 15 and 480 minutes'), { status: 400 });
-    }
-  }
+  return issues;
+};
 
-  const resources = setup.resources ?? [];
-  if (!resources.length) {
-    throw Object.assign(new Error('add at least one bookable resource (court, room, etc.)'), { status: 400 });
-  }
+/** Throws a 400 carrying the full issue list when the business is not ready. */
+const assertReadyToComplete = (business, setup) => {
+  const issues = collectGoLiveIssues(business, setup);
+  if (!issues.length) return;
+  throw Object.assign(new Error(issues[0].message), { status: 400, issues });
+};
 
-  for (const resource of resources) {
-    const price = resourcePrice(resource, setup);
-    if (!Number.isFinite(price) || price < 0) {
-      throw Object.assign(new Error('each hall or court needs a valid price'), { status: 400 });
-    }
+// A completed business editing its setup must still clear the go-live gate. The
+// edit is always kept (the vendor may be mid-change), but if it no longer
+// qualifies we take the listing offline rather than leave it publicly bookable.
+// A business the vendor unpublished on purpose keeps its offline status.
+const OFFLINE_PATCH = { setupComplete: false, status: BUSINESS_STATUS.DRAFT };
+
+const statusPatchForSetupEdit = (business, nextSetup) => {
+  if (business.setupComplete !== true) return OFFLINE_PATCH;
+  return collectGoLiveIssues(business, nextSetup).length ? OFFLINE_PATCH : {};
+};
+
+// Same rule for profile edits (name/phone/address/description), which live in
+// the business document rather than in `setup`.
+const revalidateAfterProfileEdit = async (business, vendorId) => {
+  if (business.status !== BUSINESS_STATUS.LIVE || !SETUP_MODULES.includes(business.module)) {
+    return business;
   }
+  const setup = business.setup ?? defaultSetup({ typeId: business.typeId });
+  if (!collectGoLiveIssues(business, setup).length) return business;
+  const businessId = String(business._id ?? business.id);
+  return (await Business.updateForVendor(businessId, vendorId, OFFLINE_PATCH)) ?? business;
 };
 
 const getSetup = async (businessId, vendorId) => {
@@ -638,7 +709,24 @@ const updateSetup = async (businessId, vendorId, body) => {
     patch.services = normalizeServices(body.services, staffForServices);
   }
   if (body.bufferMinutes !== undefined) patch.bufferMinutes = normalizeBufferMinutes(body.bufferMinutes);
-  if (body.bookingMode !== undefined) patch.bookingMode = normalizeBookingMode(body.bookingMode);
+  if (body.bookingMode !== undefined) {
+    const nextMode = normalizeBookingMode(body.bookingMode);
+    const currentMode = normalizeBookingMode(current.bookingMode);
+    // Switching hourly ↔ full-day changes what every existing slot means, so it
+    // is only allowed while nobody holds a future booking.
+    if (nextMode !== currentMode && !isServiceType(business.typeId)) {
+      const upcoming = await Booking.countUpcomingActive(businessId);
+      if (upcoming > 0) {
+        throw Object.assign(
+          new Error(
+            `cannot change booking style with ${upcoming} upcoming booking${upcoming === 1 ? '' : 's'} — cancel or wait for them to finish`,
+          ),
+          { status: 400 },
+        );
+      }
+    }
+    patch.bookingMode = nextMode;
+  }
   if (body.maxGuests !== undefined) patch.maxGuests = normalizeMaxGuests(body.maxGuests);
   if (body.venueRules !== undefined) {
     patch.venueRules = String(body.venueRules ?? '').trim().slice(0, 2000);
@@ -647,10 +735,9 @@ const updateSetup = async (businessId, vendorId, body) => {
     patch.printProfile = normalizePrintProfile(body.printProfile);
   }
 
-  const preserveLive = business.setupComplete === true && business.status === 'live';
   const updated = await Business.updateForVendor(businessId, vendorId, {
     setup: patch,
-    ...(preserveLive ? {} : { setupComplete: false, status: 'draft' }),
+    ...statusPatchForSetupEdit(business, patch),
   });
   return formatBusinessForClient(updated);
 };
@@ -703,9 +790,6 @@ const setBusinessThumbnail = async (businessId, vendorId, imageBase64) => {
   return formatBusinessForClient(updated);
 };
 
-/** @deprecated use setBusinessThumbnail */
-const setCreateThumbnail = setBusinessThumbnail;
-
 const addPhoto = async (businessId, vendorId, imageBase64) => {
   const business = await getOwned(businessId, vendorId);
   assertAppointmentsModule(business);
@@ -741,8 +825,10 @@ const removePhoto = async (businessId, vendorId, photoId) => {
     await photoStorage.deleteBusinessPhoto(removed.storageKey);
   }
 
+  const nextSetup = { ...current, photos };
   const updated = await Business.updateForVendor(businessId, vendorId, {
-    setup: { ...current, photos },
+    setup: nextSetup,
+    ...statusPatchForSetupEdit(business, nextSetup),
   });
   return formatBusinessForClient(updated);
 };
@@ -780,8 +866,10 @@ const syncPhotos = async (businessId, vendorId, { images = [], removeIds = [] } 
     photos.push(...newDocs);
   }
 
+  const nextSetup = { ...current, photos };
   const updated = await Business.updateForVendor(businessId, vendorId, {
-    setup: { ...current, photos },
+    setup: nextSetup,
+    ...statusPatchForSetupEdit(business, nextSetup),
   });
   return formatBusinessForClient(updated);
 };
@@ -809,11 +897,40 @@ const completeSetup = async (businessId, vendorId) => {
   assertAppointmentsModule(business);
 
   const setup = business.setup ?? defaultSetup({ typeId: business.typeId });
-  validateReadyToComplete(setup, business.typeId, business.module);
+  assertReadyToComplete(business, setup);
 
   const updated = await Business.updateForVendor(businessId, vendorId, {
     setupComplete: true,
-    status: 'live',
+    status: BUSINESS_STATUS.LIVE,
+  });
+  return formatBusinessForClient(updated);
+};
+
+// Take a live listing off public discovery without losing its setup. Existing
+// bookings are untouched; the vendor can publish again with one click.
+const unpublish = async (businessId, vendorId) => {
+  const business = await getOwned(businessId, vendorId);
+  if (business.status !== BUSINESS_STATUS.LIVE) {
+    throw Object.assign(new Error('this business is already offline'), { status: 400 });
+  }
+  const updated = await Business.updateForVendor(businessId, vendorId, {
+    status: BUSINESS_STATUS.DRAFT,
+  });
+  return formatBusinessForClient(updated);
+};
+
+// Re-publish a business that was taken offline (or demoted by a broken edit).
+const publish = async (businessId, vendorId) => {
+  const business = await getOwned(businessId, vendorId);
+  assertAppointmentsModule(business);
+  if (business.status === BUSINESS_STATUS.LIVE) return formatBusinessForClient(business);
+
+  const setup = business.setup ?? defaultSetup({ typeId: business.typeId });
+  assertReadyToComplete(business, setup);
+
+  const updated = await Business.updateForVendor(businessId, vendorId, {
+    setupComplete: true,
+    status: BUSINESS_STATUS.LIVE,
   });
   return formatBusinessForClient(updated);
 };
@@ -821,14 +938,18 @@ const completeSetup = async (businessId, vendorId) => {
 module.exports = {
   defaultSetup,
   formatBusinessForClient,
+  collectGoLiveIssues,
+  assertReadyToComplete,
+  revalidateAfterProfileEdit,
   stripSetupPhotos,
   getSetup,
   updateSetup,
   setBusinessThumbnail,
-  setCreateThumbnail,
   addPhoto,
   removePhoto,
   syncPhotos,
   setAcceptingOrders,
   completeSetup,
+  publish,
+  unpublish,
 };

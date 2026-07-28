@@ -215,9 +215,19 @@ const setStatusAdmin = async (id, status) => {
 
 const countAll = () => collection().countDocuments({});
 
+// Events still open to the public — blocks deleting the parent business.
+const countActiveForBusiness = async (businessId) => {
+  if (!ObjectId.isValid(String(businessId))) return 0;
+  return collection().countDocuments({
+    businessId: toObjectId(businessId),
+    status: { $in: ['draft', 'published'] },
+  });
+};
+
 module.exports = {
   sanitize,
   ensureIndexes,
+  countActiveForBusiness,
   insert,
   listByVendor,
   listAllAdmin,

@@ -258,6 +258,15 @@ const adminCancel = async (id) => {
 
 const countAll = () => collection().countDocuments({});
 
+// Orders a print shop still has to fulfil — blocks deleting the business.
+const countOpenForBusiness = async (businessId) => {
+  if (!ObjectId.isValid(String(businessId))) return 0;
+  return collection().countDocuments({
+    assignedBusinessId: toObjectId(businessId),
+    status: { $nin: ['completed', 'cancelled', 'expired'] },
+  });
+};
+
 module.exports = {
   sanitize,
   ensureIndexes,
@@ -265,6 +274,7 @@ module.exports = {
   listAllAdmin,
   adminCancel,
   countAll,
+  countOpenForBusiness,
   findById,
   findByIdWithDesign,
   getForCustomer,

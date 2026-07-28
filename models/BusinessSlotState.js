@@ -71,6 +71,32 @@ const upsertBlocked = async (businessId, { resourceId, startAt, endAt }) => {
   );
 };
 
+// Service-mode blocks are arbitrary windows, not grid slots, so the vendor
+// unblocks by pointing at any instant inside the window.
+const findBlockedCovering = async (businessId, resourceId, at) => {
+  const instant = new Date(at);
+  const doc = await collection().findOne({
+    businessId: toObjectId(businessId),
+    resourceId: String(resourceId),
+    status: 'blocked',
+    startAt: { $lte: instant },
+    endAt: { $gt: instant },
+  });
+  return doc ? mapRow(doc) : null;
+};
+
+const removeBlockedCovering = async (businessId, resourceId, at) => {
+  const instant = new Date(at);
+  const { deletedCount } = await collection().deleteOne({
+    businessId: toObjectId(businessId),
+    resourceId: String(resourceId),
+    status: 'blocked',
+    startAt: { $lte: instant },
+    endAt: { $gt: instant },
+  });
+  return deletedCount > 0;
+};
+
 const removeBlocked = async (businessId, resourceId, startAt) => {
   const { deletedCount } = await collection().deleteOne({
     businessId: toObjectId(businessId),
@@ -81,9 +107,10 @@ const removeBlocked = async (businessId, resourceId, startAt) => {
   return deletedCount > 0;
 };
 
-// Find an active (booked or live-pending) reservation for this resource that
-// overlaps [startAt, endAt). Used by service-mode bookings where variable
-// durations mean two appointments can clash without sharing a start time.
+// Find anything occupying this resource over [startAt, endAt): a confirmed
+// booking, a live pending hold, or a vendor block. Used by service-mode
+// bookings where variable durations mean two appointments can clash without
+// sharing a start time.
 const findOverlap = async (businessId, resourceId, startAt, endAt, { session } = {}) => {
   const now = new Date();
   const doc = await collection().findOne(
@@ -94,6 +121,7 @@ const findOverlap = async (businessId, resourceId, startAt, endAt, { session } =
       endAt: { $gt: new Date(startAt) },
       $or: [
         { status: 'booked' },
+        { status: 'blocked' },
         { status: 'pending', pendingExpiresAt: { $gt: now } },
       ],
     },
@@ -298,6 +326,8 @@ module.exports = {
   findOverlap,
   upsertBlocked,
   removeBlocked,
+  findBlockedCovering,
+  removeBlockedCovering,
   insertBooked,
   removeBooked,
   claimPending,

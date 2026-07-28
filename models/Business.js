@@ -1,5 +1,6 @@
 const { ObjectId } = require('mongodb');
 const { getDb } = require('../config/database');
+const { BUSINESS_STATUS } = require('../constants/businessStatus');
 
 const collection = () => getDb().collection('businesses');
 
@@ -14,6 +15,7 @@ const LIST_PUBLIC_PROJECTION = {
   categoryLabel: 1,
   module: 1,
   address: 1,
+  addressParts: 1,
   description: 1,
   thumbnailUrl: 1,
   thumbnailPhotoId: 1,
@@ -68,19 +70,20 @@ const findByIdForVendor = async (id, vendorId, { withPhotoData = true } = {}) =>
 const findLiveById = async (id, { withPhotoData = false } = {}) => {
   if (!ObjectId.isValid(String(id))) return null;
   const doc = await collection().findOne(
-    { _id: toObjectId(id), status: 'live', setupComplete: true, suspended: { $ne: true } },
+    { _id: toObjectId(id), status: BUSINESS_STATUS.LIVE, setupComplete: true, suspended: { $ne: true } },
     findOpts({ withPhotoData }),
   );
   return sanitize(doc);
 };
 
-const listLivePublic = async ({ module } = {}) => {
+const listLivePublic = async ({ module, modules } = {}) => {
   const filter = {
-    status: 'live',
+    status: BUSINESS_STATUS.LIVE,
     setupComplete: true,
     suspended: { $ne: true },
   };
   if (module) filter.module = module;
+  else if (Array.isArray(modules) && modules.length) filter.module = { $in: modules };
 
   const rows = await collection()
     .find(filter, { projection: LIST_PUBLIC_PROJECTION })
@@ -98,6 +101,7 @@ const LIVE_PRINT_PROJECTION = {
   setupComplete: 1,
   thumbnailUrl: 1,
   address: 1,
+  addressParts: 1,
   'setup.printProfile': 1,
 };
 
@@ -105,7 +109,7 @@ const LIVE_PRINT_PROJECTION = {
 // city). Used to broadcast an open order to eligible vendors.
 const listLivePrintForCategory = async (categoryId, city) => {
   const filter = {
-    status: 'live',
+    status: BUSINESS_STATUS.LIVE,
     setupComplete: true,
     suspended: { $ne: true },
     module: 'print',
@@ -127,7 +131,7 @@ const listLivePrintByVendor = async (vendorId) => {
     .find(
       {
         vendorId: toObjectId(vendorId),
-        status: 'live',
+        status: BUSINESS_STATUS.LIVE,
         setupComplete: true,
         suspended: { $ne: true },
         module: 'print',
@@ -143,7 +147,7 @@ const insert = async (vendorId, data) => {
   const doc = {
     vendorId: toObjectId(vendorId),
     ...data,
-    status: 'draft',
+    status: BUSINESS_STATUS.DRAFT,
     setupComplete: false,
     createdAt: now,
     updatedAt: now,
@@ -241,13 +245,14 @@ const countByStatus = async () => {
         $group: {
           _id: null,
           total: { $sum: 1 },
-          live: { $sum: { $cond: [{ $eq: ['$status', 'live'] }, 1, 0] } },
+          live: { $sum: { $cond: [{ $eq: ['$status', BUSINESS_STATUS.LIVE] }, 1, 0] } },
+          draft: { $sum: { $cond: [{ $ne: ['$status', BUSINESS_STATUS.LIVE] }, 1, 0] } },
           suspended: { $sum: { $cond: [{ $eq: ['$suspended', true] }, 1, 0] } },
         },
       },
     ])
     .toArray();
-  return rows[0] || { total: 0, live: 0, suspended: 0 };
+  return rows[0] || { total: 0, live: 0, draft: 0, suspended: 0 };
 };
 
 const countBusinessesByVendorIds = async (vendorIds) => {

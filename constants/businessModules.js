@@ -10,4 +10,10 @@ const MODULE_LABELS = {
   print: 'Print on demand',
 };
 
-module.exports = { BUSINESS_MODULES, MODULE_LABELS };
+// Modules that appear in the customer "book a slot" catalogue. Print has its
+// own discovery path (an order is broadcast to eligible shops) and events are
+// listed per published event, so neither belongs here. Commerce and creator are
+// deactivated in the catalogue until they have a real setup flow.
+const PUBLIC_BOOKING_MODULES = ['appointments'];
+
+module.exports = { BUSINESS_MODULES, MODULE_LABELS, PUBLIC_BOOKING_MODULES };

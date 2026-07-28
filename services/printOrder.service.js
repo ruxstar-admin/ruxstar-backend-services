@@ -7,6 +7,7 @@ const paymentService = require('./payment.service');
 const cashfreePayments = require('../utils/cashfreePayments');
 const { findPrintCategory, PRINT_ORDER_STATUS } = require('../constants/printCatalog');
 const { computePrice } = require('../utils/printPricing');
+const { businessCity } = require('../utils/businessAddress');
 
 const MAX_DESIGN_BYTES = 4 * 1024 * 1024;
 
@@ -206,7 +207,7 @@ const listAvailableShops = async (categoryId, city) => {
       vendorId: String(biz.vendorId ?? ''),
       name: biz.name || 'Print shop',
       thumbnailUrl: biz.thumbnailUrl || '',
-      city: biz.address?.city || '',
+      city: businessCity(biz),
       acceptingOrders: profile.acceptingOrders !== false,
       pricingModel: category.pricingModel,
       turnaroundDays: Number(pricing.turnaroundDays) || Number(profile.turnaroundDays) || 0,

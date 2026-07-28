@@ -556,19 +556,26 @@ const eligibleStaffFor = (business, selectedServices, staffId) => {
 };
 
 // Active (booked / live-pending) intervals grouped by staff id, in ms.
+// Intervals a staff member cannot take a new appointment in. `blocked` is kept
+// separate from `booked` so the vendor's calendar can show why a slot is gone.
 const busyIntervalsByStaff = (states) => {
   const now = Date.now();
-  const map = new Map();
+  const busy = new Map();
+  const blocked = new Map();
   for (const st of states) {
+    const isBlocked = st.status === 'blocked';
     const active =
       st.status === 'booked' ||
+      isBlocked ||
       (st.status === 'pending' && st.pendingExpiresAt && new Date(st.pendingExpiresAt).getTime() > now);
     if (!active) continue;
-    const list = map.get(st.resourceId) ?? [];
-    list.push([new Date(st.startAt).getTime(), new Date(st.endAt).getTime()]);
-    map.set(st.resourceId, list);
+    const interval = [new Date(st.startAt).getTime(), new Date(st.endAt).getTime()];
+    const target = isBlocked ? blocked : busy;
+    const list = target.get(st.resourceId) ?? [];
+    list.push(interval);
+    target.set(st.resourceId, list);
   }
-  return map;
+  return { busy, blocked };
 };
 
 const buildServiceAvailability = async (business, query, { publicView = false } = {}) => {
@@ -732,6 +739,7 @@ const buildServiceAvailability = async (business, query, { publicView = false } 
 
     let rowsByKey = new Map();
     let busyByStaff = new Map();
+    let blockedByStaff = new Map();
     if (groupMode) {
       const bookingRange = hasPeriodOptions
         ? monthSpanRangeIso(fromDate, toDate)
@@ -744,7 +752,7 @@ const buildServiceAvailability = async (business, query, { publicView = false } 
       rowsByKey = groupRowsByServiceStaff(rows);
     } else {
       const states = await BusinessSlotState.listInRange(String(business._id), rangeStart, rangeEndExclusive);
-      busyByStaff = busyIntervalsByStaff(states);
+      ({ busy: busyByStaff, blocked: blockedByStaff } = busyIntervalsByStaff(states));
     }
 
     const addSlot = ({
@@ -755,6 +763,7 @@ const buildServiceAvailability = async (business, query, { publicView = false } 
       available,
       seatsLeft,
       batchLabel,
+      blocked = false,
     }) => {
       const startTime = minutesToTime(startMin);
       const endTime = minutesToTime(startMin + durationMin);
@@ -779,7 +788,13 @@ const buildServiceAvailability = async (business, query, { publicView = false } 
         ...(pricingLabel ? { pricingLabel } : {}),
         ...(batchLabel ? { batchLabel } : {}),
         ...(groupMode && seatsLeft != null ? { seatsLeft, maxParticipants: capacity, enrolledCount: capacity - seatsLeft } : {}),
-        status: available ? 'available' : publicView ? 'unavailable' : 'booked',
+        status: available
+          ? 'available'
+          : publicView
+            ? 'unavailable'
+            : blocked
+              ? 'blocked'
+              : 'booked',
       });
     };
 
@@ -860,19 +875,37 @@ const buildServiceAvailability = async (business, query, { publicView = false } 
               });
             }
           } else {
-            const freeStaff = eligible.find((st) => {
-              const intervals = busyByStaff.get(st.id) ?? [];
-              return !intervals.some(([bs, be]) =>
+            const isFree = (st) => {
+              const busy = busyByStaff.get(st.id) ?? [];
+              const off = blockedByStaff.get(st.id) ?? [];
+              return ![...busy, ...off].some(([bs, be]) =>
                 intervalsOverlap(startMs - bufMs, endMs + bufMs, bs, be),
               );
-            });
+            };
+            const freeStaff = eligible.find(isFree);
             const staffRef = freeStaff ?? eligible[0];
+            // Only call it "blocked" when time off is the sole reason nobody is
+            // free — a real booking takes precedence in the label.
+            const blockedOnly =
+              !freeStaff &&
+              eligible.every((st) => {
+                const busy = busyByStaff.get(st.id) ?? [];
+                const off = blockedByStaff.get(st.id) ?? [];
+                const hasBusy = busy.some(([bs, be]) =>
+                  intervalsOverlap(startMs - bufMs, endMs + bufMs, bs, be),
+                );
+                const hasOff = off.some(([bs, be]) =>
+                  intervalsOverlap(startMs - bufMs, endMs + bufMs, bs, be),
+                );
+                return hasOff && !hasBusy;
+              });
             addSlot({
               cursor,
               startMin,
               durationMin: totalDuration,
               staffRef,
               available: Boolean(freeStaff),
+              blocked: blockedOnly,
             });
           }
         }
@@ -1049,8 +1082,86 @@ const listSlots = async (businessId, vendorId, query) => {
   return buildSlotsPayload(business, query, { publicView: false });
 };
 
+// ── Staff time-off (service businesses) ────────────────────────────────────
+// Service slots are generated on a rolling step from opening hours rather than
+// from a fixed grid, so a vendor blocks an arbitrary [startAt, endAt) window
+// for one staff member instead of a single named slot.
+
+const assertStaffMember = (business, staffId) => {
+  const staff = (business.setup?.staff ?? []).find((s) => s.id === String(staffId));
+  if (!staff) throw Object.assign(new Error('staff member not found'), { status: 404 });
+  return staff;
+};
+
+const parseStaffWindow = (body) => {
+  const staffId = String(body.staffId ?? body.resourceId ?? '').trim();
+  const startAt = new Date(String(body.startAt ?? '').trim());
+  if (!staffId || Number.isNaN(startAt.getTime())) {
+    throw Object.assign(new Error('staffId and startAt required'), { status: 400 });
+  }
+  const rawEnd = String(body.endAt ?? '').trim();
+  const endAt = rawEnd ? new Date(rawEnd) : new Date(startAt.getTime() + 60 * 60 * 1000);
+  if (Number.isNaN(endAt.getTime()) || endAt <= startAt) {
+    throw Object.assign(new Error('endAt must be after startAt'), { status: 400 });
+  }
+  if (endAt.getTime() - startAt.getTime() > 31 * 24 * 60 * 60 * 1000) {
+    throw Object.assign(new Error('block a window of 31 days or less'), { status: 400 });
+  }
+  return { staffId, startAt, endAt };
+};
+
+const blockStaffWindow = async (businessId, business, body) => {
+  const { staffId, startAt, endAt } = parseStaffWindow(body);
+  assertStaffMember(business, staffId);
+
+  const clash = await BusinessSlotState.findOverlap(businessId, staffId, startAt, endAt);
+  if (clash) {
+    const message =
+      clash.status === 'blocked'
+        ? 'that time is already blocked'
+        : 'cannot block a time that is already booked';
+    throw Object.assign(new Error(message), { status: 409 });
+  }
+
+  await BusinessSlotState.upsertBlocked(businessId, { resourceId: staffId, startAt, endAt });
+  return { ok: true, staffId, startAt: startAt.toISOString(), endAt: endAt.toISOString() };
+};
+
+const unblockStaffWindow = async (businessId, business, body) => {
+  const staffId = String(body.staffId ?? body.resourceId ?? '').trim();
+  const at = new Date(String(body.startAt ?? '').trim());
+  if (!staffId || Number.isNaN(at.getTime())) {
+    throw Object.assign(new Error('staffId and startAt required'), { status: 400 });
+  }
+  assertStaffMember(business, staffId);
+
+  const ok = await BusinessSlotState.removeBlockedCovering(businessId, staffId, at);
+  if (!ok) throw Object.assign(new Error('that time is not blocked'), { status: 404 });
+  return { ok: true };
+};
+
+const listStaffBlocks = async (businessId, vendorId, query = {}) => {
+  const business = await getOwnedLive(businessId, vendorId);
+  const staff = business.setup?.staff ?? [];
+  const from = query.from ? new Date(query.from) : new Date();
+  const to = query.to ? new Date(query.to) : new Date(from.getTime() + 60 * 24 * 60 * 60 * 1000);
+  const states = await BusinessSlotState.listInRange(businessId, from, to);
+  const names = new Map(staff.map((s) => [s.id, s.name]));
+  const blocks = states
+    .filter((s) => s.status === 'blocked' && names.has(s.resourceId))
+    .map((s) => ({
+      staffId: s.resourceId,
+      staffName: names.get(s.resourceId) ?? '',
+      startAt: s.startAt,
+      endAt: s.endAt,
+    }))
+    .sort((a, b) => a.startAt.localeCompare(b.startAt));
+  return { blocks, staff };
+};
+
 const blockSlot = async (businessId, vendorId, body) => {
   const business = await getOwnedLive(businessId, vendorId);
+  if (isServiceBusiness(business)) return blockStaffWindow(businessId, business, body);
   const resourceId = String(body.resourceId ?? '').trim();
   const startAt = String(body.startAt ?? '').trim();
   if (!resourceId || !startAt) {
@@ -1074,6 +1185,7 @@ const blockSlot = async (businessId, vendorId, body) => {
 
 const unblockSlot = async (businessId, vendorId, body) => {
   const business = await getOwnedLive(businessId, vendorId);
+  if (isServiceBusiness(business)) return unblockStaffWindow(businessId, business, body);
   const resourceId = String(body.resourceId ?? '').trim();
   const startAt = String(body.startAt ?? '').trim();
   if (!resourceId || !startAt) {
@@ -1092,8 +1204,20 @@ const unblockSlot = async (businessId, vendorId, body) => {
   return { ok: true };
 };
 
+// Service businesses price per service, not per slot, so a per-slot override
+// has nowhere to apply — say so instead of failing with "resource not found".
+const assertNotServiceBusiness = (business) => {
+  if (isServiceBusiness(business)) {
+    throw Object.assign(
+      new Error('demand pricing is not available here — edit the service price in setup instead'),
+      { status: 400 },
+    );
+  }
+};
+
 const setSlotPrice = async (businessId, vendorId, body) => {
   const business = await getOwnedLive(businessId, vendorId);
+  assertNotServiceBusiness(business);
   const resourceId = String(body.resourceId ?? '').trim();
   const startAt = String(body.startAt ?? '').trim();
   const pricePerSlot = body.pricePerSlot;
@@ -1126,6 +1250,7 @@ const setSlotPrice = async (businessId, vendorId, body) => {
 
 const clearSlotPrice = async (businessId, vendorId, body) => {
   const business = await getOwnedLive(businessId, vendorId);
+  assertNotServiceBusiness(business);
   const resourceId = String(body.resourceId ?? '').trim();
   const startAt = String(body.startAt ?? '').trim();
   if (!resourceId || !startAt) {
@@ -1151,6 +1276,7 @@ module.exports = {
   assertSlotForBooking,
   assertServiceSlotForBooking,
   listSlots,
+  listStaffBlocks,
   blockSlot,
   unblockSlot,
   setSlotPrice,
