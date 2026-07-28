@@ -34,8 +34,8 @@ const RETIRED_CATEGORY_IDS = ['services'];
 // up with a business that can never go live. They stay in the seed data (and
 // remain visible in the admin catalog) but are deactivated until the flows
 // exist — re-enabling is a single `active: true` toggle in admin.
-const UNAVAILABLE_CATEGORY_IDS = ['commerce', 'creator'];
-const UNAVAILABLE_TYPE_IDS = ['retail', 'online_store', 'creator', 'digital_products'];
+const UNAVAILABLE_CATEGORY_IDS = ['creator'];
+const UNAVAILABLE_TYPE_IDS = ['creator', 'digital_products'];
 
 // Migrate an already-seeded database to the current catalog shape. Idempotent.
 const reconcileCatalog = async () => {
@@ -76,6 +76,18 @@ const reconcileCatalog = async () => {
   for (const id of RETIRED_TYPE_IDS) {
     const type = await BusinessType.findById(id);
     if (type && type.active !== false) await BusinessType.updateById(id, { active: false });
+  }
+
+// Commerce and Creator were both hidden; commerce is live now. Creator stays
+// off until it has a real setup flow — re-enabling is a single admin toggle.
+// Also force-activate commerce category/types that were deactivated earlier.
+  for (const id of ['commerce']) {
+    const cat = await BusinessCategory.findById(id);
+    if (cat && cat.active === false) await BusinessCategory.updateById(id, { active: true });
+  }
+  for (const id of ['retail', 'online_store']) {
+    const type = await BusinessType.findById(id);
+    if (type && type.active === false) await BusinessType.updateById(id, { active: true });
   }
 
   // 4. Hide modules that have no setup flow yet.

@@ -1,6 +1,7 @@
 const Business = require('../models/Business');
 const Booking = require('../models/Booking');
 const PrintOrder = require('../models/PrintOrder');
+const CommerceOrder = require('../models/CommerceOrder');
 const Event = require('../models/Event');
 const catalogService = require('../services/businessCatalog.service');
 const setupService = require('../services/businessSetup.service');
@@ -187,9 +188,10 @@ exports.remove = async (req, res) => {
   }
 
   const businessId = String(business._id ?? business.id);
-  const [upcomingBookings, openPrintOrders, activeEvents] = await Promise.all([
+  const [upcomingBookings, openPrintOrders, openCommerceOrders, activeEvents] = await Promise.all([
     Booking.countUpcomingActive(businessId),
     PrintOrder.countOpenForBusiness(businessId),
+    CommerceOrder.countOpenForBusiness(businessId),
     Event.countActiveForBusiness(businessId),
   ]);
 
@@ -201,6 +203,11 @@ exports.remove = async (req, res) => {
   if (openPrintOrders > 0) {
     return res.status(400).json({
       message: `${openPrintOrders} open print order${openPrintOrders === 1 ? '' : 's'} must be completed or cancelled first`,
+    });
+  }
+  if (openCommerceOrders > 0) {
+    return res.status(400).json({
+      message: `${openCommerceOrders} open commerce order${openCommerceOrders === 1 ? '' : 's'} must be completed or cancelled first`,
     });
   }
   if (activeEvents > 0) {

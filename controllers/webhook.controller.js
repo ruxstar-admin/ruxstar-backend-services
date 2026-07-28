@@ -1,6 +1,7 @@
 const bookingService = require('../services/booking.service');
 const eventService = require('../services/event.service');
 const printOrderService = require('../services/printOrder.service');
+const commerceOrderService = require('../services/commerceOrder.service');
 const withdrawalService = require('../services/withdrawal.service');
 const cashfreePayments = require('../utils/cashfreePayments');
 const cashfreePayouts = require('../utils/cashfreePayouts');
@@ -25,7 +26,10 @@ exports.cashfreePayments = async (req, res) => {
     if (result?.ignored) {
       const handledByEvent = await eventService.handlePaymentWebhook(req.body);
       if (!handledByEvent) {
-        await printOrderService.handlePaymentWebhook(req.body);
+        const handledByPrint = await printOrderService.handlePaymentWebhook(req.body);
+        if (handledByPrint?.ignored) {
+          await commerceOrderService.handlePaymentWebhook(req.body);
+        }
       }
     }
   } catch (err) {

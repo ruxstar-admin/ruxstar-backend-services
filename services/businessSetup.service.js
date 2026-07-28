@@ -44,6 +44,13 @@ const defaultPrintProfile = () => ({
   pricing: {},
 });
 
+const defaultCommerceProfile = () => ({
+  notes: '',
+  minOrderValue: 0,
+  acceptingOrders: true,
+  activeProductCount: 0,
+});
+
 const MAX_MONEY = 10_000_000;
 const MAX_TIERS = 10;
 
@@ -204,6 +211,7 @@ const defaultSetup = (options = {}) => {
   maxGuests: null,
   venueRules: '',
   printProfile: defaultPrintProfile(),
+  commerceProfile: defaultCommerceProfile(),
 };
 };
 
@@ -430,6 +438,9 @@ const formatSetupForClient = (setup, businessId, typeId) => {
     printProfile: setup.printProfile
       ? { ...defaultPrintProfile(), ...setup.printProfile }
       : defaultPrintProfile(),
+    commerceProfile: setup.commerceProfile
+      ? { ...defaultCommerceProfile(), ...setup.commerceProfile }
+      : defaultCommerceProfile(),
   };
 };
 
@@ -560,6 +571,27 @@ const collectPrintIssues = (setup, add) => {
   }
 };
 
+const collectCommerceIssues = (setup, add) => {
+  const profile = setup.commerceProfile || defaultCommerceProfile();
+  const count = Math.round(Number(profile.activeProductCount) || 0);
+  if (count < 1) {
+    add('products', 'products', 'Add at least one product with stock before going live');
+  }
+};
+
+const normalizeCommerceProfile = (raw, existing = {}) => {
+  const base = { ...defaultCommerceProfile(), ...existing };
+  if (!raw || typeof raw !== 'object') return base;
+  const notes = String(raw.notes ?? base.notes ?? '').trim().slice(0, 1000);
+  let minOrderValue = Math.round(Number(raw.minOrderValue));
+  if (!Number.isFinite(minOrderValue) || minOrderValue < 0) minOrderValue = 0;
+  const acceptingOrders =
+    raw.acceptingOrders === undefined ? base.acceptingOrders !== false : raw.acceptingOrders !== false;
+  // Product count is maintained by product.service — never overwrite from client.
+  const activeProductCount = Math.round(Number(base.activeProductCount) || 0);
+  return { notes, minOrderValue, acceptingOrders, activeProductCount };
+};
+
 const collectServiceIssues = (setup, add) => {
   const staff = Array.isArray(setup.staff) ? setup.staff : [];
   const services = Array.isArray(setup.services) ? setup.services : [];
@@ -616,6 +648,11 @@ const collectGoLiveIssues = (business, setup) => {
 
   if (business.module === 'print') {
     collectPrintIssues(setup, add);
+    return issues;
+  }
+
+  if (business.module === 'commerce') {
+    collectCommerceIssues(setup, add);
     return issues;
   }
 
@@ -733,6 +770,9 @@ const updateSetup = async (businessId, vendorId, body) => {
   }
   if (body.printProfile !== undefined) {
     patch.printProfile = normalizePrintProfile(body.printProfile);
+  }
+  if (body.commerceProfile !== undefined) {
+    patch.commerceProfile = normalizeCommerceProfile(body.commerceProfile, current.commerceProfile);
   }
 
   const updated = await Business.updateForVendor(businessId, vendorId, {

@@ -12,6 +12,7 @@ const slotsService = require('./services/businessSlots.service');
 const bookingService = require('./services/booking.service');
 const eventService = require('./services/event.service');
 const printOrderService = require('./services/printOrder.service');
+const commerceOrderService = require('./services/commerceOrder.service');
 const paymentService = require('./services/payment.service');
 const payoutService = require('./services/payout.service');
 const withdrawalService = require('./services/withdrawal.service');
@@ -31,6 +32,7 @@ const ensureAllIndexes = async () => {
   await bookingService.ensureIndexes();
   await eventService.ensureIndexes();
   await printOrderService.ensureIndexes();
+  await commerceOrderService.ensureIndexes();
   await paymentService.ensureIndexes();
   await payoutService.ensureIndexes();
   await withdrawalService.ensureIndexes();

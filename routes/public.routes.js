@@ -7,6 +7,7 @@ const router = Router();
 
 router.get('/businesses', publicLimiter, publicController.listBusinesses);
 router.get('/businesses/:id/photos/:photoId', publicController.getPhoto);
+router.get('/commerce/products/:productId/photos/:photoId', publicController.getProductPhoto);
 router.get('/businesses/:id/slots', publicLimiter, publicController.listSlots);
 router.get('/businesses/:id', publicLimiter, publicController.getBusiness);
 

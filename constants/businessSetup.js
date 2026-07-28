@@ -24,7 +24,7 @@ const DEFAULT_WEEKLY_HOURS = Object.fromEntries(
 const MAX_PHOTOS = 3;
 const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
 // Modules whose vendors run the post-create setup wizard (photos + config).
-const SETUP_MODULES = ['appointments', 'print'];
+const SETUP_MODULES = ['appointments', 'print', 'commerce'];
 
 const MAX_PRINT_CATEGORIES = 30;
 const MAX_PRINT_CITIES = 60;
