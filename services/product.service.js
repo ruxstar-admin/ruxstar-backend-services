@@ -178,6 +178,8 @@ const listPublicProducts = async (businessId) => {
     business.status === BUSINESS_STATUS.LIVE &&
     business.setupComplete === true &&
     profile.acceptingOrders !== false;
+  // Sold-out items stay in the list so the shop still looks stocked; the
+  // storefront marks them unavailable instead of silently dropping them.
   const products = await Product.listByBusiness(businessId, { activeOnly: true });
   return {
     shop: {
@@ -189,8 +191,10 @@ const listPublicProducts = async (businessId) => {
       notes: profile.notes || '',
       minOrderValue: profile.minOrderValue || 0,
       acceptingOrders: open,
+      productCount: products.length,
+      inStockCount: products.filter((p) => p.stock > 0).length,
     },
-    products: products.filter((p) => p.stock > 0),
+    products,
   };
 };
 
@@ -199,17 +203,20 @@ const listLiveShops = async () => {
   const shops = [];
   for (const biz of rows) {
     const profile = biz.setup?.commerceProfile || {};
-    const productCount = await Product.countByBusiness(String(biz._id), {
-      activeOnly: true,
-      inStock: true,
-    });
+    const businessId = String(biz._id);
+    const [productCount, inStockCount] = await Promise.all([
+      Product.countByBusiness(businessId, { activeOnly: true }),
+      Product.countByBusiness(businessId, { activeOnly: true, inStock: true }),
+    ]);
+    // A shop with nothing listed at all has nothing to show. Running out of
+    // stock is not the same thing — that shop stays listed as sold out.
     if (productCount < 1) continue;
     const open =
       biz.status === BUSINESS_STATUS.LIVE &&
       biz.setupComplete === true &&
       profile.acceptingOrders !== false;
     shops.push({
-      id: String(biz._id),
+      id: businessId,
       name: biz.name,
       address: biz.address || '',
       description: biz.description || '',
@@ -217,10 +224,15 @@ const listLiveShops = async () => {
       notes: profile.notes || '',
       minOrderValue: profile.minOrderValue || 0,
       productCount,
+      inStockCount,
       acceptingOrders: open,
     });
   }
-  shops.sort((a, b) => Number(b.acceptingOrders) - Number(a.acceptingOrders));
+  shops.sort(
+    (a, b) =>
+      Number(b.acceptingOrders) - Number(a.acceptingOrders) ||
+      Number(b.inStockCount > 0) - Number(a.inStockCount > 0),
+  );
   return { shops };
 };
 

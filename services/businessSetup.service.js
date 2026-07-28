@@ -575,7 +575,7 @@ const collectCommerceIssues = (setup, add) => {
   const profile = setup.commerceProfile || defaultCommerceProfile();
   const count = Math.round(Number(profile.activeProductCount) || 0);
   if (count < 1) {
-    add('products', 'products', 'Add at least one product with stock before going live');
+    add('products', 'products', 'Add at least one product before going live');
   }
 };
 
@@ -679,7 +679,6 @@ const assertReadyToComplete = (business, setup) => {
 // A completed business editing its setup must still clear the go-live gate. The
 // edit is always kept (the vendor may be mid-change), but if it no longer
 // qualifies we take the listing offline rather than leave it publicly bookable.
-// A business the vendor unpublished on purpose keeps its offline status.
 const OFFLINE_PATCH = { setupComplete: false, status: BUSINESS_STATUS.DRAFT };
 
 const statusPatchForSetupEdit = (business, nextSetup) => {
@@ -946,20 +945,9 @@ const completeSetup = async (businessId, vendorId) => {
   return formatBusinessForClient(updated);
 };
 
-// Take a live listing off public discovery without losing its setup. Existing
-// bookings are untouched; the vendor can publish again with one click.
-const unpublish = async (businessId, vendorId) => {
-  const business = await getOwned(businessId, vendorId);
-  if (business.status !== BUSINESS_STATUS.LIVE) {
-    throw Object.assign(new Error('this business is already offline'), { status: 400 });
-  }
-  const updated = await Business.updateForVendor(businessId, vendorId, {
-    status: BUSINESS_STATUS.DRAFT,
-  });
-  return formatBusinessForClient(updated);
-};
-
-// Re-publish a business that was taken offline (or demoted by a broken edit).
+// Re-publish a business that was demoted to draft by an edit that broke its
+// go-live requirements. Vendors cannot take a listing offline by hand — they
+// pause incoming work with the per-shop "accepting orders" switch instead.
 const publish = async (businessId, vendorId) => {
   const business = await getOwned(businessId, vendorId);
   assertAppointmentsModule(business);
@@ -991,5 +979,4 @@ module.exports = {
   setAcceptingOrders,
   completeSetup,
   publish,
-  unpublish,
 };

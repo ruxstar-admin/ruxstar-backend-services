@@ -11,7 +11,6 @@ const {
   normalizeGeo,
   composeAddress,
 } = require('../utils/businessAddress');
-const { BUSINESS_STATUS } = require('../constants/businessStatus');
 
 const MAX_BUSINESSES = 25;
 
@@ -174,18 +173,12 @@ exports.update = async (req, res) => {
 };
 
 // Deleting a business is irreversible and orphans anything still attached to
-// it, so a vendor must take it offline and clear open work first.
+// it, so a vendor must clear open work first.
 exports.remove = async (req, res) => {
   const business = await Business.findByIdForVendor(req.params.id, req.user.id, {
     withPhotoData: false,
   });
   if (!business) return res.status(404).json({ message: 'business not found' });
-
-  if (business.status === BUSINESS_STATUS.LIVE) {
-    return res.status(400).json({
-      message: 'take this business offline before deleting it',
-    });
-  }
 
   const businessId = String(business._id ?? business.id);
   const [upcomingBookings, openPrintOrders, openCommerceOrders, activeEvents] = await Promise.all([
@@ -264,11 +257,6 @@ exports.completeSetup = handle(async (req, res) => {
 
 exports.publish = handle(async (req, res) => {
   const business = await setupService.publish(req.params.id, req.user.id);
-  res.json({ business: setupService.stripSetupPhotos(business) });
-});
-
-exports.unpublish = handle(async (req, res) => {
-  const business = await setupService.unpublish(req.params.id, req.user.id);
   res.json({ business: setupService.stripSetupPhotos(business) });
 });
 

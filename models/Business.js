@@ -78,7 +78,7 @@ const findLiveById = async (id, { withPhotoData = false } = {}) => {
   return sanitize(doc);
 };
 
-/** Setup-complete listing for public browse — includes shops taken offline. */
+/** Setup-complete listing for public browse — includes offline shops. */
 const findPublicById = async (id, { withPhotoData = false } = {}) => {
   if (!ObjectId.isValid(String(id))) return null;
   const doc = await collection().findOne(

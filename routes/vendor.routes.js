@@ -55,7 +55,6 @@ router.post('/businesses/:id/setup/photos', businessController.addSetupPhoto);
 router.delete('/businesses/:id/setup/photos/:photoId', businessController.removeSetupPhoto);
 router.post('/businesses/:id/setup/complete', businessController.completeSetup);
 router.post('/businesses/:id/publish', businessController.publish);
-router.post('/businesses/:id/unpublish', businessController.unpublish);
 router.get('/businesses/:id/slots', businessController.listSlots);
 router.get('/businesses/:id/slots/blocks', businessController.listStaffBlocks);
 router.post('/businesses/:id/slots/block', businessController.blockSlot);
