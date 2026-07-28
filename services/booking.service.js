@@ -10,6 +10,7 @@ const cashfreePayments = require('../utils/cashfreePayments');
 const paymentService = require('./payment.service');
 const { HOLD_MINUTES, BOOKING_STATUS } = require('../constants/payments');
 const { isServiceType } = require('../constants/businessSetup');
+const { BUSINESS_STATUS } = require('../constants/businessStatus');
 const { PUBLIC_BOOKING_MODULES } = require('../constants/businessModules');
 const { pendingHoldResourceId } = require('../utils/coachingService');
 const {
@@ -20,6 +21,9 @@ const {
   assertSlotForBooking,
   assertServiceSlotForBooking,
 } = require('./businessSlots.service');
+
+const isOpenForCustomers = (business) =>
+  business?.status === BUSINESS_STATUS.LIVE && business?.setupComplete === true;
 
 const formatPublicBusiness = (business) => {
   const formatted = setupService.formatBusinessForClient(business);
@@ -35,6 +39,7 @@ const formatPublicBusiness = (business) => {
     phone: formatted.phone ?? '',
     address: formatted.address ?? '',
     description: formatted.description ?? '',
+    open: isOpenForCustomers(formatted),
     setup: {
       photos: setup.photos ?? [],
       slotMinutes: setup.slotMinutes ?? 60,
@@ -107,11 +112,15 @@ const formatPublicBusinessSummary = (business, vendorName = '') => {
     priceFrom: Math.round(Math.min(...prices)),
     priceTo: Math.round(Math.max(...prices)),
     coverUrl,
+    open: isOpenForCustomers(business),
   };
 };
 
 const listPublicBusinesses = async () => {
-  const rows = await Business.listLivePublic({ modules: PUBLIC_BOOKING_MODULES });
+  const rows = await Business.listLivePublic({
+    modules: PUBLIC_BOOKING_MODULES,
+    includeOffline: true,
+  });
   const vendorIds = rows.map((row) => row.vendorId).filter(Boolean);
   const users = await User.findByIds(vendorIds);
   const vendorNames = new Map(
@@ -120,17 +129,21 @@ const listPublicBusinesses = async () => {
       user.vendorProfile?.businessName || user.name || '',
     ]),
   );
-  return {
-    businesses: rows.map((row) =>
-      formatPublicBusinessSummary(row, vendorNames.get(String(row.vendorId)) || ''),
-    ),
-  };
+  const businesses = rows.map((row) =>
+    formatPublicBusinessSummary(row, vendorNames.get(String(row.vendorId)) || ''),
+  );
+  // Open shops first so closed ones sink to the bottom.
+  businesses.sort((a, b) => Number(b.open) - Number(a.open));
+  return { businesses };
 };
 
 const getPublicBusiness = async (businessId) => {
-  // Photos are served via the proxy endpoint (formatPhoto builds URLs from ids),
-  // so we never need the heavy base64 blobs inline here.
-  const business = await getLiveBusiness(businessId);
+  // Offline shops still open for browsing — booking endpoints keep using findLiveById.
+  const business = await Business.findPublicById(businessId);
+  if (!business) throw Object.assign(new Error('business not found'), { status: 404 });
+  if (!['appointments'].includes(business.module)) {
+    throw Object.assign(new Error('booking not available for this business yet'), { status: 400 });
+  }
   return formatPublicBusiness(business);
 };
 

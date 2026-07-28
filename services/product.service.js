@@ -171,10 +171,13 @@ const listVendorProducts = async (businessId, vendorId) => {
 };
 
 const listPublicProducts = async (businessId) => {
-  const business = await Business.findLiveById(businessId, { withPhotoData: false });
+  const business = await Business.findPublicById(businessId, { withPhotoData: false });
   if (!business || business.module !== 'commerce') throw bad('shop not found', 404);
   const profile = business.setup?.commerceProfile || {};
-  if (profile.acceptingOrders === false) throw bad('this shop is not accepting orders', 400);
+  const open =
+    business.status === BUSINESS_STATUS.LIVE &&
+    business.setupComplete === true &&
+    profile.acceptingOrders !== false;
   const products = await Product.listByBusiness(businessId, { activeOnly: true });
   return {
     shop: {
@@ -185,23 +188,26 @@ const listPublicProducts = async (businessId) => {
       thumbnailUrl: business.thumbnailUrl || '',
       notes: profile.notes || '',
       minOrderValue: profile.minOrderValue || 0,
-      acceptingOrders: profile.acceptingOrders !== false,
+      acceptingOrders: open,
     },
     products: products.filter((p) => p.stock > 0),
   };
 };
 
 const listLiveShops = async () => {
-  const rows = await Business.listLivePublic({ module: 'commerce' });
+  const rows = await Business.listLivePublic({ module: 'commerce', includeOffline: true });
   const shops = [];
   for (const biz of rows) {
     const profile = biz.setup?.commerceProfile || {};
-    if (profile.acceptingOrders === false) continue;
     const productCount = await Product.countByBusiness(String(biz._id), {
       activeOnly: true,
       inStock: true,
     });
     if (productCount < 1) continue;
+    const open =
+      biz.status === BUSINESS_STATUS.LIVE &&
+      biz.setupComplete === true &&
+      profile.acceptingOrders !== false;
     shops.push({
       id: String(biz._id),
       name: biz.name,
@@ -211,9 +217,10 @@ const listLiveShops = async () => {
       notes: profile.notes || '',
       minOrderValue: profile.minOrderValue || 0,
       productCount,
-      acceptingOrders: true,
+      acceptingOrders: open,
     });
   }
+  shops.sort((a, b) => Number(b.acceptingOrders) - Number(a.acceptingOrders));
   return { shops };
 };
 

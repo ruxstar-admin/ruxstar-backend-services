@@ -31,6 +31,8 @@ const LIST_PUBLIC_PROJECTION = {
   'setup.photos.id': 1,
   'setup.photos.url': 1,
   'setup.photos.storageKey': 1,
+  'setup.printProfile': 1,
+  'setup.commerceProfile': 1,
   createdAt: 1,
   status: 1,
   setupComplete: 1,
@@ -76,12 +78,22 @@ const findLiveById = async (id, { withPhotoData = false } = {}) => {
   return sanitize(doc);
 };
 
-const listLivePublic = async ({ module, modules } = {}) => {
+/** Setup-complete listing for public browse — includes shops taken offline. */
+const findPublicById = async (id, { withPhotoData = false } = {}) => {
+  if (!ObjectId.isValid(String(id))) return null;
+  const doc = await collection().findOne(
+    { _id: toObjectId(id), setupComplete: true, suspended: { $ne: true } },
+    findOpts({ withPhotoData }),
+  );
+  return sanitize(doc);
+};
+
+const listLivePublic = async ({ module, modules, includeOffline = false } = {}) => {
   const filter = {
-    status: BUSINESS_STATUS.LIVE,
     setupComplete: true,
     suspended: { $ne: true },
   };
+  if (!includeOffline) filter.status = BUSINESS_STATUS.LIVE;
   if (module) filter.module = module;
   else if (Array.isArray(modules) && modules.length) filter.module = { $in: modules };
 
@@ -107,14 +119,14 @@ const LIVE_PRINT_PROJECTION = {
 
 // Live print-on-demand businesses that serve a given category (and optionally a
 // city). Used to broadcast an open order to eligible vendors.
-const listLivePrintForCategory = async (categoryId, city) => {
+const listLivePrintForCategory = async (categoryId, city, { includeOffline = false } = {}) => {
   const filter = {
-    status: BUSINESS_STATUS.LIVE,
     setupComplete: true,
     suspended: { $ne: true },
     module: 'print',
     'setup.printProfile.serviceCategories': String(categoryId),
   };
+  if (!includeOffline) filter.status = BUSINESS_STATUS.LIVE;
   if (city) {
     filter.$or = [
       { 'setup.printProfile.serveAll': true },
@@ -279,6 +291,7 @@ module.exports = {
   listByVendor,
   findByIdForVendor,
   findLiveById,
+  findPublicById,
   listLivePublic,
   insert,
   updateForVendor,

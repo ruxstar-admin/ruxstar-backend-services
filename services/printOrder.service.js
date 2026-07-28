@@ -6,6 +6,7 @@ const notificationService = require('./notification.service');
 const paymentService = require('./payment.service');
 const cashfreePayments = require('../utils/cashfreePayments');
 const { findPrintCategory, PRINT_ORDER_STATUS } = require('../constants/printCatalog');
+const { BUSINESS_STATUS } = require('../constants/businessStatus');
 const { computePrice } = require('../utils/printPricing');
 const { businessCity } = require('../utils/businessAddress');
 
@@ -196,19 +197,25 @@ const listAvailableShops = async (categoryId, city) => {
   const category = findPrintCategory(categoryId);
   if (!category) throw bad('choose a valid print category');
 
-  const businesses = await Business.listLivePrintForCategory(category.id, normCity(city));
+  const businesses = await Business.listLivePrintForCategory(category.id, normCity(city), {
+    includeOffline: true,
+  });
   const shops = [];
   for (const biz of businesses) {
     const profile = biz.setup?.printProfile || {};
     const pricing = (profile.pricing || {})[category.id];
     if (!hasUsablePrice(category, pricing)) continue;
+    const open =
+      biz.status === BUSINESS_STATUS.LIVE &&
+      biz.setupComplete === true &&
+      profile.acceptingOrders !== false;
     shops.push({
       businessId: String(biz._id ?? biz.id),
       vendorId: String(biz.vendorId ?? ''),
       name: biz.name || 'Print shop',
       thumbnailUrl: biz.thumbnailUrl || '',
       city: businessCity(biz),
-      acceptingOrders: profile.acceptingOrders !== false,
+      acceptingOrders: open,
       pricingModel: category.pricingModel,
       turnaroundDays: Number(pricing.turnaroundDays) || Number(profile.turnaroundDays) || 0,
       minQuantity: Number(pricing.minQuantity) || category.minQuantity || 1,
