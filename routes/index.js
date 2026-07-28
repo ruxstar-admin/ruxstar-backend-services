@@ -23,6 +23,7 @@ router.use('/vendor', vendorRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/pod', podRoutes);
 router.use('/commerce', commerceRoutes);
+router.use('/creator', require('./creator.routes'));
 router.use('/webhooks', webhookRoutes);
 
 module.exports = router;

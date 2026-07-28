@@ -51,6 +51,13 @@ const defaultCommerceProfile = () => ({
   activeProductCount: 0,
 });
 
+const defaultCreatorProfile = () => ({
+  bio: '',
+  niche: '',
+  socialLinks: { instagram: '', youtube: '', other: '' },
+  acceptingBookings: true,
+});
+
 const MAX_MONEY = 10_000_000;
 const MAX_TIERS = 10;
 
@@ -212,6 +219,7 @@ const defaultSetup = (options = {}) => {
   venueRules: '',
   printProfile: defaultPrintProfile(),
   commerceProfile: defaultCommerceProfile(),
+  creatorProfile: defaultCreatorProfile(),
 };
 };
 
@@ -441,6 +449,9 @@ const formatSetupForClient = (setup, businessId, typeId) => {
     commerceProfile: setup.commerceProfile
       ? { ...defaultCommerceProfile(), ...setup.commerceProfile }
       : defaultCommerceProfile(),
+    creatorProfile: setup.creatorProfile
+      ? { ...defaultCreatorProfile(), ...setup.creatorProfile }
+      : defaultCreatorProfile(),
   };
 };
 
@@ -579,6 +590,16 @@ const collectCommerceIssues = (setup, add) => {
   }
 };
 
+const collectCreatorIssues = (setup, add) => {
+  const profile = setup.creatorProfile || defaultCreatorProfile();
+  if (!hasText(profile.bio)) {
+    add('creator-profile', 'bio', 'Add a short bio so customers know who you are');
+  }
+  if (!hasText(profile.niche)) {
+    add('creator-profile', 'niche', 'Add your niche (e.g. fitness, comedy, education)');
+  }
+};
+
 const normalizeCommerceProfile = (raw, existing = {}) => {
   const base = { ...defaultCommerceProfile(), ...existing };
   if (!raw || typeof raw !== 'object') return base;
@@ -590,6 +611,24 @@ const normalizeCommerceProfile = (raw, existing = {}) => {
   // Product count is maintained by product.service — never overwrite from client.
   const activeProductCount = Math.round(Number(base.activeProductCount) || 0);
   return { notes, minOrderValue, acceptingOrders, activeProductCount };
+};
+
+const normalizeCreatorProfile = (raw, existing = {}) => {
+  const base = { ...defaultCreatorProfile(), ...existing };
+  if (!raw || typeof raw !== 'object') return base;
+  const bio = String(raw.bio ?? base.bio ?? '').trim().slice(0, 2000);
+  const niche = String(raw.niche ?? base.niche ?? '').trim().slice(0, 120);
+  const linksRaw = raw.socialLinks && typeof raw.socialLinks === 'object' ? raw.socialLinks : {};
+  const socialLinks = {
+    instagram: String(linksRaw.instagram ?? base.socialLinks?.instagram ?? '').trim().slice(0, 200),
+    youtube: String(linksRaw.youtube ?? base.socialLinks?.youtube ?? '').trim().slice(0, 200),
+    other: String(linksRaw.other ?? base.socialLinks?.other ?? '').trim().slice(0, 200),
+  };
+  const acceptingBookings =
+    raw.acceptingBookings === undefined
+      ? base.acceptingBookings !== false
+      : raw.acceptingBookings !== false;
+  return { bio, niche, socialLinks, acceptingBookings };
 };
 
 const collectServiceIssues = (setup, add) => {
@@ -653,6 +692,11 @@ const collectGoLiveIssues = (business, setup) => {
 
   if (business.module === 'commerce') {
     collectCommerceIssues(setup, add);
+    return issues;
+  }
+
+  if (business.module === 'creator') {
+    collectCreatorIssues(setup, add);
     return issues;
   }
 
@@ -772,6 +816,9 @@ const updateSetup = async (businessId, vendorId, body) => {
   }
   if (body.commerceProfile !== undefined) {
     patch.commerceProfile = normalizeCommerceProfile(body.commerceProfile, current.commerceProfile);
+  }
+  if (body.creatorProfile !== undefined) {
+    patch.creatorProfile = normalizeCreatorProfile(body.creatorProfile, current.creatorProfile);
   }
 
   const updated = await Business.updateForVendor(businessId, vendorId, {

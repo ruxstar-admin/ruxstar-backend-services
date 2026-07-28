@@ -2,6 +2,7 @@ const Business = require('../models/Business');
 const Booking = require('../models/Booking');
 const PrintOrder = require('../models/PrintOrder');
 const CommerceOrder = require('../models/CommerceOrder');
+const CreatorBooking = require('../models/CreatorBooking');
 const Event = require('../models/Event');
 const catalogService = require('../services/businessCatalog.service');
 const setupService = require('../services/businessSetup.service');
@@ -181,10 +182,11 @@ exports.remove = async (req, res) => {
   if (!business) return res.status(404).json({ message: 'business not found' });
 
   const businessId = String(business._id ?? business.id);
-  const [upcomingBookings, openPrintOrders, openCommerceOrders, activeEvents] = await Promise.all([
+  const [upcomingBookings, openPrintOrders, openCommerceOrders, openCreatorBookings, activeEvents] = await Promise.all([
     Booking.countUpcomingActive(businessId),
     PrintOrder.countOpenForBusiness(businessId),
     CommerceOrder.countOpenForBusiness(businessId),
+    CreatorBooking.countOpenForBusiness(businessId),
     Event.countActiveForBusiness(businessId),
   ]);
 
@@ -201,6 +203,11 @@ exports.remove = async (req, res) => {
   if (openCommerceOrders > 0) {
     return res.status(400).json({
       message: `${openCommerceOrders} open commerce order${openCommerceOrders === 1 ? '' : 's'} must be completed or cancelled first`,
+    });
+  }
+  if (openCreatorBookings > 0) {
+    return res.status(400).json({
+      message: `${openCreatorBookings} open creator booking${openCreatorBookings === 1 ? '' : 's'} must be completed or cancelled first`,
     });
   }
   if (activeEvents > 0) {

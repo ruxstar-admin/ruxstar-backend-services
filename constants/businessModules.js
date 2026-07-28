@@ -11,8 +11,9 @@ const MODULE_LABELS = {
 };
 
 // Modules that appear in the customer "book a slot" catalogue. Print and
-// commerce have their own discovery paths (/pod, /commerce). Events list per
-// published event. Creator stays deactivated until it has a real setup flow.
+// commerce have their own discovery paths. Creator collab offers appear in
+// Discover via published offers (not PUBLIC_BOOKING_MODULES). Events list per
+// published event.
 const PUBLIC_BOOKING_MODULES = ['appointments'];
 
 module.exports = { BUSINESS_MODULES, MODULE_LABELS, PUBLIC_BOOKING_MODULES };

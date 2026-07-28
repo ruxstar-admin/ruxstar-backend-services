@@ -45,6 +45,18 @@ router.post('/events/:id/unpublish', eventController.unpublishEvent);
 router.post('/events/:id/cancel', eventController.cancelEvent);
 router.delete('/events/:id', eventController.deleteEvent);
 
+const creatorController = require('../controllers/creator.controller');
+router.get('/creator/offers', creatorController.listVendorOffers);
+router.post('/creator/offers', creatorController.createOffer);
+router.get('/creator/offers/:id', creatorController.getVendorOffer);
+router.patch('/creator/offers/:id', creatorController.updateOffer);
+router.post('/creator/offers/:id/publish', creatorController.publishOffer);
+router.post('/creator/offers/:id/unpublish', creatorController.unpublishOffer);
+router.post('/creator/offers/:id/cancel', creatorController.cancelOffer);
+router.delete('/creator/offers/:id', creatorController.deleteOffer);
+router.get('/creator/bookings', creatorController.listVendorBookings);
+router.post('/creator/bookings/:id/status', creatorController.updateBookingStatus);
+
 router.get('/businesses', businessController.list);
 router.post('/businesses', businessController.create);
 router.post('/businesses/:id/thumbnail', businessController.setThumbnail);

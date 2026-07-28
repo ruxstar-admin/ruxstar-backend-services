@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const userController = require('../controllers/user.controller');
 const eventController = require('../controllers/event.controller');
+const creatorController = require('../controllers/creator.controller');
 const supportController = require('../controllers/support.controller');
 const authenticate = require('../middlewares/auth');
 const requireRole = require('../middlewares/role');
@@ -23,6 +24,11 @@ router.delete('/bookings/:id', userController.cancelBooking);
 router.get('/event-registrations', eventController.listMyRegistrations);
 router.get('/event-registrations/:id', eventController.getRegistrationStatus);
 router.post('/events/:id/register', eventController.register);
+
+router.get('/creator-bookings', creatorController.listMyBookings);
+router.get('/creator-bookings/:id', creatorController.getBookingStatus);
+router.post('/creator-offers/:id/book', creatorController.bookOffer);
+router.post('/creator-bookings/:id/cancel', creatorController.cancelBooking);
 
 router.get('/support/refund-options', supportController.customerRefundOptions);
 router.get('/support/tickets', supportController.customer.list);
