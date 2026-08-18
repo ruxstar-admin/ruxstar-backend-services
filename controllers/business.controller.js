@@ -68,9 +68,6 @@ exports.create = async (req, res) => {
   }
 
   const description = str(req.body.description);
-  if (!description) {
-    return res.status(400).json({ message: 'business description is required' });
-  }
 
   const thumbnail = str(req.body.thumbnail);
 

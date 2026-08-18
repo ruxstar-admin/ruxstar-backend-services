@@ -553,9 +553,6 @@ const collectProfileIssues = (business, setup, add) => {
   if (!TEN_DIGITS.test(String(business.phone ?? '').replace(/\D/g, '').slice(-10))) {
     add('profile', 'phone', 'Add a valid 10-digit contact number');
   }
-  if (!hasText(business.description)) {
-    add('profile', 'description', 'Add a short description of your business');
-  }
   // A cover image OR at least one gallery photo — customers will not book a
   // listing with no imagery at all.
   const hasCover = hasText(business.thumbnailUrl);

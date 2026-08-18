@@ -70,10 +70,23 @@ const parseEventInput = (body, { partial = false } = {}) => {
   if (body.description !== undefined) out.description = str(body.description).slice(0, 4000);
   if (body.tournamentType !== undefined) out.tournamentType = str(body.tournamentType).slice(0, 80);
   if (body.venue !== undefined) out.venue = str(body.venue).slice(0, 300);
+  if (body.venueLat !== undefined) {
+    const n = num(body.venueLat);
+    out.venueLat = n != null && n >= -90 && n <= 90 ? n : null;
+  }
+  if (body.venueLng !== undefined) {
+    const n = num(body.venueLng);
+    out.venueLng = n != null && n >= -180 && n <= 180 ? n : null;
+  }
   if (body.skillLevel !== undefined) out.skillLevel = str(body.skillLevel).slice(0, 80);
   if (body.ageCategory !== undefined) out.ageCategory = str(body.ageCategory).slice(0, 80);
   if (body.genderCategory !== undefined) out.genderCategory = str(body.genderCategory).slice(0, 40);
   if (body.rules !== undefined) out.rules = str(body.rules).slice(0, 4000);
+  if (body.gstNumber !== undefined) out.gstNumber = str(body.gstNumber).toUpperCase().slice(0, 15);
+  if (body.gstPercentage !== undefined) {
+    const n = num(body.gstPercentage);
+    out.gstPercentage = n != null && n >= 0 && n <= 100 ? n : null;
+  }
 
   if (body.teamSize !== undefined) {
     const n = num(body.teamSize);
