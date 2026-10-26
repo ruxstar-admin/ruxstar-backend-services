@@ -1,83 +1,28 @@
-if (process.env.NODE_ENV !== 'production') {
-  require('dotenv').config();
-}
+const http = require("node:http");
 
-const app = require('./app');
-const db = require('./config/database');
-const Business = require('./models/Business');
-const User = require('./models/User');
-const Otp = require('./models/Otp');
-const catalogService = require('./services/businessCatalog.service');
-const slotsService = require('./services/businessSlots.service');
-const bookingService = require('./services/booking.service');
-const eventService = require('./services/event.service');
-const printOrderService = require('./services/printOrder.service');
-const commerceOrderService = require('./services/commerceOrder.service');
-const creatorService = require('./services/creator.service');
-const paymentService = require('./services/payment.service');
-const payoutService = require('./services/payout.service');
-const withdrawalService = require('./services/withdrawal.service');
-const supportService = require('./services/support.service');
-const notificationService = require('./services/notification.service');
+const port = Number(process.env.PORT) || 8080;
 
-const port = process.env.PORT || 8080;
-
-const ensureAllIndexes = async () => {
-  const seed = await catalogService.seedIfEmpty();
-  if (seed.seeded) {
-    console.log(
-      `Business catalog seeded (${seed.categories} categories, ${seed.types} types)`,
-    );
-  }
-  await slotsService.ensureIndexes();
-  await bookingService.ensureIndexes();
-  await eventService.ensureIndexes();
-  await printOrderService.ensureIndexes();
-  await commerceOrderService.ensureIndexes();
-  await creatorService.ensureIndexes();
-  await paymentService.ensureIndexes();
-  await payoutService.ensureIndexes();
-  await withdrawalService.ensureIndexes();
-  await supportService.ensureIndexes();
-  await notificationService.ensureIndexes();
-  await Business.ensureIndexes();
-  await User.ensureIndexes();
-  await Otp.ensureIndexes();
-  console.log('Indexes ensured');
+const send = (res, status, body) => {
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify(body));
 };
 
-const start = async () => {
-  try {
-    await db.connect();
-    console.log('DB connected');
+const server = http.createServer((req, res) => {
+  const path = new URL(req.url, "http://localhost").pathname;
 
-    // Bind the port immediately so Cloud Run sees the container as healthy,
-    // then finish catalog seed + index migrations in the background.
-    app.listen(port, () => {
-      console.log(`Server running on port ${port}`);
+  if (req.method === "GET" && path === "/health") {
+    return send(res, 200, {
+      data: { status: "ok", revision: process.env.K_REVISION || "local" },
     });
-
-    ensureAllIndexes().catch((err) => {
-      console.error('Index setup failed (server still running):', err);
-    });
-
-    // Release expired payment holds so abandoned checkouts free up slots.
-    const sweepMs = Number(process.env.BOOKING_SWEEP_INTERVAL_MS) || 60000;
-    setInterval(() => {
-      bookingService
-        .releaseExpiredHolds()
-        .catch((err) => console.error('hold sweep failed:', err.message));
-      eventService
-        .releaseExpiredHolds()
-        .catch((err) => console.error('event hold sweep failed:', err.message));
-      creatorService
-        .releaseExpiredHolds()
-        .catch((err) => console.error('creator hold sweep failed:', err.message));
-    }, sweepMs).unref();
-  } catch (err) {
-    console.error('DB connection failed:', err);
-    process.exit(1);
   }
-};
 
-start();
+  if (req.method === "GET" && path === "/") {
+    return send(res, 200, { data: { name: "Ruxstar API", liveOn: "2026-11-30" } });
+  }
+
+  return send(res, 404, { error: { code: "NOT_FOUND", message: "Route not found" } });
+});
+
+server.listen(port, () => console.log(`Ruxstar API listening on ${port}`));
+
+process.on("SIGTERM", () => server.close(() => process.exit(0)));
