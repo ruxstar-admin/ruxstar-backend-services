@@ -97,6 +97,27 @@ export const MePatch = Strict(
   { minProperties: 1 },
 );
 
+export const UsernameQuery = Strict({
+  check: Type.Optional(Type.String({ minLength: 1, maxLength: 40, description: "A handle to check, as typed" })),
+});
+export const UsernameResult = Envelope(
+  Strict({
+    available: Nullable(Type.Boolean({ description: "Null when nothing was checked" })),
+    suggestions: Type.Array(Type.String(), { description: "Free handles from the user's name, best first" }),
+  }),
+);
+
+export const CityQuery = Strict({
+  lat: Type.Number({ minimum: -90, maximum: 90 }),
+  lng: Type.Number({ minimum: -180, maximum: 180 }),
+});
+export const CityResult = Envelope(
+  Strict({
+    city: Nullable(Type.String()),
+    attribution: Type.String({ description: "Show this wherever the city is shown as looked up" }),
+  }),
+);
+
 export const Session = Strict({
   id: ObjectIdString,
   client: Client,

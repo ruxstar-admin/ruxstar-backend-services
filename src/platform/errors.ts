@@ -34,6 +34,7 @@ export const ERROR_CODES = {
   ACCOUNT_LOCKED: { status: 423, message: "Too many wrong passwords. Try again in a few minutes or reset your password." },
   PASSWORD_REUSED: { status: 422, message: "Choose a password you have not used recently." },
   SMS_UNAVAILABLE: { status: 503, message: "We cannot send codes right now. Try again shortly." },
+  LOCATION_UNAVAILABLE: { status: 503, message: "We could not find your city right now. Type it instead." },
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CODES;
@@ -69,11 +70,27 @@ const FASTIFY_CODES: Record<string, ErrorCode> = {
   FST_ERR_CTP_INVALID_JSON_BODY: "BAD_REQUEST",
 };
 
+/** Driver errors that mean the database is unreachable for now, not that the request was wrong. */
+const DATABASE_DOWN = new Set([
+  "MongoServerSelectionError",
+  "MongoTopologyClosedError",
+  "MongoNotConnectedError",
+  "MongoNetworkError",
+  "MongoNetworkTimeoutError",
+  "MongoOperationTimeoutError",
+]);
+
 export function registerErrorHandling(app: FastifyInstance) {
   app.setErrorHandler((err: FastifyError | AppError, request, reply) => {
+    if (!(err instanceof AppError) && DATABASE_DOWN.has(err.name)) {
+      request.log.warn({ err: err.name }, "Database unavailable");
+      err = new AppError("NOT_READY", "The service is busy. Try again in a few seconds.");
+    }
     if (err instanceof AppError) {
       if (err.status === 503) request.log.warn({ code: err.code }, err.message);
       else if (err.status >= 500) request.log.error({ err }, err.message);
+      const wait = err.code === "NOT_READY" ? 5 : err.details.find((d) => typeof d.retryAfterSeconds === "number")?.retryAfterSeconds;
+      if (typeof wait === "number") reply.header("Retry-After", String(wait));
       return reply.status(err.status).send(errorBody(err.code, err.message, err.details));
     }
 

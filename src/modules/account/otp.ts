@@ -1,8 +1,8 @@
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
-import type { ClientSession } from "mongodb";
+import { ObjectId, type ClientSession } from "mongodb";
 import { SignJWT, jwtVerify } from "jose";
 import type { SmsSender } from "../../adapters/sms.js";
-import type { Database, OtpPurpose } from "../../platform/db.js";
+import type { Database, OtpDoc, OtpPurpose } from "../../platform/db.js";
 import { AppError } from "../../platform/errors.js";
 
 export const OTP_TTL_SECONDS = 5 * 60;
@@ -10,7 +10,7 @@ export const RESEND_COOLDOWN_SECONDS = 30;
 export const VERIFICATION_TTL_SECONDS = 10 * 60;
 const MAX_ATTEMPTS = 5;
 const MAX_RESENDS = 3;
-const LOCK_SECONDS = 30 * 60;
+const LOCK_SECONDS = 5 * 60;
 const VERIFY_AUDIENCE = "ruxstar-verify";
 
 const seconds = (from: Date, to: Date) => Math.max(1, Math.ceil((to.getTime() - from.getTime()) / 1000));
@@ -49,20 +49,39 @@ export async function sendCode(
   const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const codeHash = hashCode(deps.secret, target, purpose, code);
   const expiresAt = later(now, OTP_TTL_SECONDS);
+  const cooldown = () => limited(now, later(now, RESEND_COOLDOWN_SECONDS));
+  const fresh = { target, purpose, codeHash, attempts: 0, resends: 0, lastSentAt: now, lockedUntil: null, verifiedJti: null, createdAt: now, expiresAt };
+
+  // The cooldown and resend limit sit in each write's filter, so two parallel requests send one SMS.
+  let undo: () => Promise<unknown>;
   if (live) {
-    await deps.db.otps.updateOne(
-      { _id: existing._id },
+    const sent = await deps.db.otps.updateOne(
+      { _id: existing._id, lastSentAt: existing.lastSentAt, resends: { $lt: MAX_RESENDS } },
       { $set: { codeHash, lastSentAt: now, expiresAt }, $inc: { resends: 1 } },
     );
+    if (!sent.modifiedCount) throw cooldown();
+    undo = () => deps.db.otps.updateOne({ _id: existing._id, codeHash }, { $set: { lastSentAt: existing.lastSentAt }, $inc: { resends: -1 } });
+  } else if (existing) {
+    const sent = await deps.db.otps.replaceOne({ _id: existing._id, lastSentAt: existing.lastSentAt }, fresh);
+    if (!sent.modifiedCount) throw cooldown();
+    undo = () => deps.db.otps.deleteOne({ _id: existing._id, codeHash });
   } else {
-    await deps.db.otps.findOneAndReplace(
-      { target, purpose },
-      { target, purpose, codeHash, attempts: 0, resends: 0, lastSentAt: now, lockedUntil: null, verifiedJti: null, createdAt: now, expiresAt },
-      { upsert: true },
-    );
+    try {
+      const doc: OtpDoc = { _id: new ObjectId(), ...fresh };
+      await deps.db.otps.insertOne(doc);
+      undo = () => deps.db.otps.deleteOne({ _id: doc._id, codeHash });
+    } catch (err) {
+      if ((err as { code?: number }).code === 11000) throw cooldown();
+      throw err;
+    }
   }
 
-  await deps.sms.sendOtp(target, code);
+  try {
+    await deps.sms.sendOtp(target, code);
+  } catch (err) {
+    await undo().catch(() => {});
+    throw err;
+  }
   return { expiresInSeconds: OTP_TTL_SECONDS, resendInSeconds: RESEND_COOLDOWN_SECONDS };
 }
 

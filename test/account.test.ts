@@ -49,7 +49,7 @@ describe("signup", () => {
     const { phone, res } = await signUp();
     const body = res.json();
     expect(body.data.user).toMatchObject({ phone: `+91${phone}`, name: "Asha Rao", kyc: { base: "none" } });
-    expect(body.data.user.username).toMatch(/^asharao\d{4}$/);
+    expect(body.data.user.username).toMatch(/^(asha|asha\.rao|asharao|asha_rao|asha\.r|a\.rao|asha\d{2,4})$/);
     expect(body.data.tokens).toBeUndefined();
 
     const cookies = res.cookies;
@@ -161,6 +161,22 @@ describe("codes", () => {
     expect((await post("/otp/verify", { phone, purpose: "signup", code: fresh })).statusCode).toBe(200);
   });
 
+  it("sends one text when two requests arrive together", async () => {
+    const phone = newPhone();
+    const before = stack.sms.sent;
+    const replies = await Promise.all([0, 1, 2].map(() => post("/otp", { phone, purpose: "signup" })));
+    expect(replies.map((r) => r.statusCode).sort()).toEqual([200, 429, 429]);
+    expect(stack.sms.sent - before).toBe(1);
+    expect(replies.find((r) => r.statusCode === 429)!.headers["retry-after"]).toBeTruthy();
+  });
+
+  it("lets you ask again straight away when the text could not be sent", async () => {
+    const phone = newPhone();
+    stack.sms.failNext = true;
+    expect((await post("/otp", { phone, purpose: "signup" })).statusCode).toBe(503);
+    expect((await post("/otp", { phone, purpose: "signup" })).statusCode).toBe(200);
+  });
+
   it("says when there is no code to check", async () => {
     const res = await post("/otp/verify", { phone: newPhone(), purpose: "signup", code: "123456" });
     expect(res.json().error.code).toBe("OTP_EXPIRED");
@@ -187,6 +203,22 @@ describe("login", () => {
     expect(fifth.statusCode).toBe(423);
     expect(fifth.json().error.code).toBe("ACCOUNT_LOCKED");
     expect((await post("/login", { phone, password })).statusCode).toBe(423);
+  });
+
+  it("checks at most five passwords from a burst of parallel guesses", async () => {
+    const { phone, password } = await signUp();
+    const replies = await Promise.all(Array.from({ length: 12 }, () => post("/login", { phone, password: "nottheone1" })));
+    const codes = replies.map((r) => r.statusCode);
+    expect(codes.filter((c) => c === 401).length).toBeLessThanOrEqual(4);
+    expect(codes.filter((c) => c === 423).length).toBeGreaterThanOrEqual(8);
+    expect((await post("/login", { phone, password })).statusCode).toBe(423);
+  });
+
+  it("forgets earlier wrong passwords after a good sign-in", async () => {
+    const { phone, password } = await signUp();
+    for (let i = 0; i < 4; i++) await post("/login", { phone, password: "nottheone1" });
+    expect((await post("/login", { phone, password })).statusCode).toBe(200);
+    expect((await stack.db.users.findOne({ phone: `+91${phone}` }))?.lock).toEqual({ failedCount: 0, lockedUntil: null });
   });
 });
 
@@ -276,8 +308,8 @@ describe("profile and sessions", () => {
     const patch = (payload: object) =>
       stack.app.inject({ method: "PATCH", url: "/v1/account/me", headers: WEB, cookies: { rx_at: at }, payload });
 
-    const updated = await patch({ username: "asha.r", city: "Hyderabad", gender: "female", dob: "1998-04-12" });
-    expect(updated.json().data).toMatchObject({ username: "asha.r", city: "Hyderabad", gender: "female", dob: "1998-04-12" });
+    const updated = await patch({ username: "rao.asha", city: "Hyderabad", gender: "female", dob: "1998-04-12" });
+    expect(updated.json().data).toMatchObject({ username: "rao.asha", city: "Hyderabad", gender: "female", dob: "1998-04-12" });
 
     const aAt = cookieMap(a.res).rx_at!;
     const taken = await stack.app.inject({
@@ -285,7 +317,7 @@ describe("profile and sessions", () => {
       url: "/v1/account/me",
       headers: WEB,
       cookies: { rx_at: aAt },
-      payload: { username: "asha.r" },
+      payload: { username: "rao.asha" },
     });
     expect(taken.json().error.code).toBe("USERNAME_TAKEN");
 
@@ -336,5 +368,63 @@ describe("profile and sessions", () => {
     expect((await register(one)).statusCode).toBe(200);
     expect((await register(two)).statusCode).toBe(200);
     expect(await stack.db.sessions.countDocuments({ pushToken: "fcm-token-1" })).toBe(1);
+  });
+});
+
+describe("names, usernames and city", () => {
+  const as = (at: string) => ({ headers: WEB, cookies: { rx_at: at } });
+
+  it("refuses a phone number as a name, at signup and later", async () => {
+    const phone = newPhone();
+    const verificationToken = await verified(phone, "signup");
+    const res = await post("/signup", { verificationToken, name: phone, password: "sunrise42", acceptTerms: true });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.details[0]).toMatchObject({ path: "body/name" });
+
+    const { res: ok } = await signUp();
+    const patch = await stack.app.inject({ method: "PATCH", url: "/v1/account/me", ...as(cookieMap(ok).rx_at!), payload: { name: "7777912365" } });
+    expect(patch.statusCode).toBe(400);
+  });
+
+  it("suggests free handles from the name and checks the typed one", async () => {
+    const { res } = await signUp();
+    const me = res.json().data.user as { username: string };
+    const at = cookieMap(res).rx_at!;
+    const check = (handle?: string) =>
+      stack.app.inject({ method: "GET", url: `/v1/account/usernames${handle ? `?check=${handle}` : ""}`, ...as(at) });
+
+    const plain = (await check()).json().data as { available: null; suggestions: string[] };
+    expect(plain.available).toBeNull();
+    expect(plain.suggestions.length).toBeGreaterThan(0);
+    expect(plain.suggestions).not.toContain(me.username);
+    for (const s of plain.suggestions) expect(s).toMatch(/^[a-z0-9_.]{3,20}$/);
+
+    expect((await check(me.username)).json().data.available).toBe(true);
+    expect((await check("ruxstar")).json().data.available).toBe(false);
+    expect((await check("no%20spaces")).json().data.available).toBe(false);
+
+    const reserved = await stack.app.inject({ method: "PATCH", url: "/v1/account/me", ...as(at), payload: { username: "ruxstar" } });
+    expect(reserved.json().error.code).toBe("USERNAME_TAKEN");
+  });
+
+  it("looks up the city for a point", async () => {
+    const { res } = await signUp();
+    const at = cookieMap(res).rx_at!;
+    const found = await stack.app.inject({ method: "GET", url: "/v1/account/city?lat=17.385&lng=78.4867", ...as(at) });
+    expect(found.json().data).toMatchObject({ city: "Hyderabad" });
+    const bad = await stack.app.inject({ method: "GET", url: "/v1/account/city?lat=200&lng=78", ...as(at) });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  it("answers 503 while the database is still connecting", async () => {
+    stack.db.ready = false;
+    try {
+      const res = await post("/otp", { phone: newPhone(), purpose: "signup" });
+      expect(res.statusCode).toBe(503);
+      expect(res.json().error.code).toBe("NOT_READY");
+      expect(res.headers["retry-after"]).toBe("5");
+    } finally {
+      stack.db.ready = true;
+    }
   });
 });

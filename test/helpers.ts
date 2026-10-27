@@ -1,11 +1,13 @@
 import { randomInt } from "node:crypto";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
+import type { Geocoder } from "../src/adapters/geocoder.js";
 import type { SmsSender } from "../src/adapters/sms.js";
 import { ObjectId } from "mongodb";
 import { buildApp, type App } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
 import { signAccessToken } from "../src/platform/auth.js";
 import { createDatabase, stamp, type Database, type UserRoles } from "../src/platform/db.js";
+import { AppError } from "../src/platform/errors.js";
 import { ensurePlatformIndexes, seedModuleSettings } from "../src/platform/indexes.js";
 
 export interface Stack {
@@ -13,6 +15,8 @@ export interface Stack {
   db: Database;
   /** The last code texted to each number, keyed by E.164. */
   texts: Map<string, string>;
+  /** Every text sent, and a switch that makes the next send fail like a provider outage. */
+  sms: { sent: number; failNext: boolean };
   stop: () => Promise<void>;
 }
 
@@ -30,14 +34,22 @@ export async function startStack(extend?: (app: App) => void, { rateLimit = fals
   await db.client.connect();
   await ensurePlatformIndexes(db);
   await seedModuleSettings(db);
+  db.ready = true;
 
   const texts = new Map<string, string>();
+  const smsLog = { sent: 0, failNext: false };
   const sms: SmsSender = {
     sendOtp: async (phone, code) => {
+      if (smsLog.failNext) {
+        smsLog.failNext = false;
+        throw new AppError("SMS_UNAVAILABLE");
+      }
+      smsLog.sent++;
       texts.set(phone, code);
     },
   };
-  const app = await buildApp({ config, db, logger: false, sms, rateLimit });
+  const geocoder: Geocoder = { cityAt: async () => "Hyderabad" };
+  const app = await buildApp({ config, db, logger: false, sms, geocoder, rateLimit });
   extend?.(app);
   await app.ready();
 
@@ -45,6 +57,7 @@ export async function startStack(extend?: (app: App) => void, { rateLimit = fals
     app,
     db,
     texts,
+    sms: smsLog,
     stop: async () => {
       await app.close();
       await replSet.stop();

@@ -19,6 +19,7 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     ),
     db.sessions.createIndex({ prevRefreshTokenHash: 1 }, { partialFilterExpression: { prevRefreshTokenHash: { $type: "string" } } }),
     db.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.sessions.createIndex({ pushToken: 1 }, { partialFilterExpression: { pushToken: { $type: "string" } } }),
     db.otps.createIndex({ target: 1, purpose: 1 }, { unique: true }),
     db.otps.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.auditLogs.createIndex({ "scope.businessId": 1, at: -1 }),

@@ -34,6 +34,7 @@ const health: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       if (!app.db) throw new AppError("NOT_READY", "The database is not configured.");
+      if (!app.db.ready) throw new AppError("NOT_READY", "The database is still connecting.");
       try {
         await app.db.ping();
       } catch (err) {

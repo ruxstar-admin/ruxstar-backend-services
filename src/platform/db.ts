@@ -133,6 +133,9 @@ export interface PlatformSettingDoc extends Stamped {
 }
 
 export class Database {
+  /** False until the first connect and the index build succeed; requests get 503 until then. */
+  ready = false;
+
   constructor(
     readonly client: MongoClient,
     readonly db: Db,
@@ -203,7 +206,9 @@ export function createDatabase(uri: string, dbName: string): Database {
     appName: "ruxstar-api",
     maxPoolSize: 20,
     minPoolSize: 1,
-    serverSelectionTimeoutMS: 5000,
+    // The cluster's first answer after a cold start often takes over 5 s. Requests stay capped by timeoutMS.
+    serverSelectionTimeoutMS: 15_000,
+    timeoutMS: 10_000,
     retryWrites: true,
   });
   return new Database(client, client.db(dbName));

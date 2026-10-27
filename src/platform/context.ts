@@ -1,4 +1,5 @@
 import type { ObjectId } from "mongodb";
+import type { Geocoder } from "../adapters/geocoder.js";
 import type { SmsSender } from "../adapters/sms.js";
 import type { Config } from "../config.js";
 import type { Database, KycState, UserRoles } from "./db.js";
@@ -30,6 +31,7 @@ declare module "fastify" {
     db: Database | null;
     events: EventBus;
     sms: SmsSender;
+    geocoder: Geocoder;
   }
 
   interface FastifyRequest {
@@ -41,5 +43,6 @@ declare module "fastify" {
 
 export function requireDatabase(db: Database | null): Database {
   if (!db) throw new AppError("NOT_READY", "The database is not configured.");
+  if (!db.ready) throw new AppError("NOT_READY", "Still connecting. Try again in a few seconds.");
   return db;
 }

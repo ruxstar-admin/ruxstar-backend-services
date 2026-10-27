@@ -26,6 +26,7 @@ async function setUpDatabase(database: NonNullable<typeof db>) {
     try {
       await database.client.connect();
       await Promise.all([ensurePlatformIndexes(database), seedModuleSettings(database)]);
+      database.ready = true;
       app.log.info({ db: config.mongo!.db, attempt }, "Database ready");
       return;
     } catch (err) {

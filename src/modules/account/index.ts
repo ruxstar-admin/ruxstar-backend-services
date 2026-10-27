@@ -1,6 +1,5 @@
-import { randomInt } from "node:crypto";
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
-import { MongoServerError, ObjectId, type ClientSession } from "mongodb";
+import { MongoServerError, ObjectId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { writeAudit } from "../../platform/audit.js";
 import { readAccessClaims, requireAuth } from "../../platform/auth.js";
@@ -14,8 +13,12 @@ import {
   Done,
   LoginBody,
   LoginResult,
+  CityQuery,
+  CityResult,
   MePatch,
   MeResult,
+  UsernameQuery,
+  UsernameResult,
   OtpRequest,
   OtpSent,
   OtpVerify,
@@ -30,6 +33,7 @@ import {
   type User,
 } from "./contracts.js";
 import { checkCode, sendCode, useVerification } from "./otp.js";
+import { firstFreeUsername, isAvailable, isReserved, suggestUsernames } from "./usernames.js";
 import { checkPasswordRules, hashPassword, verifyAgainstNothing, verifyPassword, wasUsedRecently } from "./passwords.js";
 import {
   clearTokens,
@@ -70,19 +74,12 @@ const view = (user: UserDoc): User => ({
   createdAt: user.createdAt.toISOString(),
 });
 
-/** A readable handle from the name plus four digits. People can change it later. */
-async function pickUsername(db: Database, name: string, session: ClientSession): Promise<string> {
-  const stem =
-    name
-      .normalize("NFKD")
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, "")
-      .slice(0, 14) || "user";
-  for (let i = 0; i < 6; i++) {
-    const candidate = `${stem}${randomInt(1000, 10000)}`;
-    if (!(await db.users.findOne({ username: candidate }, { session, projection: { _id: 1 } }))) return candidate;
+/** Password managers fill the saved phone number into the first text box; a name needs letters. */
+function checkName(name: string | undefined) {
+  if (name === undefined) return;
+  if (!/\p{L}/u.test(name) || /\d{6,}/.test(name)) {
+    throw new AppError("VALIDATION_FAILED", undefined, [{ path: "body/name", message: "Enter your name, not a number." }]);
   }
-  return `${stem}${randomInt(100000, 1000000)}`;
 }
 
 function checkDob(dob: string | null | undefined) {
@@ -167,6 +164,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       const d = deps();
       const body = request.body;
       const name = body.name.trim().replace(/\s+/g, " ");
+      checkName(name);
       const hash = await hashPassword(body.password);
       const result = await d.db
         .transaction(async (session) => {
@@ -181,7 +179,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
             passwordHash: hash,
             passwordHistory: [],
             name,
-            username: await pickUsername(d.db, name, session),
+            username: await firstFreeUsername(d.db, name, session),
             dob: null,
             gender: null,
             avatar: null,
@@ -232,21 +230,32 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       }
 
       const now = new Date();
-      const lockedUntil = user.lock?.lockedUntil;
-      if (lockedUntil && lockedUntil > now) {
-        const wait = Math.ceil((lockedUntil.getTime() - now.getTime()) / 60_000);
-        throw new AppError("ACCOUNT_LOCKED", undefined, [
-          { message: `Try again in ${minutes(wait)}.`, retryAfterSeconds: Math.ceil((lockedUntil.getTime() - now.getTime()) / 1000) },
+      const lockedFor = (until: Date) => {
+        const secs = Math.max(1, Math.ceil((until.getTime() - now.getTime()) / 1000));
+        return new AppError("ACCOUNT_LOCKED", undefined, [
+          { message: `Try again in ${minutes(Math.ceil(secs / 60))}.`, retryAfterSeconds: secs },
         ]);
+      };
+      // Reserve the attempt before the slow hash check, so a burst of parallel guesses cannot exceed the limit.
+      const reserved = await d.db.users.findOneAndUpdate(
+        {
+          _id: user._id,
+          $and: [
+            { $or: [{ "lock.lockedUntil": null }, { "lock.lockedUntil": { $lte: now } }] },
+            { $or: [{ "lock.failedCount": { $exists: false } }, { "lock.failedCount": { $lt: LOCK_AFTER_FAILURES } }] },
+          ],
+        },
+        { $inc: { "lock.failedCount": 1 }, $set: { "lock.lockedUntil": null } },
+        { returnDocument: "after", projection: { lock: 1 } },
+      );
+      if (!reserved) {
+        const current = await d.db.users.findOne({ _id: user._id }, { projection: { lock: 1 } });
+        const until = current?.lock?.lockedUntil;
+        throw lockedFor(until && until > now ? until : new Date(now.getTime() + LOCK_MINUTES * 60_000));
       }
 
       if (!(await verifyPassword(request.body.password, user.passwordHash))) {
-        const after = await d.db.users.findOneAndUpdate(
-          { _id: user._id },
-          { $inc: { "lock.failedCount": 1 }, $set: { updatedAt: now } },
-          { returnDocument: "after", projection: { lock: 1 } },
-        );
-        if ((after?.lock?.failedCount ?? 0) >= LOCK_AFTER_FAILURES) {
+        if ((reserved.lock?.failedCount ?? 0) >= LOCK_AFTER_FAILURES) {
           const until = new Date(now.getTime() + LOCK_MINUTES * 60_000);
           await d.db.users.updateOne({ _id: user._id }, { $set: { lock: { failedCount: 0, lockedUntil: until } } });
           throw new AppError("ACCOUNT_LOCKED", undefined, [
@@ -255,11 +264,8 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
         }
         throw new AppError("INVALID_CREDENTIALS");
       }
+      await d.db.users.updateOne({ _id: user._id }, { $set: { lock: { failedCount: 0, lockedUntil: null } } });
       if (user.status === "locked") throw new AppError("FORBIDDEN", "This account is on hold. Contact support.");
-
-      if (user.lock?.failedCount || user.lock?.lockedUntil) {
-        await d.db.users.updateOne({ _id: user._id }, { $set: { lock: { failedCount: 0, lockedUntil: null }, updatedAt: now } });
-      }
       const started = await startSession(d.db, request, user._id, request.body);
       const tokens = await issueTokens(request, user._id, started);
       return ok(request, { user: view(user), tokens: deliverTokens(request, reply, tokens) });
@@ -452,7 +458,11 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
     async (request) => {
       const db = requireDatabase(app.db);
       const { name, username, dob, gender, city } = request.body;
+      checkName(name);
       checkDob(dob);
+      if (username && isReserved(username)) {
+        throw new AppError("USERNAME_TAKEN", "That username is reserved. Try another.", [{ path: "body/username", message: "Reserved" }]);
+      }
       const set: Record<string, unknown> = { updatedAt: new Date() };
       if (name !== undefined) set.name = name.trim().replace(/\s+/g, " ");
       if (username !== undefined) set.username = username;
@@ -467,6 +477,52 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
         });
       if (!user) throw new AppError("UNAUTHENTICATED");
       return ok(request, view(user));
+    },
+  );
+
+  app.get(
+    "/usernames",
+    {
+      preHandler: requireAuth,
+      config: secured(1, 60),
+      schema: {
+        tags: ["account"],
+        summary: "Check a username and suggest free ones from the user's name",
+        querystring: UsernameQuery,
+        response: { 200: UsernameResult, ...Errors },
+        security: [{ bearer: [] }, { cookie: [] }],
+      },
+    },
+    async (request) => {
+      const db = requireDatabase(app.db);
+      const user = await db.users.findOne({ _id: request.auth!.userId }, { projection: { name: 1 } });
+      if (!user) throw new AppError("UNAUTHENTICATED");
+      const typed = request.query.check?.trim().toLowerCase();
+      const [available, suggestions] = await Promise.all([
+        typed ? isAvailable(db, typed, user._id) : null,
+        suggestUsernames(db, user.name ?? "", { typed }),
+      ]);
+      return ok(request, { available, suggestions });
+    },
+  );
+
+  app.get(
+    "/city",
+    {
+      preHandler: requireAuth,
+      config: secured(1, 10),
+      schema: {
+        tags: ["account"],
+        summary: "The city at a point, for the 'use my location' button",
+        description: "The point is rounded to about 1 km and not stored.",
+        querystring: CityQuery,
+        response: { 200: CityResult, ...Errors },
+        security: [{ bearer: [] }, { cookie: [] }],
+      },
+    },
+    async (request) => {
+      const city = await app.geocoder.cityAt(request.query.lat, request.query.lng);
+      return ok(request, { city, attribution: "© OpenStreetMap contributors" });
     },
   );
 
