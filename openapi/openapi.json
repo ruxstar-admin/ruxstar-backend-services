@@ -1,0 +1,2778 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Ruxstar API",
+    "version": "1.0.0",
+    "description": "Shared by the website and the mobile apps."
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Mobile apps"
+      },
+      "cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "rx_at",
+        "description": "Website"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message",
+              "details"
+            ],
+            "properties": {
+              "code": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "VALIDATION_FAILED"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "BAD_REQUEST"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "CLIENT_HEADER_REQUIRED"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "IDEMPOTENCY_KEY_REQUIRED"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "UNAUTHENTICATED"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "FORBIDDEN"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "KYC_REQUIRED"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "NOT_FOUND"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "CONFLICT"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "IDEMPOTENCY_IN_PROGRESS"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "PAYLOAD_TOO_LARGE"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "UNSUPPORTED_MEDIA_TYPE"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "IDEMPOTENCY_KEY_REUSED"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "UPGRADE_REQUIRED"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "RATE_LIMITED"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "INTERNAL"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "MODULE_OFF"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "NOT_READY"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "PHONE_TAKEN"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "USERNAME_TAKEN"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "OTP_INVALID"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "OTP_EXPIRED"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "OTP_LIMIT"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "VERIFICATION_INVALID"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "INVALID_CREDENTIALS"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "ACCOUNT_LOCKED"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "PASSWORD_REUSED"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "SMS_UNAVAILABLE"
+                    ]
+                  }
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "message"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "name",
+                        "liveOn"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "liveOn": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "The process is up. Does not touch the database.",
+        "tags": [
+          "health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "status",
+                        "revision"
+                      ],
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "revision": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "summary": "The database answers.",
+        "tags": [
+          "health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "status"
+                      ],
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ready"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/otp": {
+      "post": {
+        "summary": "Text a 6-digit code to a number, to sign up or reset a password",
+        "tags": [
+          "account"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "phone",
+                  "purpose"
+                ],
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^[6-9]\\d{9}$",
+                    "description": "10-digit Indian mobile number, without +91",
+                    "examples": [
+                      "9876543210"
+                    ]
+                  },
+                  "purpose": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "signup"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "reset"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "sentTo",
+                        "expiresInSeconds",
+                        "resendInSeconds"
+                      ],
+                      "properties": {
+                        "sentTo": {
+                          "type": "string",
+                          "description": "Masked, for example +91 ••••• •3210"
+                        },
+                        "expiresInSeconds": {
+                          "type": "integer"
+                        },
+                        "resendInSeconds": {
+                          "type": "integer"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/otp/verify": {
+      "post": {
+        "summary": "Check the code and get a verification token for signup or reset",
+        "tags": [
+          "account"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "phone",
+                  "purpose",
+                  "code"
+                ],
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^[6-9]\\d{9}$",
+                    "description": "10-digit Indian mobile number, without +91",
+                    "examples": [
+                      "9876543210"
+                    ]
+                  },
+                  "purpose": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "signup"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "reset"
+                        ]
+                      }
+                    ]
+                  },
+                  "code": {
+                    "type": "string",
+                    "pattern": "^\\d{6}$"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "verificationToken",
+                        "expiresInSeconds"
+                      ],
+                      "properties": {
+                        "verificationToken": {
+                          "type": "string",
+                          "description": "Pass to signup or password reset. Works once."
+                        },
+                        "expiresInSeconds": {
+                          "type": "integer"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/signup": {
+      "post": {
+        "summary": "Create an account with a verified number, then sign in",
+        "tags": [
+          "account"
+        ],
+        "description": "Not idempotent by key: the verification token works once and the number is unique.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "verificationToken",
+                  "name",
+                  "password",
+                  "acceptTerms"
+                ],
+                "properties": {
+                  "verificationToken": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 60,
+                    "pattern": "\\S"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 64,
+                    "description": "8 to 64 characters with a letter and a number"
+                  },
+                  "acceptTerms": {
+                    "type": "boolean",
+                    "description": "The user accepted the current terms and privacy policy",
+                    "enum": [
+                      true
+                    ]
+                  },
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "description": "Apps only. Stable per install."
+                  },
+                  "deviceName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60,
+                    "description": "Apps only, for example \"Pixel 8\""
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "user"
+                      ],
+                      "properties": {
+                        "user": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "phone",
+                            "name",
+                            "username",
+                            "dob",
+                            "gender",
+                            "city",
+                            "roles",
+                            "kyc",
+                            "createdAt"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "phone": {
+                              "type": "string",
+                              "description": "E.164, for example +919876543210"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "username": {
+                              "type": "string"
+                            },
+                            "dob": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "format": "date"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "gender": {
+                              "anyOf": [
+                                {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "female"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "male"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "other"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "city": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "roles": {
+                              "type": "object",
+                              "required": [
+                                "vendor",
+                                "delivery",
+                                "ruxstarStaff",
+                                "admin"
+                              ],
+                              "properties": {
+                                "vendor": {
+                                  "type": "boolean"
+                                },
+                                "delivery": {
+                                  "type": "boolean"
+                                },
+                                "ruxstarStaff": {
+                                  "type": "boolean"
+                                },
+                                "admin": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "kyc": {
+                              "type": "object",
+                              "required": [
+                                "base"
+                              ],
+                              "properties": {
+                                "base": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "tokens": {
+                          "type": "object",
+                          "required": [
+                            "accessToken",
+                            "accessTokenExpiresIn",
+                            "refreshToken",
+                            "refreshTokenExpiresAt"
+                          ],
+                          "properties": {
+                            "accessToken": {
+                              "type": "string"
+                            },
+                            "accessTokenExpiresIn": {
+                              "type": "integer",
+                              "description": "Seconds"
+                            },
+                            "refreshToken": {
+                              "type": "string",
+                              "description": "Single use. Each refresh returns a new one."
+                            },
+                            "refreshTokenExpiresAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/login": {
+      "post": {
+        "summary": "Sign in with number and password",
+        "tags": [
+          "account"
+        ],
+        "description": "5 wrong passwords lock the account for 15 minutes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "phone",
+                  "password"
+                ],
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^[6-9]\\d{9}$",
+                    "description": "10-digit Indian mobile number, without +91",
+                    "examples": [
+                      "9876543210"
+                    ]
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "description": "Apps only. Stable per install."
+                  },
+                  "deviceName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60,
+                    "description": "Apps only, for example \"Pixel 8\""
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "user"
+                      ],
+                      "properties": {
+                        "user": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "phone",
+                            "name",
+                            "username",
+                            "dob",
+                            "gender",
+                            "city",
+                            "roles",
+                            "kyc",
+                            "createdAt"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "phone": {
+                              "type": "string",
+                              "description": "E.164, for example +919876543210"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "username": {
+                              "type": "string"
+                            },
+                            "dob": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "format": "date"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "gender": {
+                              "anyOf": [
+                                {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "female"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "male"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "other"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "city": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "roles": {
+                              "type": "object",
+                              "required": [
+                                "vendor",
+                                "delivery",
+                                "ruxstarStaff",
+                                "admin"
+                              ],
+                              "properties": {
+                                "vendor": {
+                                  "type": "boolean"
+                                },
+                                "delivery": {
+                                  "type": "boolean"
+                                },
+                                "ruxstarStaff": {
+                                  "type": "boolean"
+                                },
+                                "admin": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "kyc": {
+                              "type": "object",
+                              "required": [
+                                "base"
+                              ],
+                              "properties": {
+                                "base": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "tokens": {
+                          "type": "object",
+                          "required": [
+                            "accessToken",
+                            "accessTokenExpiresIn",
+                            "refreshToken",
+                            "refreshTokenExpiresAt"
+                          ],
+                          "properties": {
+                            "accessToken": {
+                              "type": "string"
+                            },
+                            "accessTokenExpiresIn": {
+                              "type": "integer",
+                              "description": "Seconds"
+                            },
+                            "refreshToken": {
+                              "type": "string",
+                              "description": "Single use. Each refresh returns a new one."
+                            },
+                            "refreshTokenExpiresAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/refresh": {
+      "post": {
+        "summary": "Swap the refresh token for a new access and refresh token",
+        "tags": [
+          "account"
+        ],
+        "description": "Each refresh token works once. Reusing one ends the session.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "Apps only. The website sends a cookie."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "tokens": {
+                          "type": "object",
+                          "required": [
+                            "accessToken",
+                            "accessTokenExpiresIn",
+                            "refreshToken",
+                            "refreshTokenExpiresAt"
+                          ],
+                          "properties": {
+                            "accessToken": {
+                              "type": "string"
+                            },
+                            "accessTokenExpiresIn": {
+                              "type": "integer",
+                              "description": "Seconds"
+                            },
+                            "refreshToken": {
+                              "type": "string",
+                              "description": "Single use. Each refresh returns a new one."
+                            },
+                            "refreshTokenExpiresAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/logout": {
+      "post": {
+        "summary": "End this session",
+        "tags": [
+          "account"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "Apps only. The website sends a cookie."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/password/reset": {
+      "post": {
+        "summary": "Set a new password with a verified number. Signs out every device.",
+        "tags": [
+          "account"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "verificationToken",
+                  "password"
+                ],
+                "properties": {
+                  "verificationToken": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 64,
+                    "description": "8 to 64 characters with a letter and a number"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/password": {
+      "post": {
+        "summary": "Change the password. Signs out every other device.",
+        "tags": [
+          "account"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "currentPassword",
+                  "newPassword"
+                ],
+                "properties": {
+                  "currentPassword": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "newPassword": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 64,
+                    "description": "8 to 64 characters with a letter and a number"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/me": {
+      "get": {
+        "summary": "The signed-in user",
+        "tags": [
+          "account"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "phone",
+                        "name",
+                        "username",
+                        "dob",
+                        "gender",
+                        "city",
+                        "roles",
+                        "kyc",
+                        "createdAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "phone": {
+                          "type": "string",
+                          "description": "E.164, for example +919876543210"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "dob": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "gender": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "female"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "male"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "other"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "city": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "roles": {
+                          "type": "object",
+                          "required": [
+                            "vendor",
+                            "delivery",
+                            "ruxstarStaff",
+                            "admin"
+                          ],
+                          "properties": {
+                            "vendor": {
+                              "type": "boolean"
+                            },
+                            "delivery": {
+                              "type": "boolean"
+                            },
+                            "ruxstarStaff": {
+                              "type": "boolean"
+                            },
+                            "admin": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "kyc": {
+                          "type": "object",
+                          "required": [
+                            "base"
+                          ],
+                          "properties": {
+                            "base": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update name, username, date of birth, gender or city",
+        "tags": [
+          "account"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 60,
+                    "pattern": "\\S"
+                  },
+                  "username": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9_.]{3,20}$",
+                    "description": "3 to 20 lowercase letters, digits, _ or ."
+                  },
+                  "dob": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "gender": {
+                    "anyOf": [
+                      {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "female"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "male"
+                            ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "other"
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "city": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 60
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false,
+                "minProperties": 1
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "phone",
+                        "name",
+                        "username",
+                        "dob",
+                        "gender",
+                        "city",
+                        "roles",
+                        "kyc",
+                        "createdAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "phone": {
+                          "type": "string",
+                          "description": "E.164, for example +919876543210"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "dob": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "gender": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "female"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "male"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "other"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "city": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "roles": {
+                          "type": "object",
+                          "required": [
+                            "vendor",
+                            "delivery",
+                            "ruxstarStaff",
+                            "admin"
+                          ],
+                          "properties": {
+                            "vendor": {
+                              "type": "boolean"
+                            },
+                            "delivery": {
+                              "type": "boolean"
+                            },
+                            "ruxstarStaff": {
+                              "type": "boolean"
+                            },
+                            "admin": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "kyc": {
+                          "type": "object",
+                          "required": [
+                            "base"
+                          ],
+                          "properties": {
+                            "base": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/sessions": {
+      "get": {
+        "summary": "Devices signed in to this account",
+        "tags": [
+          "account"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "client",
+                          "label",
+                          "current",
+                          "lastSeenAt",
+                          "createdAt"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "client": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "web"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "app"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "delivery"
+                                ]
+                              }
+                            ]
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "current": {
+                            "type": "boolean"
+                          },
+                          "lastSeenAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/sessions/{id}": {
+      "delete": {
+        "summary": "Sign out one device",
+        "tags": [
+          "account"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/devices": {
+      "post": {
+        "summary": "Register this app install for push notifications",
+        "tags": [
+          "account"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "pushToken"
+                ],
+                "properties": {
+                  "pushToken": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/modules": {
+      "get": {
+        "summary": "Every business module and its switches",
+        "tags": [
+          "ruxstar"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "module",
+                          "live",
+                          "signupsOpen",
+                          "commissionBps",
+                          "deliveryEnabled",
+                          "permissionCatalog",
+                          "updatedAt"
+                        ],
+                        "properties": {
+                          "module": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "pod"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "events"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coaching"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "stays"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "delivery"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ledger"
+                                ]
+                              }
+                            ]
+                          },
+                          "live": {
+                            "type": "boolean"
+                          },
+                          "signupsOpen": {
+                            "type": "boolean"
+                          },
+                          "commissionBps": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 10000,
+                            "description": "Commission in basis points. 1000 = 10%"
+                          },
+                          "deliveryEnabled": {
+                            "type": "boolean"
+                          },
+                          "permissionCatalog": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/modules/{module}": {
+      "patch": {
+        "summary": "Switch a module on or off, or change its signups, commission or delivery",
+        "tags": [
+          "ruxstar"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "live": {
+                    "type": "boolean"
+                  },
+                  "signupsOpen": {
+                    "type": "boolean"
+                  },
+                  "commissionBps": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  },
+                  "deliveryEnabled": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false,
+                "minProperties": 1
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "pod"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "events"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "coaching"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "stays"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "delivery"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "ledger"
+                  ]
+                }
+              ]
+            },
+            "in": "path",
+            "name": "module",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "module",
+                        "live",
+                        "signupsOpen",
+                        "commissionBps",
+                        "deliveryEnabled",
+                        "permissionCatalog",
+                        "updatedAt"
+                      ],
+                      "properties": {
+                        "module": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "pod"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "events"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "coaching"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "stays"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "delivery"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ledger"
+                              ]
+                            }
+                          ]
+                        },
+                        "live": {
+                          "type": "boolean"
+                        },
+                        "signupsOpen": {
+                          "type": "boolean"
+                        },
+                        "commissionBps": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 10000,
+                          "description": "Commission in basis points. 1000 = 10%"
+                        },
+                        "deliveryEnabled": {
+                          "type": "boolean"
+                        },
+                        "permissionCatalog": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.ruxstar.com"
+    }
+  ]
+}
