@@ -9,9 +9,13 @@ import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import {
   ChangePasswordBody,
+  DeleteBody,
   DeviceBody,
   Done,
+  EmailCodeSent,
+  EmailVerifyBody,
   LoginBody,
+  LoginCodeBody,
   LoginResult,
   CityQuery,
   CityResult,
@@ -32,7 +36,7 @@ import {
   Verified,
   type User,
 } from "./contracts.js";
-import { checkCode, sendCode, useVerification } from "./otp.js";
+import { checkCode, countText, sendCode, useVerification } from "./otp.js";
 import { firstFreeUsername, isAvailable, isReserved, suggestUsernames } from "./usernames.js";
 import { checkPasswordRules, hashPassword, verifyAgainstNothing, verifyPassword, wasUsedRecently } from "./passwords.js";
 import {
@@ -49,9 +53,18 @@ export const TERMS_VERSION = "2026-11-30";
 const LOCK_AFTER_FAILURES = 5;
 const LOCK_MINUTES = 15;
 const MIN_AGE_YEARS = 13;
+const PURGE_AFTER_DAYS = 30;
 
 const e164 = (phone: string) => `+91${phone}`;
 const maskPhone = (phone: string) => `+91 ••••• •${phone.slice(-4)}`;
+const maskEmail = (email: string) => {
+  const [user = "", domain = ""] = email.split("@");
+  return `${user.slice(0, 2)}***@${domain}`;
+};
+/** Bound to the user and the address, so a code for an old address stops working when it changes. */
+const emailTarget = (user: UserDoc) => `${user._id.toHexString()}:${user.email}`;
+const noEmail = () =>
+  new AppError("VALIDATION_FAILED", "Add an email to your profile first.", [{ path: "body/email", message: "No email on this account" }]);
 const minutes = (n: number) => `${n} minute${n === 1 ? "" : "s"}`;
 const isDuplicate = (err: unknown, field: string) =>
   err instanceof MongoServerError && err.code === 11000 && Object.hasOwn(err.keyPattern ?? {}, field);
@@ -61,6 +74,10 @@ const view = (user: UserDoc): User => ({
   phone: user.phone,
   name: user.name ?? "",
   username: user.username ?? "",
+  email: user.email ?? null,
+  emailVerified: Boolean(user.email && user.emailVerified),
+  bio: user.bio ?? null,
+  link: user.link ?? null,
   dob: user.dob ?? null,
   gender: user.gender ?? null,
   city: user.home?.city ?? null,
@@ -113,7 +130,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       config: secured(10, 30),
       schema: {
         tags: ["account"],
-        summary: "Text a 6-digit code to a number, to sign up or reset a password",
+        summary: "Text a 6-digit code to a number, to sign up, sign in or reset a password",
         body: OtpRequest,
         response: { 200: OtpSent, ...Errors },
       },
@@ -123,10 +140,13 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       const phone = e164(request.body.phone);
       const user = await d.db.users.findOne({ phone, status: { $ne: "deleted" } }, { projection: { _id: 1 } });
       if (request.body.purpose === "signup" && user) throw new AppError("PHONE_TAKEN");
-      if (request.body.purpose === "reset" && !user) {
+      if (request.body.purpose !== "signup" && !user) {
         throw new AppError("NOT_FOUND", "No account uses this number. Create one instead.");
       }
-      const sent = await sendCode(d, phone, request.body.purpose);
+      const sent = await sendCode(d, phone, request.body.purpose, async (code) => {
+        await d.sms.sendOtp(phone, code);
+        await countText(d.db, app.config.smsDailyLimit, request.log);
+      });
       return ok(request, { sentTo: maskPhone(phone), ...sent });
     },
   );
@@ -165,23 +185,32 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       const body = request.body;
       const name = body.name.trim().replace(/\s+/g, " ");
       checkName(name);
+      checkDob(body.dob);
+      const email = body.email?.trim().toLowerCase();
+      if (body.username && isReserved(body.username)) {
+        throw new AppError("USERNAME_TAKEN", "That username is reserved. Try another.", [{ path: "body/username", message: "Reserved" }]);
+      }
       const hash = await hashPassword(body.password);
       const result = await d.db
         .transaction(async (session) => {
           const phone = await useVerification(d, body.verificationToken, "signup", session);
           checkPasswordRules(body.password, phone);
           if (await d.db.users.findOne({ phone }, { session, projection: { _id: 1 } })) throw new AppError("PHONE_TAKEN");
+          if (body.username && !(await isAvailable(d.db, body.username))) {
+            throw new AppError("USERNAME_TAKEN", undefined, [{ path: "body/username", message: "Taken" }]);
+          }
 
           const now = new Date();
           const user: UserDoc = {
             _id: new ObjectId(),
             phone,
+            ...(email ? { email, emailVerified: false } : {}),
             passwordHash: hash,
             passwordHistory: [],
             name,
-            username: await firstFreeUsername(d.db, name, session),
-            dob: null,
-            gender: null,
+            username: body.username ?? (await firstFreeUsername(d.db, name, session)),
+            dob: body.dob ?? null,
+            gender: body.gender ?? null,
             avatar: null,
             status: "active",
             roles: {},
@@ -198,7 +227,10 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
         })
         .catch((err: unknown) => {
           if (isDuplicate(err, "phone")) throw new AppError("PHONE_TAKEN");
-          if (isDuplicate(err, "username")) throw new AppError("CONFLICT", "Something clashed. Try again.");
+          if (isDuplicate(err, "username")) {
+            if (body.username) throw new AppError("USERNAME_TAKEN", undefined, [{ path: "body/username", message: "Taken" }]);
+            throw new AppError("CONFLICT", "Something clashed. Try again.");
+          }
           throw err;
         });
 
@@ -265,6 +297,32 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
         throw new AppError("INVALID_CREDENTIALS");
       }
       await d.db.users.updateOne({ _id: user._id }, { $set: { lock: { failedCount: 0, lockedUntil: null } } });
+      if (user.status === "locked") throw new AppError("FORBIDDEN", "This account is on hold. Contact support.");
+      const started = await startSession(d.db, request, user._id, request.body);
+      const tokens = await issueTokens(request, user._id, started);
+      return ok(request, { user: view(user), tokens: deliverTokens(request, reply, tokens) });
+    },
+  );
+
+  app.post(
+    "/login/code",
+    {
+      config: secured(10, 60),
+      schema: {
+        tags: ["account"],
+        summary: "Sign in with the code texted by POST /otp (purpose login)",
+        description: "The code's own limits apply: five wrong codes lock that number's codes for 5 minutes.",
+        body: LoginCodeBody,
+        response: { 200: LoginResult, ...Errors },
+      },
+    },
+    async (request, reply) => {
+      const d = deps();
+      const phone = e164(request.body.phone);
+      const { verificationToken } = await checkCode(d, phone, "login", request.body.code);
+      await useVerification(d, verificationToken, "login");
+      const user = await d.db.users.findOne({ phone, status: { $ne: "deleted" } });
+      if (!user) throw new AppError("NOT_FOUND", "No account uses this number. Create one instead.");
       if (user.status === "locked") throw new AppError("FORBIDDEN", "This account is on hold. Contact support.");
       const started = await startSession(d.db, request, user._id, request.body);
       const tokens = await issueTokens(request, user._id, started);
@@ -449,7 +507,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: requireAuth,
       schema: {
         tags: ["account"],
-        summary: "Update name, username, date of birth, gender or city",
+        summary: "Update name, username, email, bio, link, date of birth, gender or city",
         body: MePatch,
         response: { 200: MeResult, ...Errors },
         security: [{ bearer: [] }, { cookie: [] }],
@@ -457,7 +515,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const db = requireDatabase(app.db);
-      const { name, username, dob, gender, city } = request.body;
+      const { name, username, email, bio, link, dob, gender, city } = request.body;
       checkName(name);
       checkDob(dob);
       if (username && isReserved(username)) {
@@ -466,11 +524,29 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       const set: Record<string, unknown> = { updatedAt: new Date() };
       if (name !== undefined) set.name = name.trim().replace(/\s+/g, " ");
       if (username !== undefined) set.username = username;
+      const unset: Record<string, ""> = {};
+      if (email) {
+        const address = email.trim().toLowerCase();
+        const current = await db.users.findOne({ _id: request.auth!.userId }, { projection: { email: 1 } });
+        if (current?.email !== address) {
+          set.email = address;
+          set.emailVerified = false;
+        }
+      } else if (email === null) {
+        unset.email = "";
+        unset.emailVerified = "";
+      }
+      if (bio !== undefined) set.bio = bio?.trim() || null;
+      if (link !== undefined) set.link = link?.trim() || null;
       if (dob !== undefined) set.dob = dob;
       if (gender !== undefined) set.gender = gender;
       if (city !== undefined) set["home.city"] = city?.trim() ?? null;
       const user = await db.users
-        .findOneAndUpdate({ _id: request.auth!.userId }, { $set: set }, { returnDocument: "after" })
+        .findOneAndUpdate(
+          { _id: request.auth!.userId },
+          { $set: set, ...(Object.keys(unset).length ? { $unset: unset } : {}) },
+          { returnDocument: "after" },
+        )
         .catch((err: unknown) => {
           if (isDuplicate(err, "username")) throw new AppError("USERNAME_TAKEN", undefined, [{ path: "body/username", message: "Taken" }]);
           throw err;
@@ -480,27 +556,148 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
     },
   );
 
-  app.get(
-    "/usernames",
+  app.post(
+    "/email/code",
     {
       preHandler: requireAuth,
-      config: secured(1, 60),
+      config: secured(10, 10),
       schema: {
         tags: ["account"],
-        summary: "Check a username and suggest free ones from the user's name",
-        querystring: UsernameQuery,
-        response: { 200: UsernameResult, ...Errors },
+        summary: "Email a 6-digit code to the address on the profile",
+        description: "The same limits as texted codes: 30 seconds between sends, three resends, five tries.",
+        response: { 200: EmailCodeSent, ...Errors },
         security: [{ bearer: [] }, { cookie: [] }],
       },
     },
     async (request) => {
-      const db = requireDatabase(app.db);
-      const user = await db.users.findOne({ _id: request.auth!.userId }, { projection: { name: 1 } });
+      const d = deps();
+      const user = await d.db.users.findOne({ _id: request.auth!.userId });
       if (!user) throw new AppError("UNAUTHENTICATED");
+      if (!user.email) throw noEmail();
+      if (user.emailVerified) throw new AppError("CONFLICT", "Your email is already verified.");
+      const address = user.email;
+      const sent = await sendCode(d, emailTarget(user), "email", (code) => app.email.sendCode(address, code));
+      return ok(request, { sentTo: maskEmail(address), ...sent });
+    },
+  );
+
+  app.post(
+    "/email/verify",
+    {
+      preHandler: requireAuth,
+      config: secured(10, 30),
+      schema: {
+        tags: ["account"],
+        summary: "Verify the email with the code from POST /email/code",
+        description: "A verified email belongs to one account. If another account verified it first, this answers EMAIL_TAKEN.",
+        body: EmailVerifyBody,
+        response: { 200: MeResult, ...Errors },
+        security: [{ bearer: [] }, { cookie: [] }],
+      },
+    },
+    async (request) => {
+      const d = deps();
+      const user = await d.db.users.findOne({ _id: request.auth!.userId });
+      if (!user) throw new AppError("UNAUTHENTICATED");
+      if (!user.email) throw noEmail();
+      if (user.emailVerified) return ok(request, view(user));
+      const { verificationToken } = await checkCode(d, emailTarget(user), "email", request.body.code).catch((err: unknown) => {
+        if (err instanceof AppError && err.code === "OTP_INVALID") {
+          throw new AppError("OTP_INVALID", "That code is not right. Check the email and try again.", err.details);
+        }
+        throw err;
+      });
+      await useVerification(d, verificationToken, "email");
+      const verified = await d.db.users
+        .findOneAndUpdate(
+          { _id: user._id, email: user.email },
+          { $set: { emailVerified: true, updatedAt: new Date() } },
+          { returnDocument: "after" },
+        )
+        .catch((err: unknown) => {
+          if (isDuplicate(err, "email")) {
+            throw new AppError("EMAIL_TAKEN", "Another account has already verified this email.", [{ path: "body/email", message: "Taken" }]);
+          }
+          throw err;
+        });
+      if (!verified) throw new AppError("CONFLICT", "Your email changed. Ask for a new code.");
+      return ok(request, view(verified));
+    },
+  );
+
+  app.delete(
+    "/me",
+    {
+      preHandler: requireAuth,
+      config: secured(10, 5),
+      schema: {
+        tags: ["account"],
+        summary: "Delete the account after checking the password. Signs out every device.",
+        description: `Sign-in stops at once and the number, username and email are freed. The record is erased after ${PURGE_AFTER_DAYS} days.`,
+        body: DeleteBody,
+        response: { 200: Done, ...Errors },
+        security: [{ bearer: [] }, { cookie: [] }],
+      },
+    },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const userId = request.auth!.userId;
+      const current = await db.users.findOne({ _id: userId }, { projection: { passwordHash: 1 } });
+      if (!current?.passwordHash || !(await verifyPassword(request.body.password, current.passwordHash))) {
+        throw new AppError("INVALID_CREDENTIALS", "That password is not right.", [{ path: "body/password", message: "Not right" }]);
+      }
+      const now = new Date();
+      await db.transaction(async (session) => {
+        const user = await db.users.findOne({ _id: userId, status: { $ne: "deleted" } }, { session });
+        if (!user) throw new AppError("UNAUTHENTICATED");
+        await db.users.updateOne(
+          { _id: userId },
+          {
+            $set: {
+              status: "deleted",
+              phone: `deleted:${userId.toHexString()}`,
+              deletion: { at: now, phone: user.phone, username: user.username ?? null, email: user.email ?? null },
+              purgeAt: new Date(now.getTime() + PURGE_AFTER_DAYS * 24 * 60 * 60_000),
+              updatedAt: now,
+            },
+            $unset: { username: "", email: "", emailVerified: "" },
+          },
+          { session },
+        );
+        await db.sessions.updateMany({ userId, revokedAt: null }, { $set: { revokedAt: now, updatedAt: now } }, { session });
+        await writeAudit(
+          db,
+          { actor: { id: userId, kind: "user" }, scope: { module: "account" }, action: "user.delete", target: { type: "user", id: userId }, diff: {}, ip: request.ip },
+          session,
+        );
+      });
+      clearTokens(request, reply);
+      return ok(request, { done: true as const });
+    },
+  );
+
+  app.get(
+    "/usernames",
+    {
+      config: secured(1, 60),
+      schema: {
+        tags: ["account"],
+        summary: "Check a username and suggest free ones",
+        description: "Works before signup, with `name`. Signed in, your own name is used and your own username counts as free.",
+        querystring: UsernameQuery,
+        response: { 200: UsernameResult, ...Errors },
+        security: [{}, { bearer: [] }, { cookie: [] }],
+      },
+    },
+    async (request) => {
+      const db = requireDatabase(app.db);
+      const claims = await readAccessClaims(request);
+      const user = claims ? await db.users.findOne({ _id: claims.userId }, { projection: { name: 1 } }) : null;
+      const name = user?.name ?? request.query.name ?? "";
       const typed = request.query.check?.trim().toLowerCase();
       const [available, suggestions] = await Promise.all([
-        typed ? isAvailable(db, typed, user._id) : null,
-        suggestUsernames(db, user.name ?? "", { typed }),
+        typed ? isAvailable(db, typed, user?._id) : null,
+        suggestUsernames(db, name, { typed }),
       ]);
       return ok(request, { available, suggestions });
     },

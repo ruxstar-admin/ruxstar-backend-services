@@ -209,6 +209,18 @@
                     "enum": [
                       "LOCATION_UNAVAILABLE"
                     ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "EMAIL_TAKEN"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "EMAIL_UNAVAILABLE"
+                    ]
                   }
                 ]
               },
@@ -430,7 +442,7 @@
     },
     "/v1/account/otp": {
       "post": {
-        "summary": "Text a 6-digit code to a number, to sign up or reset a password",
+        "summary": "Text a 6-digit code to a number, to sign up, sign in or reset a password",
         "tags": [
           "account"
         ],
@@ -465,6 +477,12 @@
                         "type": "string",
                         "enum": [
                           "reset"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "login"
                         ]
                       }
                     ]
@@ -587,6 +605,12 @@
                         "type": "string",
                         "enum": [
                           "reset"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "login"
                         ]
                       }
                     ]
@@ -715,6 +739,43 @@
                       true
                     ]
                   },
+                  "username": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9_.]{3,20}$",
+                    "description": "3 to 20 lowercase letters, digits, _ or ."
+                  },
+                  "dob": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "YYYY-MM-DD. At least 13 years ago."
+                  },
+                  "gender": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "female"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "male"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "other"
+                        ]
+                      }
+                    ]
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 254
+                  },
                   "deviceId": {
                     "type": "string",
                     "minLength": 1,
@@ -758,6 +819,10 @@
                             "phone",
                             "name",
                             "username",
+                            "email",
+                            "emailVerified",
+                            "bio",
+                            "link",
                             "dob",
                             "gender",
                             "city",
@@ -780,6 +845,40 @@
                             },
                             "username": {
                               "type": "string"
+                            },
+                            "email": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "emailVerified": {
+                              "type": "boolean",
+                              "description": "False until the code sent by POST /email/code is entered"
+                            },
+                            "bio": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "link": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             },
                             "dob": {
                               "anyOf": [
@@ -1019,6 +1118,10 @@
                             "phone",
                             "name",
                             "username",
+                            "email",
+                            "emailVerified",
+                            "bio",
+                            "link",
                             "dob",
                             "gender",
                             "city",
@@ -1041,6 +1144,339 @@
                             },
                             "username": {
                               "type": "string"
+                            },
+                            "email": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "emailVerified": {
+                              "type": "boolean",
+                              "description": "False until the code sent by POST /email/code is entered"
+                            },
+                            "bio": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "link": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "dob": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "format": "date"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "gender": {
+                              "anyOf": [
+                                {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "female"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "male"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "other"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "city": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "roles": {
+                              "type": "object",
+                              "required": [
+                                "vendor",
+                                "delivery",
+                                "ruxstarStaff",
+                                "admin"
+                              ],
+                              "properties": {
+                                "vendor": {
+                                  "type": "boolean"
+                                },
+                                "delivery": {
+                                  "type": "boolean"
+                                },
+                                "ruxstarStaff": {
+                                  "type": "boolean"
+                                },
+                                "admin": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "kyc": {
+                              "type": "object",
+                              "required": [
+                                "base"
+                              ],
+                              "properties": {
+                                "base": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "tokens": {
+                          "type": "object",
+                          "required": [
+                            "accessToken",
+                            "accessTokenExpiresIn",
+                            "refreshToken",
+                            "refreshTokenExpiresAt"
+                          ],
+                          "properties": {
+                            "accessToken": {
+                              "type": "string"
+                            },
+                            "accessTokenExpiresIn": {
+                              "type": "integer",
+                              "description": "Seconds"
+                            },
+                            "refreshToken": {
+                              "type": "string",
+                              "description": "Single use. Each refresh returns a new one."
+                            },
+                            "refreshTokenExpiresAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/login/code": {
+      "post": {
+        "summary": "Sign in with the code texted by POST /otp (purpose login)",
+        "tags": [
+          "account"
+        ],
+        "description": "The code's own limits apply: five wrong codes lock that number's codes for 5 minutes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "phone",
+                  "code"
+                ],
+                "properties": {
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^[6-9]\\d{9}$",
+                    "description": "10-digit Indian mobile number, without +91",
+                    "examples": [
+                      "9876543210"
+                    ]
+                  },
+                  "code": {
+                    "type": "string",
+                    "pattern": "^\\d{6}$",
+                    "description": "The code texted by POST /otp with purpose login"
+                  },
+                  "deviceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "description": "Apps only. Stable per install."
+                  },
+                  "deviceName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60,
+                    "description": "Apps only, for example \"Pixel 8\""
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "user"
+                      ],
+                      "properties": {
+                        "user": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "phone",
+                            "name",
+                            "username",
+                            "email",
+                            "emailVerified",
+                            "bio",
+                            "link",
+                            "dob",
+                            "gender",
+                            "city",
+                            "roles",
+                            "kyc",
+                            "createdAt"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "phone": {
+                              "type": "string",
+                              "description": "E.164, for example +919876543210"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "username": {
+                              "type": "string"
+                            },
+                            "email": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "emailVerified": {
+                              "type": "boolean",
+                              "description": "False until the code sent by POST /email/code is entered"
+                            },
+                            "bio": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "link": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             },
                             "dob": {
                               "anyOf": [
@@ -1656,6 +2092,10 @@
                         "phone",
                         "name",
                         "username",
+                        "email",
+                        "emailVerified",
+                        "bio",
+                        "link",
                         "dob",
                         "gender",
                         "city",
@@ -1678,6 +2118,40 @@
                         },
                         "username": {
                           "type": "string"
+                        },
+                        "email": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "emailVerified": {
+                          "type": "boolean",
+                          "description": "False until the code sent by POST /email/code is entered"
+                        },
+                        "bio": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "link": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "dob": {
                           "anyOf": [
@@ -1813,7 +2287,7 @@
         }
       },
       "patch": {
-        "summary": "Update name, username, date of birth, gender or city",
+        "summary": "Update name, username, email, bio, link, date of birth, gender or city",
         "tags": [
           "account"
         ],
@@ -1834,6 +2308,42 @@
                     "type": "string",
                     "pattern": "^[a-z0-9_.]{3,20}$",
                     "description": "3 to 20 lowercase letters, digits, _ or ."
+                  },
+                  "email": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "email",
+                        "maxLength": 254
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "bio": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "link": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uri",
+                        "pattern": "^https?://",
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
                   "dob": {
                     "anyOf": [
@@ -1921,6 +2431,10 @@
                         "phone",
                         "name",
                         "username",
+                        "email",
+                        "emailVerified",
+                        "bio",
+                        "link",
                         "dob",
                         "gender",
                         "city",
@@ -1943,6 +2457,481 @@
                         },
                         "username": {
                           "type": "string"
+                        },
+                        "email": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "emailVerified": {
+                          "type": "boolean",
+                          "description": "False until the code sent by POST /email/code is entered"
+                        },
+                        "bio": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "link": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "dob": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "gender": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "female"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "male"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "other"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "city": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "roles": {
+                          "type": "object",
+                          "required": [
+                            "vendor",
+                            "delivery",
+                            "ruxstarStaff",
+                            "admin"
+                          ],
+                          "properties": {
+                            "vendor": {
+                              "type": "boolean"
+                            },
+                            "delivery": {
+                              "type": "boolean"
+                            },
+                            "ruxstarStaff": {
+                              "type": "boolean"
+                            },
+                            "admin": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "kyc": {
+                          "type": "object",
+                          "required": [
+                            "base"
+                          ],
+                          "properties": {
+                            "base": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete the account after checking the password. Signs out every device.",
+        "tags": [
+          "account"
+        ],
+        "description": "Sign-in stops at once and the number, username and email are freed. The record is erased after 30 days.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "password"
+                ],
+                "properties": {
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "description": "The current password"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/email/code": {
+      "post": {
+        "summary": "Email a 6-digit code to the address on the profile",
+        "tags": [
+          "account"
+        ],
+        "description": "The same limits as texted codes: 30 seconds between sends, three resends, five tries.",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "sentTo",
+                        "expiresInSeconds",
+                        "resendInSeconds"
+                      ],
+                      "properties": {
+                        "sentTo": {
+                          "type": "string",
+                          "description": "Masked, for example as***@gmail.com"
+                        },
+                        "expiresInSeconds": {
+                          "type": "integer"
+                        },
+                        "resendInSeconds": {
+                          "type": "integer"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/email/verify": {
+      "post": {
+        "summary": "Verify the email with the code from POST /email/code",
+        "tags": [
+          "account"
+        ],
+        "description": "A verified email belongs to one account. If another account verified it first, this answers EMAIL_TAKEN.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "pattern": "^\\d{6}$"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "phone",
+                        "name",
+                        "username",
+                        "email",
+                        "emailVerified",
+                        "bio",
+                        "link",
+                        "dob",
+                        "gender",
+                        "city",
+                        "roles",
+                        "kyc",
+                        "createdAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "phone": {
+                          "type": "string",
+                          "description": "E.164, for example +919876543210"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "emailVerified": {
+                          "type": "boolean",
+                          "description": "False until the code sent by POST /email/code is entered"
+                        },
+                        "bio": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "link": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "dob": {
                           "anyOf": [
@@ -2080,10 +3069,11 @@
     },
     "/v1/account/usernames": {
       "get": {
-        "summary": "Check a username and suggest free ones from the user's name",
+        "summary": "Check a username and suggest free ones",
         "tags": [
           "account"
         ],
+        "description": "Works before signup, with `name`. Signed in, your own name is used and your own username counts as free.",
         "parameters": [
           {
             "schema": {
@@ -2095,9 +3085,21 @@
             "name": "check",
             "required": false,
             "description": "A handle to check, as typed"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "description": "Before signup, suggestions come from this name. Signed in, your own name is used."
           }
         ],
         "security": [
+          {},
           {
             "bearer": []
           },

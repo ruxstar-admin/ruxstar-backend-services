@@ -35,6 +35,8 @@ export const ERROR_CODES = {
   PASSWORD_REUSED: { status: 422, message: "Choose a password you have not used recently." },
   SMS_UNAVAILABLE: { status: 503, message: "We cannot send codes right now. Try again shortly." },
   LOCATION_UNAVAILABLE: { status: 503, message: "We could not find your city right now. Type it instead." },
+  EMAIL_TAKEN: { status: 409, message: "This email is on another account." },
+  EMAIL_UNAVAILABLE: { status: 503, message: "We cannot send emails right now. Try again shortly." },
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CODES;

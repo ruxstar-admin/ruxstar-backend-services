@@ -25,7 +25,9 @@ export interface UserDoc extends Stamped {
   _id: ObjectId;
   /** E.164, for example +919876543210. */
   phone: string;
+  /** Unique only once verified, so typing someone else's address blocks nobody. */
   email?: string;
+  emailVerified?: boolean;
   passwordHash?: string;
   /** The two hashes before the current one, newest first. None of the three can be reused. */
   passwordHistory?: string[];
@@ -34,7 +36,15 @@ export interface UserDoc extends Stamped {
   dob?: string | null;
   gender?: "female" | "male" | "other" | null;
   avatar?: string | null;
+  bio?: string | null;
+  link?: string | null;
   status: "active" | "locked" | "deleted";
+  /**
+   * Set when the user deletes the account. Phone, username and email move here so others can take
+   * them; `purgeAt` (a TTL index) removes the whole record.
+   */
+  deletion?: { at: Date; phone: string; username: string | null; email: string | null };
+  purgeAt?: Date;
   roles: UserRoles;
   kyc: { base?: KycState; vendor?: KycState; delivery?: KycState };
   lock?: { failedCount: number; lockedUntil: Date | null };
@@ -61,7 +71,8 @@ export interface SessionDoc extends Stamped {
   revokedAt: Date | null;
 }
 
-export type OtpPurpose = "signup" | "reset";
+/** `email` codes go to the user's email; their target is `<userId>:<email>`. */
+export type OtpPurpose = "signup" | "reset" | "login" | "email";
 
 export interface OtpDoc {
   _id: ObjectId;

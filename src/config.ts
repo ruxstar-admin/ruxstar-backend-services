@@ -12,6 +12,13 @@ export interface Config {
   minVersions: { app: string | null; delivery: string | null };
   /** `log` prints codes to the terminal and is refused in prod. */
   otp: { provider: "log" | "msg91"; msg91: { authKey: string; templateId: string; senderId?: string } | null };
+  /** Texts per India day before the log warns. Sending carries on past it. */
+  smsDailyLimit: number;
+  /** `log` prints email codes to the terminal and is refused in prod. */
+  email: {
+    provider: "log" | "smtp";
+    smtp: { host: string; port: number; user: string; pass: string; from: string } | null;
+  };
 }
 
 export class ConfigError extends Error {
@@ -70,6 +77,19 @@ export function loadConfig(env: Env = process.env): Config {
   const msg91Template = read(env, "MSG91_TEMPLATE_ID");
   const msg91Sender = read(env, "MSG91_SENDER_ID");
 
+  const smsDailyLimit = Number(read(env, "SMS_DAILY_LIMIT") ?? 5000);
+  if (!Number.isInteger(smsDailyLimit) || smsDailyLimit < 1) problems.push("SMS_DAILY_LIMIT must be a whole number above 0");
+
+  const emailProvider = read(env, "EMAIL_PROVIDER") ?? (ruxstarEnv === "prod" ? "smtp" : "log");
+  if (emailProvider !== "log" && emailProvider !== "smtp") problems.push("EMAIL_PROVIDER must be log or smtp");
+  if (emailProvider === "log" && ruxstarEnv === "prod") problems.push("EMAIL_PROVIDER=log is not allowed in prod");
+  const smtpHost = read(env, "SMTP_HOST");
+  const smtpPort = Number(read(env, "SMTP_PORT") ?? 587);
+  if (!Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65535) problems.push("SMTP_PORT must be a whole number from 1 to 65535");
+  const smtpUser = read(env, "SMTP_USER");
+  const smtpPass = read(env, "SMTP_PASS");
+  const emailFrom = read(env, "EMAIL_FROM") ?? smtpUser;
+
   if (problems.length) throw new ConfigError(problems);
 
   return {
@@ -87,6 +107,14 @@ export function loadConfig(env: Env = process.env): Config {
       msg91:
         msg91Key && msg91Template
           ? { authKey: msg91Key, templateId: msg91Template, ...(msg91Sender ? { senderId: msg91Sender } : {}) }
+          : null,
+    },
+    smsDailyLimit,
+    email: {
+      provider: emailProvider as "log" | "smtp",
+      smtp:
+        smtpHost && smtpUser && smtpPass && emailFrom
+          ? { host: smtpHost, port: smtpPort, user: smtpUser, pass: smtpPass, from: emailFrom }
           : null,
     },
   };

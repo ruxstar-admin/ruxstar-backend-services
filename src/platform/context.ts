@@ -1,5 +1,6 @@
 import type { ObjectId } from "mongodb";
 import type { Geocoder } from "../adapters/geocoder.js";
+import type { EmailSender } from "../adapters/email.js";
 import type { SmsSender } from "../adapters/sms.js";
 import type { Config } from "../config.js";
 import type { Database, KycState, UserRoles } from "./db.js";
@@ -31,6 +32,7 @@ declare module "fastify" {
     db: Database | null;
     events: EventBus;
     sms: SmsSender;
+    email: EmailSender;
     geocoder: Geocoder;
   }
 

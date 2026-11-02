@@ -1,11 +1,24 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../src/app.js";
 import { ConfigError, loadConfig } from "../src/config.js";
+import { codeEmail } from "../src/adapters/email-template.js";
 import { compareVersions } from "../src/platform/client.js";
 import { requireModuleLive } from "../src/platform/module-switch.js";
 import { decodeCursor, encodeCursor } from "../src/platform/pagination.js";
 import { ObjectId } from "mongodb";
 import { signIn, startStack, web, type Stack } from "./helpers.js";
+
+describe("code email", () => {
+  it("puts the code in the subject, text and HTML, and escapes the address", () => {
+    const mail = codeEmail('a"<b>@example.com', "551118", 5);
+    expect(mail.subject).toBe("551118 is your Ruxstar code");
+    expect(mail.text).toContain("551118");
+    expect(mail.text).toContain("5 minutes");
+    expect(mail.html).toContain(">551118</td>");
+    expect(mail.html).not.toContain('a"<b>');
+    expect(mail.html).toContain("a&quot;&lt;b&gt;@example.com");
+  });
+});
 
 describe("config", () => {
   it("refuses a database URI without a database name", () => {

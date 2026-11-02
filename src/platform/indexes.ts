@@ -9,9 +9,10 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.ruxstarStaff.createIndex({ userId: 1 }, { unique: true }),
     db.platformSettings.createIndex({ key: 1 }, { unique: true }),
     db.users.createIndex({ phone: 1 }, { unique: true }),
-    db.users.createIndex({ email: 1 }, { unique: true, partialFilterExpression: { email: { $type: "string" } } }),
+    ensureVerifiedEmailIndex(db),
     db.users.createIndex({ username: 1 }, { unique: true, partialFilterExpression: { username: { $type: "string" } } }),
     db.users.createIndex({ status: 1 }),
+    db.users.createIndex({ purgeAt: 1 }, { expireAfterSeconds: 0 }),
     db.sessions.createIndex({ userId: 1, revokedAt: 1 }),
     db.sessions.createIndex(
       { refreshTokenHash: 1 },
@@ -28,6 +29,17 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.auditLogs.createIndex({ "target.id": 1, at: -1 }),
     db.idempotencyKeys.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
   ]);
+}
+
+/** The first version made every email unique; it is rebuilt once to cover verified emails only. */
+async function ensureVerifiedEmailIndex(db: Database): Promise<void> {
+  const filter = { email: { $type: "string" }, emailVerified: true };
+  const existing = (await db.users.indexes().catch(() => [])).find((index) => index.name === "email_1");
+  if (existing && JSON.stringify(existing.partialFilterExpression) !== JSON.stringify(filter)) {
+    // Two instances starting together may both try; the second finds it already gone.
+    await db.users.dropIndex("email_1").catch(() => undefined);
+  }
+  await db.users.createIndex({ email: 1 }, { unique: true, partialFilterExpression: filter });
 }
 
 /** New modules start switched off. Existing settings are never overwritten. */

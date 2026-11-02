@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
+import type { EmailSender } from "../src/adapters/email.js";
 import type { Geocoder } from "../src/adapters/geocoder.js";
 import type { SmsSender } from "../src/adapters/sms.js";
 import { ObjectId } from "mongodb";
@@ -17,6 +18,8 @@ export interface Stack {
   texts: Map<string, string>;
   /** Every text sent, and a switch that makes the next send fail like a provider outage. */
   sms: { sent: number; failNext: boolean };
+  /** The last code emailed to each address. */
+  emails: Map<string, string>;
   stop: () => Promise<void>;
 }
 
@@ -48,8 +51,10 @@ export async function startStack(extend?: (app: App) => void, { rateLimit = fals
       texts.set(phone, code);
     },
   };
+  const emails = new Map<string, string>();
+  const email: EmailSender = { sendCode: async (to, code) => void emails.set(to, code) };
   const geocoder: Geocoder = { cityAt: async () => "Hyderabad" };
-  const app = await buildApp({ config, db, logger: false, sms, geocoder, rateLimit });
+  const app = await buildApp({ config, db, logger: false, sms, email, geocoder, rateLimit });
   extend?.(app);
   await app.ready();
 
@@ -58,6 +63,7 @@ export async function startStack(extend?: (app: App) => void, { rateLimit = fals
     db,
     texts,
     sms: smsLog,
+    emails,
     stop: async () => {
       await app.close();
       await replSet.stop();

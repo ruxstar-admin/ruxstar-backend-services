@@ -1,7 +1,7 @@
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
 import { ObjectId, type ClientSession } from "mongodb";
 import { SignJWT, jwtVerify } from "jose";
-import type { SmsSender } from "../../adapters/sms.js";
+import type { FastifyBaseLogger } from "fastify";
 import type { Database, OtpDoc, OtpPurpose } from "../../platform/db.js";
 import { AppError } from "../../platform/errors.js";
 
@@ -26,10 +26,12 @@ function hashCode(secret: Uint8Array, target: string, purpose: OtpPurpose, code:
   return createHmac("sha256", secret).update(`otp:${target}:${purpose}:${code}`).digest("base64url");
 }
 
+/** `deliver` texts or emails the code. If it throws, the code is withdrawn so the user can ask again at once. */
 export async function sendCode(
-  deps: { db: Database; sms: SmsSender; secret: Uint8Array },
+  deps: { db: Database; secret: Uint8Array },
   target: string,
   purpose: OtpPurpose,
+  deliver: (code: string) => Promise<void>,
   now = new Date(),
 ) {
   const existing = await deps.db.otps.findOne({ target, purpose });
@@ -77,12 +79,30 @@ export async function sendCode(
   }
 
   try {
-    await deps.sms.sendOtp(target, code);
+    await deliver(code);
   } catch (err) {
     await undo().catch(() => {});
     throw err;
   }
   return { expiresInSeconds: OTP_TTL_SECONDS, resendInSeconds: RESEND_COOLDOWN_SECONDS };
+}
+
+const INDIA_OFFSET_MS = 5.5 * 60 * 60_000;
+
+/**
+ * Counts texts per India day. Warns at 80% of the limit and at every tenth of it past the limit.
+ * Never blocks a send, and a counting failure never fails one.
+ */
+export async function countText(db: Database, limit: number, log: FastifyBaseLogger, now = new Date()) {
+  const day = new Date(now.getTime() + INDIA_OFFSET_MS).toISOString().slice(0, 10);
+  try {
+    const sent = await db.nextNumber(`sms-${day}`);
+    const step = Math.max(1, Math.round(limit / 10));
+    if (sent === Math.ceil(limit * 0.8)) log.warn({ sent, limit, day }, "Texts today reached 80% of SMS_DAILY_LIMIT");
+    else if (sent >= limit && (sent - limit) % step === 0) log.warn({ sent, limit, day }, "Texts today are over SMS_DAILY_LIMIT");
+  } catch (err) {
+    log.error({ err }, "Could not count a text");
+  }
 }
 
 /** Counts the attempt before comparing, so parallel guesses cannot get past the limit. */

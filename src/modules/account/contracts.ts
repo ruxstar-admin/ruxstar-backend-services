@@ -9,9 +9,11 @@ export const Phone = Type.String({
 const Password = Type.String({ minLength: 8, maxLength: 64, description: "8 to 64 characters with a letter and a number" });
 const Name = Type.String({ minLength: 2, maxLength: 60, pattern: "\\S" });
 const Username = Type.String({ pattern: "^[a-z0-9_.]{3,20}$", description: "3 to 20 lowercase letters, digits, _ or ." });
-const Purpose = Type.Union([Type.Literal("signup"), Type.Literal("reset")]);
+const Purpose = Type.Union([Type.Literal("signup"), Type.Literal("reset"), Type.Literal("login")]);
 const Gender = Type.Union([Type.Literal("female"), Type.Literal("male"), Type.Literal("other")]);
 const Nullable = <T extends TSchema>(schema: T) => Type.Union([schema, Type.Null()]);
+const Email = Type.String({ format: "email", maxLength: 254 });
+const Dob = Type.String({ format: "date", description: "YYYY-MM-DD. At least 13 years ago." });
 const Device = {
   deviceId: Type.Optional(Type.String({ minLength: 1, maxLength: 100, description: "Apps only. Stable per install." })),
   deviceName: Type.Optional(Type.String({ minLength: 1, maxLength: 60, description: "Apps only, for example \"Pixel 8\"" })),
@@ -22,6 +24,10 @@ export const User = Strict({
   phone: Type.String({ description: "E.164, for example +919876543210" }),
   name: Type.String(),
   username: Type.String(),
+  email: Nullable(Type.String()),
+  emailVerified: Type.Boolean({ description: "False until the code sent by POST /email/code is entered" }),
+  bio: Nullable(Type.String()),
+  link: Nullable(Type.String()),
   dob: Nullable(Type.String({ format: "date" })),
   gender: Nullable(Gender),
   city: Nullable(Type.String()),
@@ -68,12 +74,22 @@ export const SignupBody = Strict({
   name: Name,
   password: Password,
   acceptTerms: Type.Literal(true, { description: "The user accepted the current terms and privacy policy" }),
+  username: Type.Optional(Username),
+  dob: Type.Optional(Dob),
+  gender: Type.Optional(Gender),
+  email: Type.Optional(Email),
   ...Device,
 });
 export const SignupResult = SignedIn;
 
 export const LoginBody = Strict({ phone: Phone, password: Type.String({ minLength: 1, maxLength: 64 }), ...Device });
 export const LoginResult = SignedIn;
+
+export const LoginCodeBody = Strict({
+  phone: Phone,
+  code: Type.String({ pattern: "^\\d{6}$", description: "The code texted by POST /otp with purpose login" }),
+  ...Device,
+});
 
 export const RefreshBody = Strict({
   refreshToken: Type.Optional(Type.String({ minLength: 1, maxLength: 200, description: "Apps only. The website sends a cookie." })),
@@ -86,10 +102,23 @@ export const ResetBody = Strict({ verificationToken: Type.String({ minLength: 1,
 export const ChangePasswordBody = Strict({ currentPassword: Type.String({ minLength: 1, maxLength: 64 }), newPassword: Password });
 
 export const MeResult = Envelope(User);
+export const DeleteBody = Strict({ password: Type.String({ minLength: 1, maxLength: 64, description: "The current password" }) });
+
+export const EmailCodeSent = Envelope(
+  Strict({
+    sentTo: Type.String({ description: "Masked, for example as***@gmail.com" }),
+    expiresInSeconds: Type.Integer(),
+    resendInSeconds: Type.Integer(),
+  }),
+);
+export const EmailVerifyBody = Strict({ code: Type.String({ pattern: "^\\d{6}$" }) });
 export const MePatch = Strict(
   {
     name: Type.Optional(Name),
     username: Type.Optional(Username),
+    email: Type.Optional(Nullable(Email)),
+    bio: Type.Optional(Nullable(Type.String({ maxLength: 160 }))),
+    link: Type.Optional(Nullable(Type.String({ format: "uri", pattern: "^https?://", maxLength: 200 }))),
     dob: Type.Optional(Nullable(Type.String({ format: "date" }))),
     gender: Type.Optional(Nullable(Gender)),
     city: Type.Optional(Nullable(Type.String({ minLength: 2, maxLength: 60 }))),
@@ -99,6 +128,9 @@ export const MePatch = Strict(
 
 export const UsernameQuery = Strict({
   check: Type.Optional(Type.String({ minLength: 1, maxLength: 40, description: "A handle to check, as typed" })),
+  name: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 60, description: "Before signup, suggestions come from this name. Signed in, your own name is used." }),
+  ),
 });
 export const UsernameResult = Envelope(
   Strict({
