@@ -36,6 +36,8 @@ declare module "fastify" {
     email: EmailSender;
     geocoder: Geocoder;
     photos: PhotoStore;
+    /** Post photos; a separate bucket from profile photos. */
+    media: PhotoStore;
   }
 
   interface FastifyRequest {

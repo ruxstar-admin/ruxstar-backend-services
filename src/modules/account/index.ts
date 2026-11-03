@@ -27,8 +27,10 @@ import {
   OtpRequest,
   OtpSent,
   OtpVerify,
+  ProfileList,
   ProfileParams,
   ProfileResult,
+  ProfileSearchQuery,
   RefreshBody,
   RefreshResult,
   ResetBody,
@@ -74,6 +76,29 @@ const minutes = (n: number) => `${n} minute${n === 1 ? "" : "s"}`;
 const isDuplicate = (err: unknown, field: string) =>
   err instanceof MongoServerError && err.code === 11000 && Object.hasOwn(err.keyPattern ?? {}, field);
 
+const BIO_LINES = 4;
+
+/**
+ * At most 4 lines, one empty line in a row, no spaces at line ends; lines past the 4th join the 4th.
+ * Also applied on read, for bios saved before the rule.
+ */
+const tidyBio = (bio: string | null | undefined) => {
+  const lines = (bio ?? "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[^\S\n]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .split("\n");
+  const kept = lines.slice(0, BIO_LINES - 1);
+  const rest = lines.slice(BIO_LINES - 1).filter(Boolean).join(" ");
+  return [...kept, ...(rest ? [rest] : [])].join("\n").trim() || null;
+};
+
+const statsOf = (user: UserDoc) => ({
+  posts: Math.max(0, user.social?.posts ?? 0),
+  engagements: Math.max(0, user.social?.engagements ?? 0),
+});
+
 const view = (user: UserDoc): User => ({
   id: user._id.toHexString(),
   phone: user.phone,
@@ -82,8 +107,7 @@ const view = (user: UserDoc): User => ({
   email: user.email ?? null,
   emailVerified: Boolean(user.email && user.emailVerified),
   avatarUrl: user.avatar ?? null,
-  bio: user.bio ?? null,
-  link: user.link ?? null,
+  bio: tidyBio(user.bio),
   dob: user.dob ?? null,
   gender: user.gender ?? null,
   city: user.home?.city ?? null,
@@ -94,6 +118,7 @@ const view = (user: UserDoc): User => ({
     admin: Boolean(user.roles.admin),
   },
   kyc: { base: user.kyc.base ?? "none" },
+  stats: statsOf(user),
   createdAt: user.createdAt.toISOString(),
 });
 
@@ -102,10 +127,10 @@ const publicView = (user: UserDoc): PublicProfile => ({
   name: user.name ?? "",
   username: user.username ?? "",
   avatarUrl: user.avatar ?? null,
-  bio: user.bio ?? null,
-  link: user.link ?? null,
+  bio: tidyBio(user.bio),
   city: user.home?.city ?? null,
   badges: { vendor: Boolean(user.roles.vendor), delivery: Boolean(user.roles.delivery) },
+  stats: statsOf(user),
   memberSince: user.createdAt.toISOString(),
 });
 
@@ -527,7 +552,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: requireAuth,
       schema: {
         tags: ["account"],
-        summary: "Update name, username, email, bio, link, date of birth, gender or city",
+        summary: "Update name, username, email, bio, date of birth, gender or city",
         body: MePatch,
         response: { 200: MeResult, ...Errors },
         security: [{ bearer: [] }, { cookie: [] }],
@@ -535,7 +560,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const db = requireDatabase(app.db);
-      const { name, username, email, bio, link, dob, gender, city } = request.body;
+      const { name, username, email, bio, dob, gender, city } = request.body;
       checkName(name);
       checkDob(dob);
       if (username && isReserved(username)) {
@@ -556,8 +581,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
         unset.email = "";
         unset.emailVerified = "";
       }
-      if (bio !== undefined) set.bio = bio?.trim() || null;
-      if (link !== undefined) set.link = link?.trim() || null;
+      if (bio !== undefined) set.bio = tidyBio(bio);
       if (dob !== undefined) set.dob = dob;
       if (gender !== undefined) set.gender = gender;
       if (city !== undefined) set["home.city"] = city?.trim() ?? null;
@@ -636,6 +660,48 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       if (!before) throw new AppError("UNAUTHENTICATED");
       if (before.avatarKey) await app.photos.remove(before.avatarKey);
       return ok(request, view({ ...before, avatar: null, avatarKey: null, updatedAt: now }));
+    },
+  );
+
+  app.get(
+    "/profiles",
+    {
+      preHandler: requireAuth,
+      config: secured(1, 60),
+      schema: {
+        tags: ["account"],
+        summary: "Find people by username or name, or list the newest members",
+        description:
+          "Signed-in only. Matches usernames that start with `q` and names with a word that starts with `q`, ignoring case; an exact username comes first. " +
+          "Without `q`, the newest members. Leaves out you and deleted accounts.",
+        querystring: ProfileSearchQuery,
+        response: { 200: ProfileList, ...Errors },
+        security: [{ bearer: [] }, { cookie: [] }],
+      },
+    },
+    async (request) => {
+      const { q, limit = 20 } = request.query;
+      const db = requireDatabase(app.db);
+      const listed = { _id: { $ne: request.auth!.userId }, status: { $ne: "deleted" as const }, username: { $type: "string" as const } };
+      if (q === undefined) {
+        const newest = await db.users.find(listed).sort({ createdAt: -1, _id: -1 }).limit(limit).toArray();
+        return page(request, newest.map(publicView), null);
+      }
+      const term = q.trim().toLowerCase().replace(/^@/, "");
+      if (term.length < 2) return page(request, [], null);
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const docs = await db
+        .users.find({
+          _id: { $ne: request.auth!.userId },
+          status: { $ne: "deleted" },
+          username: { $type: "string" },
+          $or: [{ username: { $regex: `^${escaped}` } }, { name: { $regex: `(^|\\s)${escaped}`, $options: "i" } }],
+        })
+        .sort({ username: 1 })
+        .limit(limit)
+        .toArray();
+      const exactFirst = [...docs].sort((a, b) => Number(b.username === term) - Number(a.username === term));
+      return page(request, exactFirst.map(publicView), null);
     },
   );
 
@@ -776,6 +842,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
           { session },
         );
         await db.sessions.updateMany({ userId, revokedAt: null }, { $set: { revokedAt: now, updatedAt: now } }, { session });
+        await db.posts.updateMany({ authorId: userId, status: "live" }, { $set: { status: "deleted", updatedAt: now } }, { session });
         await writeAudit(
           db,
           { actor: { id: userId, kind: "user" }, scope: { module: "account" }, action: "user.delete", target: { type: "user", id: userId }, diff: {}, ip: request.ip },

@@ -20,7 +20,14 @@ export interface Config {
     smtp: { host: string; port: number; user: string; pass: string; from: string } | null;
   };
   /** Profile photos. Null leaves uploads off; they answer PHOTO_UNAVAILABLE. */
-  photos: { bucket: string; publicBaseUrl: string } | null;
+  photos: BucketSettings | null;
+  /** Post photos, in their own public bucket. Null leaves post photos off. */
+  media: BucketSettings | null;
+}
+
+export interface BucketSettings {
+  bucket: string;
+  publicBaseUrl: string;
 }
 
 export class ConfigError extends Error {
@@ -92,10 +99,15 @@ export function loadConfig(env: Env = process.env): Config {
   const smtpPass = read(env, "SMTP_PASS");
   const emailFrom = read(env, "EMAIL_FROM") ?? smtpUser;
 
-  const gcsBucket = read(env, "GCS_BUCKET");
-  if (gcsBucket && !/^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$/.test(gcsBucket)) problems.push("GCS_BUCKET must be a bucket name like ruxstar-profile-pictures");
-  const gcsPublic = read(env, "GCS_PUBLIC_BASE_URL")?.replace(/\/+$/, "");
-  if (gcsPublic && !/^https:\/\/[^\s]+$/.test(gcsPublic)) problems.push("GCS_PUBLIC_BASE_URL must start with https://");
+  const bucketOf = (nameKey: string, urlKey: string, example: string): BucketSettings | null => {
+    const bucket = read(env, nameKey);
+    if (bucket && !/^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$/.test(bucket)) problems.push(`${nameKey} must be a bucket name like ${example}`);
+    const publicBaseUrl = read(env, urlKey)?.replace(/\/+$/, "");
+    if (publicBaseUrl && !/^https:\/\/[^\s]+$/.test(publicBaseUrl)) problems.push(`${urlKey} must start with https://`);
+    return bucket ? { bucket, publicBaseUrl: publicBaseUrl ?? `https://storage.googleapis.com/${bucket}` } : null;
+  };
+  const photos = bucketOf("GCS_BUCKET", "GCS_PUBLIC_BASE_URL", "ruxstar-profile-pictures");
+  const media = bucketOf("GCS_MEDIA_BUCKET", "GCS_MEDIA_PUBLIC_BASE_URL", "ruxstar-post-media");
 
   if (problems.length) throw new ConfigError(problems);
 
@@ -124,6 +136,7 @@ export function loadConfig(env: Env = process.env): Config {
           ? { host: smtpHost, port: smtpPort, user: smtpUser, pass: smtpPass, from: emailFrom }
           : null,
     },
-    photos: gcsBucket ? { bucket: gcsBucket, publicBaseUrl: gcsPublic ?? `https://storage.googleapis.com/${gcsBucket}` } : null,
+    photos,
+    media,
   };
 }

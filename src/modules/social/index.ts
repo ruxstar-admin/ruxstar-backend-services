@@ -1,0 +1,587 @@
+import { randomUUID } from "node:crypto";
+import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
+import type { FastifyReply, FastifyRequest } from "fastify";
+import { MongoServerError, ObjectId, type WithId } from "mongodb";
+import { Errors } from "../../contracts/common.js";
+import { requireAuth } from "../../platform/auth.js";
+import { requireDatabase } from "../../platform/context.js";
+import type { Database, PostCommentDoc, PostDoc, UserDoc } from "../../platform/db.js";
+import { stamp } from "../../platform/db.js";
+import { ok, page } from "../../platform/envelope.js";
+import { AppError } from "../../platform/errors.js";
+import { findPage } from "../../platform/pagination.js";
+import { notifyPostEvent } from "../notifications/notify.js";
+import {
+  CommentCreate,
+  CommentList,
+  CommentResult,
+  Done,
+  IdParams,
+  LikeState,
+  Page,
+  PostCreate,
+  PostList,
+  PostPatch,
+  PostResult,
+  ReportBody,
+  SaveState,
+  UploadResult,
+  UserParams,
+  UserPostsQuery,
+  type Comment,
+  type Post,
+} from "./contracts.js";
+import { POST_PHOTO_MAX_BYTES, toPostPhoto } from "./photos.js";
+
+type Security = Record<string, string[]>[];
+const security: Security = [{ bearer: [] }, { cookie: [] }];
+const signedInOrNot: Security = [{}, { bearer: [] }, { cookie: [] }];
+const limit = (perMinutes: number, max: number) => ({ rateLimit: { max, timeWindow: perMinutes * 60_000 } });
+/** Uploaded photos that never made it into a post are deleted after a day. */
+const STALE_UPLOAD_MS = 24 * 60 * 60_000;
+
+type AuthorFields = Pick<UserDoc, "_id" | "name" | "username" | "avatar" | "roles">;
+const AUTHOR_PROJECTION = { name: 1, username: 1, avatar: 1, "roles.vendor": 1 } as const;
+
+const authorView = (user: AuthorFields) => ({
+  id: user._id.toHexString(),
+  name: user.name ?? "",
+  username: user.username ?? "",
+  avatarUrl: user.avatar ?? null,
+  vendor: Boolean(user.roles?.vendor),
+});
+
+/** One empty line in a row at most, no spaces at line ends. */
+const tidy = (text: string) =>
+  text
+    .replace(/\r\n?/g, "\n")
+    .replace(/[^\S\n]+$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+/** Public reads show likes and saves for whoever is signed in, and work for anyone who is not. */
+async function signedInIfPossible(request: FastifyRequest): Promise<void> {
+  try {
+    await requireAuth(request);
+  } catch (err) {
+    if (!(err instanceof AppError) || err.code !== "UNAUTHENTICATED") throw err;
+    request.auth = null;
+  }
+}
+
+async function authorsOf(db: Database, ids: ObjectId[]) {
+  const unique = [...new Map(ids.map((id) => [id.toHexString(), id])).values()];
+  const users = await db.users
+    .find({ _id: { $in: unique }, status: { $ne: "deleted" } }, { projection: AUTHOR_PROJECTION })
+    .toArray();
+  return new Map(users.map((u) => [u._id.toHexString(), authorView(u as AuthorFields)]));
+}
+
+/** Two reads for a whole page, whatever its size: the authors, and your likes and saves. Posts by deleted accounts drop out. */
+async function present(db: Database, posts: WithId<PostDoc>[], me: ObjectId | null): Promise<Post[]> {
+  if (posts.length === 0) return [];
+  const [authors, reactions] = await Promise.all([
+    authorsOf(db, posts.map((p) => p.authorId)),
+    me
+      ? db.postReactions.find({ userId: me, postId: { $in: posts.map((p) => p._id) } }, { projection: { postId: 1, kind: 1 } }).toArray()
+      : Promise.resolve([]),
+  ]);
+  const mark = new Set(reactions.map((r) => `${r.postId.toHexString()}:${r.kind}`));
+  return posts.flatMap((post) => {
+    const author = authors.get(post.authorId.toHexString());
+    if (!author) return [];
+    const id = post._id.toHexString();
+    return [
+      {
+        id,
+        author,
+        kind: post.kind,
+        text: post.text,
+        media: post.media.map(({ url, width, height }) => ({ url, width, height })),
+        counts: { likes: post.counts.likes, comments: post.counts.comments },
+        createdAt: post.createdAt.toISOString(),
+        editedAt: post.editedAt?.toISOString() ?? null,
+        likedByMe: mark.has(`${id}:like`),
+        savedByMe: mark.has(`${id}:save`),
+        mine: !!me && post.authorId.equals(me),
+      },
+    ];
+  });
+}
+
+async function presentComments(db: Database, comments: WithId<PostCommentDoc>[], me: ObjectId | null): Promise<Comment[]> {
+  const authors = await authorsOf(db, comments.map((c) => c.authorId));
+  return comments.flatMap((comment) => {
+    const author = authors.get(comment.authorId.toHexString());
+    if (!author) return [];
+    return [{ id: comment._id.toHexString(), author, text: comment.text, createdAt: comment.createdAt.toISOString(), mine: !!me && comment.authorId.equals(me) }];
+  });
+}
+
+const removed = () => new AppError("NOT_FOUND", "This post was removed.");
+
+async function livePost(db: Database, id: string) {
+  const post = await db.posts.findOne({ _id: new ObjectId(id), status: "live" });
+  if (!post) throw removed();
+  return post;
+}
+
+const isDuplicate = (err: unknown) => err instanceof MongoServerError && err.code === 11000;
+
+const social: FastifyPluginAsyncTypebox = async (app) => {
+  app.addContentTypeParser(/^image\//, { parseAs: "buffer", bodyLimit: POST_PHOTO_MAX_BYTES }, (_request, body, done) => done(null, body));
+
+  const me = (request: FastifyRequest) => request.auth?.userId ?? null;
+  const nameOf = async (db: Database, userId: ObjectId) =>
+    (await db.users.findOne({ _id: userId }, { projection: { name: 1 } }))?.name ?? "Someone";
+  // A cached anonymous answer must not be reused once someone signs in: it would show "not liked".
+  const publicCache = (request: FastifyRequest, reply: FastifyReply) => {
+    const vary = reply.getHeader("vary");
+    reply.header("vary", [vary, "Cookie, Authorization"].filter(Boolean).join(", "));
+    reply.header("cache-control", request.auth ? "private, no-store" : "public, max-age=30");
+  };
+
+  app.get(
+    "/feed",
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ["social"],
+        summary: "Everyone's posts, newest first",
+        querystring: Page,
+        response: { 200: PostList, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const db = requireDatabase(app.db);
+      const { items, nextCursor } = await findPage(db.posts, {
+        filter: { status: "live" },
+        sortField: "createdAt",
+        cursor: request.query.cursor,
+        limit: request.query.limit,
+      });
+      return page(request, await present(db, items, me(request)), nextCursor);
+    },
+  );
+
+  app.get(
+    "/users/:ref/posts",
+    {
+      preHandler: signedInIfPossible,
+      schema: {
+        tags: ["social"],
+        summary: "Someone's posts on one profile tab, newest first",
+        description: "No sign-in needed. `kind` is personal (the default) or business; only vendors have business posts.",
+        params: UserParams,
+        querystring: UserPostsQuery,
+        response: { 200: PostList, ...Errors },
+        security: signedInOrNot,
+      },
+    },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const ref = request.params.ref.toLowerCase();
+      const user = await db.users.findOne(
+        { ...(/^[0-9a-f]{24}$/.test(ref) ? { _id: new ObjectId(ref) } : { username: ref }), status: { $ne: "deleted" } },
+        { projection: { _id: 1, username: 1 } },
+      );
+      if (!user?.username) throw new AppError("NOT_FOUND", "No one has that username.");
+      const { items, nextCursor } = await findPage(db.posts, {
+        filter: { authorId: user._id, kind: request.query.kind ?? "personal", status: "live" },
+        sortField: "createdAt",
+        cursor: request.query.cursor,
+        limit: request.query.limit,
+      });
+      publicCache(request, reply);
+      return page(request, await present(db, items, me(request)), nextCursor);
+    },
+  );
+
+  app.get(
+    "/saved",
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ["social"],
+        summary: "Posts you saved, most recently saved first",
+        querystring: Page,
+        response: { 200: PostList, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const db = requireDatabase(app.db);
+      const { items, nextCursor } = await findPage(db.postReactions, {
+        filter: { userId: request.auth!.userId, kind: "save" },
+        sortField: "createdAt",
+        cursor: request.query.cursor,
+        limit: request.query.limit,
+      });
+      const posts = await db.posts.find({ _id: { $in: items.map((r) => r.postId) }, status: "live" }).toArray();
+      const byId = new Map(posts.map((p) => [p._id.toHexString(), p]));
+      const ordered = items.flatMap((r) => byId.get(r.postId.toHexString()) ?? []);
+      return page(request, await present(db, ordered, me(request)), nextCursor);
+    },
+  );
+
+  app.get(
+    "/posts/:id",
+    {
+      preHandler: signedInIfPossible,
+      schema: {
+        tags: ["social"],
+        summary: "One post",
+        description: "No sign-in needed. Removed posts, and posts by deleted accounts, answer NOT_FOUND.",
+        params: IdParams,
+        response: { 200: PostResult, ...Errors },
+        security: signedInOrNot,
+      },
+    },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const [post] = await present(db, [await livePost(db, request.params.id)], me(request));
+      if (!post) throw removed();
+      publicCache(request, reply);
+      return ok(request, post);
+    },
+  );
+
+  app.post(
+    "/media",
+    {
+      preHandler: requireAuth,
+      config: limit(60, 60),
+      schema: {
+        tags: ["social"],
+        summary: "Upload one photo for a post you are about to make",
+        description:
+          "Send the image itself with Content-Type image/jpeg, image/png or image/webp, up to 8 MB. It is saved as WebP, at most " +
+          "1440 pixels on its long side, without its metadata. Pass the returned id in `mediaIds` when creating the post. " +
+          "Photos not used in a post within a day are deleted.",
+        response: { 201: UploadResult, ...Errors },
+        security,
+      },
+    },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const userId = request.auth!.userId;
+      if (!Buffer.isBuffer(request.body) || request.body.length === 0) throw new AppError("PHOTO_INVALID");
+      const photo = await toPostPhoto(request.body);
+      const key = `post-media/${app.config.env}/${userId.toHexString()}/${randomUUID()}.webp`;
+      const url = await app.media.save(key, photo.data);
+      const _id = new ObjectId();
+      await db.postMedia.insertOne({ _id, userId, postId: null, key, url, width: photo.width, height: photo.height, createdAt: new Date() });
+      void sweepStaleUploads(db, userId);
+      return reply.status(201).send(ok(request, { id: _id.toHexString(), url, width: photo.width, height: photo.height }));
+    },
+  );
+
+  async function sweepStaleUploads(db: Database, userId: ObjectId) {
+    try {
+      const stale = await db.postMedia
+        .find({ userId, postId: null, createdAt: { $lt: new Date(Date.now() - STALE_UPLOAD_MS) } }, { projection: { key: 1 } })
+        .limit(20)
+        .toArray();
+      await Promise.all(stale.map((m) => app.media.remove(m.key)));
+      if (stale.length) await db.postMedia.deleteMany({ _id: { $in: stale.map((m) => m._id) }, postId: null });
+    } catch (err) {
+      app.log.warn({ err: (err as Error).message }, "Unused post photos not swept");
+    }
+  }
+
+  app.post(
+    "/posts",
+    {
+      preHandler: requireAuth,
+      config: limit(60, 30),
+      schema: {
+        tags: ["social"],
+        summary: "Make a post: text, up to 4 photos, or both",
+        description: "Upload photos first with POST /media. `kind: business` is for vendors, from the vendor portal.",
+        body: PostCreate,
+        response: { 201: PostResult, ...Errors },
+        security,
+      },
+    },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const auth = request.auth!;
+      const text = tidy(request.body.text);
+      const mediaIds = (request.body.mediaIds ?? []).map((id) => new ObjectId(id));
+      const kind = request.body.kind ?? "personal";
+      if (!text && mediaIds.length === 0) {
+        throw new AppError("VALIDATION_FAILED", "Write something or add a photo.", [{ path: "body/text", message: "Empty post" }]);
+      }
+      if (kind === "business" && !auth.roles.vendor) throw new AppError("FORBIDDEN", "Only vendors can post as a business.");
+
+      const postId = new ObjectId();
+      if (mediaIds.length) {
+        const claimed = await db.postMedia.updateMany(
+          { _id: { $in: mediaIds }, userId: auth.userId, postId: null },
+          { $set: { postId } },
+        );
+        if (claimed.modifiedCount !== mediaIds.length) {
+          await db.postMedia.updateMany({ postId }, { $set: { postId: null } });
+          throw new AppError("VALIDATION_FAILED", "Some photos are no longer available. Add them again.", [
+            { path: "body/mediaIds", message: "Unknown or used photo" },
+          ]);
+        }
+      }
+      const media = mediaIds.length ? await db.postMedia.find({ _id: { $in: mediaIds } }).toArray() : [];
+      const byId = new Map(media.map((m) => [m._id.toHexString(), m]));
+      const now = new Date();
+      const doc: PostDoc = {
+        _id: postId,
+        authorId: auth.userId,
+        kind,
+        text,
+        media: mediaIds.map((id) => {
+          const { key, url, width, height } = byId.get(id.toHexString())!;
+          return { key, url, width, height };
+        }),
+        counts: { likes: 0, comments: 0 },
+        status: "live",
+        editedAt: null,
+        ...stamp(now),
+      };
+      await db.posts.insertOne(doc);
+      await db.users.updateOne({ _id: auth.userId }, { $inc: { "social.posts": 1 } });
+      const [post] = await present(db, [doc], auth.userId);
+      return reply.status(201).send(ok(request, post!));
+    },
+  );
+
+  app.patch(
+    "/posts/:id",
+    {
+      preHandler: requireAuth,
+      config: limit(10, 30),
+      schema: {
+        tags: ["social"],
+        summary: "Change the text of your post",
+        params: IdParams,
+        body: PostPatch,
+        response: { 200: PostResult, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const db = requireDatabase(app.db);
+      const userId = request.auth!.userId;
+      const post = await livePost(db, request.params.id);
+      if (!post.authorId.equals(userId)) throw new AppError("FORBIDDEN", "You can only edit your own posts.");
+      const text = tidy(request.body.text);
+      if (!text && post.media.length === 0) {
+        throw new AppError("VALIDATION_FAILED", "Write something, or delete the post.", [{ path: "body/text", message: "Empty post" }]);
+      }
+      const now = new Date();
+      const updated = await db.posts.findOneAndUpdate(
+        { _id: post._id, status: "live" },
+        { $set: { text, editedAt: now, updatedAt: now } },
+        { returnDocument: "after" },
+      );
+      if (!updated) throw removed();
+      const [view] = await present(db, [updated], userId);
+      return ok(request, view!);
+    },
+  );
+
+  app.delete(
+    "/posts/:id",
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ["social"],
+        summary: "Delete your post, its photos, likes, saves and comments",
+        params: IdParams,
+        response: { 200: Done, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const db = requireDatabase(app.db);
+      const userId = request.auth!.userId;
+      const post = await livePost(db, request.params.id);
+      if (!post.authorId.equals(userId)) throw new AppError("FORBIDDEN", "You can only delete your own posts.");
+      const gone = await db.posts.findOneAndUpdate(
+        { _id: post._id, status: "live" },
+        { $set: { status: "deleted", media: [], updatedAt: new Date() } },
+        { returnDocument: "before" },
+      );
+      if (!gone) throw removed();
+      await Promise.all([
+        db.users.updateOne(
+          { _id: userId },
+          { $inc: { "social.posts": -1, "social.engagements": -(gone.counts.likes + gone.counts.comments) } },
+        ),
+        db.postReactions.deleteMany({ postId: gone._id }),
+        db.postComments.updateMany({ postId: gone._id }, { $set: { status: "deleted" } }),
+        db.postMedia.deleteMany({ postId: gone._id }),
+        ...gone.media.map((m) => app.media.remove(m.key)),
+      ]);
+      return ok(request, { done: true as const });
+    },
+  );
+
+  // `params` is checked by IdParams in the route schema.
+  const react = (kind: "like" | "save", on: boolean) => async (request: FastifyRequest) => {
+    const db = requireDatabase(app.db);
+    const userId = request.auth!.userId;
+    const post = await livePost(db, (request.params as { id: string }).id);
+    let changed = false;
+    if (on) {
+      try {
+        await db.postReactions.insertOne({ postId: post._id, userId, kind, createdAt: new Date() });
+        changed = true;
+      } catch (err) {
+        if (!isDuplicate(err)) throw err;
+      }
+    } else {
+      changed = (await db.postReactions.deleteOne({ postId: post._id, userId, kind })).deletedCount === 1;
+    }
+    if (kind === "save") return ok(request, { savedByMe: on });
+
+    let likes = post.counts.likes;
+    if (changed) {
+      const step = on ? 1 : -1;
+      const after = await db.posts.findOneAndUpdate({ _id: post._id }, { $inc: { "counts.likes": step } }, { returnDocument: "after", projection: { counts: 1 } });
+      likes = after?.counts.likes ?? likes + step;
+      await db.users.updateOne({ _id: post.authorId }, { $inc: { "social.engagements": step } });
+      if (on) void notifyPostEvent(db, app.log, { type: "post.like", to: post.authorId, actor: { id: userId, name: await nameOf(db, userId) }, postId: post._id });
+    }
+    return ok(request, { likes, likedByMe: on });
+  };
+
+  for (const [kind, Result] of [["like", LikeState], ["save", SaveState]] as const) {
+    const schema = (summary: string) => ({ tags: ["social"], summary, params: IdParams, response: { 200: Result, ...Errors }, security });
+    app.put(`/posts/:id/${kind}`, { preHandler: requireAuth, config: limit(1, 120), schema: schema(kind === "like" ? "Like a post" : "Save a post") }, react(kind, true));
+    app.delete(`/posts/:id/${kind}`, { preHandler: requireAuth, config: limit(1, 120), schema: schema(kind === "like" ? "Take back a like" : "Remove from saved") }, react(kind, false));
+  }
+
+  app.get(
+    "/posts/:id/comments",
+    {
+      preHandler: signedInIfPossible,
+      schema: {
+        tags: ["social"],
+        summary: "A post's comments, newest first",
+        description: "No sign-in needed.",
+        params: IdParams,
+        querystring: Page,
+        response: { 200: CommentList, ...Errors },
+        security: signedInOrNot,
+      },
+    },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const post = await livePost(db, request.params.id);
+      const { items, nextCursor } = await findPage(db.postComments, {
+        filter: { postId: post._id, status: "live" },
+        sortField: "createdAt",
+        cursor: request.query.cursor,
+        limit: request.query.limit,
+      });
+      publicCache(request, reply);
+      return page(request, await presentComments(db, items, me(request)), nextCursor);
+    },
+  );
+
+  app.post(
+    "/posts/:id/comments",
+    {
+      preHandler: requireAuth,
+      config: limit(10, 40),
+      schema: {
+        tags: ["social"],
+        summary: "Comment on a post",
+        params: IdParams,
+        body: CommentCreate,
+        response: { 201: CommentResult, ...Errors },
+        security,
+      },
+    },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const userId = request.auth!.userId;
+      const text = tidy(request.body.text);
+      if (!text) throw new AppError("VALIDATION_FAILED", "Write a comment first.", [{ path: "body/text", message: "Empty comment" }]);
+      const post = await livePost(db, request.params.id);
+      const doc: PostCommentDoc = { _id: new ObjectId(), postId: post._id, authorId: userId, text, status: "live", ...stamp() };
+      await db.postComments.insertOne(doc);
+      await Promise.all([
+        db.posts.updateOne({ _id: post._id }, { $inc: { "counts.comments": 1 } }),
+        db.users.updateOne({ _id: post.authorId }, { $inc: { "social.engagements": 1 } }),
+      ]);
+      const [comment] = await presentComments(db, [doc], userId);
+      void notifyPostEvent(db, app.log, { type: "post.comment", to: post.authorId, actor: { id: userId, name: comment!.author.name }, postId: post._id, excerpt: text });
+      return reply.status(201).send(ok(request, comment!));
+    },
+  );
+
+  app.delete(
+    "/comments/:id",
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ["social"],
+        summary: "Delete a comment: your own, or any on your post",
+        params: IdParams,
+        response: { 200: Done, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const db = requireDatabase(app.db);
+      const userId = request.auth!.userId;
+      const comment = await db.postComments.findOne({ _id: new ObjectId(request.params.id), status: "live" });
+      if (!comment) throw new AppError("NOT_FOUND", "This comment was removed.");
+      const post = await db.posts.findOne({ _id: comment.postId }, { projection: { authorId: 1, status: 1 } });
+      if (!comment.authorId.equals(userId) && !post?.authorId.equals(userId)) throw new AppError("FORBIDDEN", "You can only delete your own comments.");
+      const result = await db.postComments.updateOne({ _id: comment._id, status: "live" }, { $set: { status: "deleted", updatedAt: new Date() } });
+      if (result.modifiedCount === 1 && post?.status === "live") {
+        await Promise.all([
+          db.posts.updateOne({ _id: comment.postId }, { $inc: { "counts.comments": -1 } }),
+          db.users.updateOne({ _id: post.authorId }, { $inc: { "social.engagements": -1 } }),
+        ]);
+      }
+      return ok(request, { done: true as const });
+    },
+  );
+
+  app.post(
+    "/posts/:id/report",
+    {
+      preHandler: requireAuth,
+      config: limit(60, 30),
+      schema: {
+        tags: ["social"],
+        summary: "Report a post to Ruxstar",
+        description: "Reporting the same post again changes nothing.",
+        params: IdParams,
+        body: ReportBody,
+        response: { 200: Done, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const db = requireDatabase(app.db);
+      const post = await livePost(db, request.params.id);
+      await db.reports.updateOne(
+        { "target.id": post._id, userId: request.auth!.userId },
+        {
+          $setOnInsert: {
+            "target.type": "post",
+            reason: request.body.reason as never,
+            status: "open",
+            createdAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
+      return ok(request, { done: true as const });
+    },
+  );
+};
+
+export default social;

@@ -40,7 +40,6 @@ export interface UserDoc extends Stamped {
   /** Bucket object behind `avatar`, kept so a replaced or removed photo can be deleted. */
   avatarKey?: string | null;
   bio?: string | null;
-  link?: string | null;
   status: "active" | "locked" | "deleted";
   /**
    * Set when the user deletes the account. Phone, username and email move here so others can take
@@ -54,6 +53,76 @@ export interface UserDoc extends Stamped {
   consent?: { termsVersion: string; acceptedAt: Date };
   home?: { city: string | null };
   prefs?: Record<string, unknown>;
+  /** Counters kept by Social: live posts, and likes plus comments those posts have received. */
+  social?: { posts?: number; engagements?: number };
+}
+
+export type PostKind = "personal" | "business";
+
+export interface PostPhoto {
+  key: string;
+  url: string;
+  width: number;
+  height: number;
+}
+
+/** Authors are read from `users` when posts are shown, so a new name or photo shows everywhere at once. */
+export interface PostDoc extends Stamped {
+  _id: ObjectId;
+  authorId: ObjectId;
+  kind: PostKind;
+  text: string;
+  media: PostPhoto[];
+  counts: { likes: number; comments: number };
+  status: "live" | "deleted";
+  editedAt: Date | null;
+}
+
+/** A photo uploaded for a post. Unused ones are deleted a day later, on the uploader's next upload. */
+export interface PostMediaDoc extends PostPhoto {
+  _id: ObjectId;
+  userId: ObjectId;
+  postId: ObjectId | null;
+  createdAt: Date;
+}
+
+export interface PostReactionDoc {
+  _id?: ObjectId;
+  postId: ObjectId;
+  userId: ObjectId;
+  kind: "like" | "save";
+  createdAt: Date;
+}
+
+export interface PostCommentDoc extends Stamped {
+  _id: ObjectId;
+  postId: ObjectId;
+  authorId: ObjectId;
+  text: string;
+  status: "live" | "deleted";
+}
+
+export type ReportReason = "spam" | "fake" | "abuse" | "undelivered" | "other";
+
+export interface ReportDoc {
+  _id?: ObjectId;
+  target: { type: "post"; id: ObjectId };
+  userId: ObjectId;
+  reason: ReportReason;
+  status: "open" | "closed";
+  createdAt: Date;
+}
+
+export interface NotificationDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  type: "post.like" | "post.comment";
+  actorId: ObjectId;
+  title: string;
+  body: string;
+  link: { screen: "post"; id: string };
+  readAt: Date | null;
+  createdAt: Date;
 }
 
 export interface SessionDoc extends Stamped {
@@ -181,6 +250,24 @@ export class Database {
   }
   get platformSettings() {
     return this.db.collection<PlatformSettingDoc>("platform_settings");
+  }
+  get posts() {
+    return this.db.collection<PostDoc>("posts");
+  }
+  get postMedia() {
+    return this.db.collection<PostMediaDoc>("post_media");
+  }
+  get postReactions() {
+    return this.db.collection<PostReactionDoc>("post_reactions");
+  }
+  get postComments() {
+    return this.db.collection<PostCommentDoc>("post_comments");
+  }
+  get reports() {
+    return this.db.collection<ReportDoc>("reports");
+  }
+  get notifications() {
+    return this.db.collection<NotificationDoc>("notifications");
   }
 
   /** Runs `work` in a majority-committed transaction, retrying transient errors. */

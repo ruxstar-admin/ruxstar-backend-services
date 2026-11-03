@@ -19,6 +19,11 @@ const Device = {
   deviceName: Type.Optional(Type.String({ minLength: 1, maxLength: 60, description: "Apps only, for example \"Pixel 8\"" })),
 };
 
+const Stats = Strict({
+  posts: Type.Integer({ description: "Live posts, both tabs" }),
+  engagements: Type.Integer({ description: "Likes and comments the posts have received" }),
+});
+
 export const User = Strict({
   id: ObjectIdString,
   phone: Type.String({ description: "E.164, for example +919876543210" }),
@@ -28,7 +33,6 @@ export const User = Strict({
   emailVerified: Type.Boolean({ description: "False until the code sent by POST /email/code is entered" }),
   avatarUrl: Nullable(Type.String({ description: "512 x 512 WebP. Null until a photo is added." })),
   bio: Nullable(Type.String()),
-  link: Nullable(Type.String()),
   dob: Nullable(Type.String({ format: "date" })),
   gender: Nullable(Gender),
   city: Nullable(Type.String()),
@@ -39,6 +43,7 @@ export const User = Strict({
     admin: Type.Boolean(),
   }),
   kyc: Strict({ base: Type.String() }),
+  stats: Stats,
   createdAt: DateTime,
 });
 export type User = Static<typeof User>;
@@ -119,7 +124,6 @@ export const MePatch = Strict(
     username: Type.Optional(Username),
     email: Type.Optional(Nullable(Email)),
     bio: Type.Optional(Nullable(Type.String({ maxLength: 160 }))),
-    link: Type.Optional(Nullable(Type.String({ format: "uri", pattern: "^https?://", maxLength: 200 }))),
     dob: Type.Optional(Nullable(Type.String({ format: "date" }))),
     gender: Type.Optional(Nullable(Gender)),
     city: Type.Optional(Nullable(Type.String({ minLength: 2, maxLength: 60 }))),
@@ -158,9 +162,9 @@ export const PublicProfile = Strict({
   username: Type.String(),
   avatarUrl: Nullable(Type.String()),
   bio: Nullable(Type.String()),
-  link: Nullable(Type.String()),
   city: Nullable(Type.String()),
   badges: Strict({ vendor: Type.Boolean(), delivery: Type.Boolean() }),
+  stats: Stats,
   memberSince: DateTime,
 });
 export type PublicProfile = Static<typeof PublicProfile>;
@@ -168,6 +172,11 @@ export const ProfileResult = Envelope(PublicProfile);
 export const ProfileParams = Strict({
   ref: Type.String({ minLength: 3, maxLength: 24, description: "A username, or a user id" }),
 });
+export const ProfileSearchQuery = Strict({
+  q: Type.Optional(Type.String({ minLength: 2, maxLength: 40, description: "The start of a username, or of any word in a name. Leave out for the newest members." })),
+  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 20, default: 20 })),
+});
+export const ProfileList = ListEnvelope(PublicProfile);
 
 export const Session = Strict({
   id: ObjectIdString,

@@ -2,6 +2,8 @@ import type { Database, ModuleSettingsDoc, SwitchableModule } from "./db.js";
 import { stamp } from "./db.js";
 
 export const SWITCHABLE_MODULES: readonly SwitchableModule[] = ["pod", "events", "coaching", "stays", "delivery", "ledger"];
+/** Notifications are deleted after this many days. */
+export const NOTIFICATION_DAYS = 90;
 
 export async function ensurePlatformIndexes(db: Database): Promise<void> {
   await Promise.all([
@@ -28,6 +30,20 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.auditLogs.createIndex({ "actor.id": 1, at: -1 }),
     db.auditLogs.createIndex({ "target.id": 1, at: -1 }),
     db.idempotencyKeys.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    db.users.createIndex({ createdAt: -1, _id: -1 }),
+    // The feed, and one person's posts on one tab.
+    db.posts.createIndex({ status: 1, createdAt: -1, _id: -1 }),
+    db.posts.createIndex({ authorId: 1, kind: 1, status: 1, createdAt: -1, _id: -1 }),
+    db.postMedia.createIndex({ userId: 1, postId: 1, createdAt: 1 }),
+    db.postReactions.createIndex({ postId: 1, userId: 1, kind: 1 }, { unique: true }),
+    db.postReactions.createIndex({ userId: 1, kind: 1, createdAt: -1, _id: -1 }),
+    db.postComments.createIndex({ postId: 1, status: 1, createdAt: -1, _id: -1 }),
+    db.reports.createIndex({ "target.id": 1, userId: 1 }, { unique: true }),
+    db.reports.createIndex({ status: 1, createdAt: -1 }),
+    db.notifications.createIndex({ userId: 1, createdAt: -1, _id: -1 }),
+    db.notifications.createIndex({ userId: 1, readAt: 1 }),
+    db.notifications.createIndex({ userId: 1, type: 1, "link.id": 1, actorId: 1 }),
+    db.notifications.createIndex({ createdAt: 1 }, { expireAfterSeconds: NOTIFICATION_DAYS * 24 * 60 * 60 }),
   ]);
 }
 

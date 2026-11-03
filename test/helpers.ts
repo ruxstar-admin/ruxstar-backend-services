@@ -23,6 +23,8 @@ export interface Stack {
   emails: Map<string, string>;
   /** Saved photos by object key; deleted keys are removed. */
   photos: Map<string, Buffer>;
+  /** Saved post photos by object key, in their own bucket. */
+  media: Map<string, Buffer>;
   stop: () => Promise<void>;
 }
 
@@ -57,15 +59,20 @@ export async function startStack(extend?: (app: App) => void, { rateLimit = fals
   const emails = new Map<string, string>();
   const email: EmailSender = { sendCode: async (to, code) => void emails.set(to, code) };
   const geocoder: Geocoder = { cityAt: async () => "Hyderabad" };
-  const saved = new Map<string, Buffer>();
-  const photos: PhotoStore = {
-    save: async (key, data) => {
-      saved.set(key, data);
-      return `https://photos.test/${key}`;
-    },
-    remove: async (key) => void saved.delete(key),
+  const fakeBucket = (host: string) => {
+    const objects = new Map<string, Buffer>();
+    const store: PhotoStore = {
+      save: async (key, data) => {
+        objects.set(key, data);
+        return `https://${host}/${key}`;
+      },
+      remove: async (key) => void objects.delete(key),
+    };
+    return { objects, store };
   };
-  const app = await buildApp({ config, db, logger: false, sms, email, geocoder, photos, rateLimit });
+  const profilePhotos = fakeBucket("photos.test");
+  const postMedia = fakeBucket("media.test");
+  const app = await buildApp({ config, db, logger: false, sms, email, geocoder, photos: profilePhotos.store, media: postMedia.store, rateLimit });
   extend?.(app);
   await app.ready();
 
@@ -75,7 +82,8 @@ export async function startStack(extend?: (app: App) => void, { rateLimit = fals
     texts,
     sms: smsLog,
     emails,
-    photos: saved,
+    photos: profilePhotos.objects,
+    media: postMedia.objects,
     stop: async () => {
       await app.close();
       await replSet.stop();

@@ -6,6 +6,7 @@ substitutions:
   _RUXSTAR_ENV: dev
   _MONGODB_DB: ruxstar_dev
   _GCS_BUCKET: ruxstar-profile-pictures
+  _GCS_MEDIA_BUCKET: ruxstar-post-media
   _CORS_ORIGINS: https://ruxstar.com,https://www.ruxstar.com
 
 steps:
@@ -36,7 +37,7 @@ steps:
       - --port=8080
       - --allow-unauthenticated
       - --service-account=${_RUNTIME_SA}
-      - --set-env-vars=^@^NODE_ENV=production@RUXSTAR_ENV=${_RUXSTAR_ENV}@MONGODB_DB=${_MONGODB_DB}@GCS_BUCKET=${_GCS_BUCKET}@LOG_LEVEL=info@CORS_ORIGINS=${_CORS_ORIGINS}
+      - --set-env-vars=^@^NODE_ENV=production@RUXSTAR_ENV=${_RUXSTAR_ENV}@MONGODB_DB=${_MONGODB_DB}@GCS_BUCKET=${_GCS_BUCKET}@GCS_MEDIA_BUCKET=${_GCS_MEDIA_BUCKET}@LOG_LEVEL=info@CORS_ORIGINS=${_CORS_ORIGINS}
       - --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest
 
 images:

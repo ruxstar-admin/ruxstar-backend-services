@@ -1,6 +1,6 @@
 import { Storage, type Bucket } from "@google-cloud/storage";
 import type { FastifyBaseLogger } from "fastify";
-import type { Config } from "../config.js";
+import type { BucketSettings, Config } from "../config.js";
 import { AppError } from "../platform/errors.js";
 
 export interface PhotoStore {
@@ -15,7 +15,7 @@ class GcsPhotos implements PhotoStore {
   private readonly bucket: Bucket;
 
   constructor(
-    private readonly settings: NonNullable<Config["photos"]>,
+    private readonly settings: BucketSettings,
     private readonly log: FastifyBaseLogger,
   ) {
     this.bucket = new Storage().bucket(settings.bucket);
@@ -55,5 +55,11 @@ class UnavailablePhotos implements PhotoStore {
 export function createPhotoStore(config: Config, log: FastifyBaseLogger): PhotoStore {
   if (config.photos) return new GcsPhotos(config.photos, log);
   log.warn("GCS_BUCKET is not set. Profile photos cannot be uploaded.");
+  return new UnavailablePhotos();
+}
+
+export function createMediaStore(config: Config, log: FastifyBaseLogger): PhotoStore {
+  if (config.media) return new GcsPhotos(config.media, log);
+  log.warn("GCS_MEDIA_BUCKET is not set. Posts cannot have photos.");
   return new UnavailablePhotos();
 }

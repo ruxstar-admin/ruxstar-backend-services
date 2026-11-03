@@ -334,11 +334,14 @@ describe("full signup", () => {
     const patch = (payload: object) => stack.app.inject({ method: "PATCH", url: "/v1/account/me", headers: WEB, cookies, payload });
     expect((await patch({ email: `asha.${Date.now()}@example.com` })).json().data.email).toMatch(/@example\.com$/);
     expect((await patch({ email: null })).json().data.email).toBeNull();
-    expect((await patch({ bio: "Prints zines.", link: "https://asha.example.com" })).json().data).toMatchObject({
-      bio: "Prints zines.",
-      link: "https://asha.example.com",
-    });
-    expect((await patch({ link: "javascript:alert(1)" })).statusCode).toBe(400);
+    const updated = (await patch({ bio: "Prints zines." })).json().data;
+    expect(updated.bio).toBe("Prints zines.");
+    expect(updated).not.toHaveProperty("link");
+    expect((await patch({ link: "https://asha.example.com" })).statusCode).toBe(400);
+    const spaced = (await patch({ bio: "Prints zines.  \r\n\n\n\n\nMakes posters.\n\n" })).json().data;
+    expect(spaced.bio).toBe("Prints zines.\n\nMakes posters.");
+    const long = (await patch({ bio: "One\nTwo\n\nThree\n\nFour" })).json().data;
+    expect(long.bio).toBe("One\nTwo\n\nThree Four");
   });
 });
 
@@ -656,7 +659,8 @@ describe("profile photos and public profiles", () => {
     expect(byName.statusCode).toBe(200);
     expect(byName.headers["cache-control"]).toBe("public, max-age=60");
     const profile = byName.json().data;
-    expect(Object.keys(profile).sort()).toEqual(["avatarUrl", "badges", "bio", "city", "id", "link", "memberSince", "name", "username"]);
+    expect(Object.keys(profile).sort()).toEqual(["avatarUrl", "badges", "bio", "city", "id", "memberSince", "name", "stats", "username"]);
+    expect(profile.stats).toEqual({ posts: 0, engagements: 0 });
     expect(profile).toMatchObject({ id: user.id, name: "Asha Rao", bio: "Bakes on weekends", city: "Pune", badges: { vendor: false, delivery: false } });
     expect(profile.avatarUrl).toMatch(/\.webp$/);
 
@@ -665,6 +669,36 @@ describe("profile photos and public profiles", () => {
 
     const missing = await stack.app.inject({ method: "GET", url: "/v1/account/profiles/no.such.person", headers: WEB });
     expect(missing.json().error.code).toBe("NOT_FOUND");
+  });
+
+  it("finds people by the start of a username or of a word in their name, never yourself", async () => {
+    const searcher = cookieMap((await signUp()).res).rx_at!;
+    const { res } = await signUp();
+    const found = cookieMap(res).rx_at!;
+    const handle = `kt${Date.now().toString(36)}`;
+    await stack.app.inject({
+      method: "PATCH",
+      url: "/v1/account/me",
+      headers: WEB,
+      cookies: { rx_at: found },
+      payload: { name: "Kavya Thakkar", username: handle },
+    });
+    const search = (q: string, at?: string) =>
+      stack.app.inject({ method: "GET", url: `/v1/account/profiles?q=${encodeURIComponent(q)}`, headers: APP, ...(at ? { cookies: { rx_at: at } } : {}) });
+    const usernames = async (q: string, at = searcher) => ((await search(q, at)).json().data as { username: string }[]).map((p) => p.username);
+
+    const exact = (await search(handle, searcher)).json().data;
+    expect(exact[0].username).toBe(handle);
+    expect(Object.keys(exact[0]).sort()).toEqual(["avatarUrl", "badges", "bio", "city", "id", "memberSince", "name", "stats", "username"]);
+    const newest = (await stack.app.inject({ method: "GET", url: "/v1/account/profiles", headers: APP, cookies: { rx_at: searcher } })).json().data;
+    expect(newest[0].username).toBe(handle);
+    expect(newest.length).toBeLessThanOrEqual(20);
+    expect(await usernames(`@${handle.slice(0, 6).toUpperCase()}`)).toContain(handle);
+    expect(await usernames("thakk")).toContain(handle);
+    expect(await usernames("hakkar")).not.toContain(handle);
+    expect(await usernames(handle, found)).not.toContain(handle);
+    expect((await search("k", searcher)).statusCode).toBe(400);
+    expect((await search(handle)).statusCode).toBe(401);
   });
 
   it("hides a deleted account's profile and deletes its photo", async () => {
