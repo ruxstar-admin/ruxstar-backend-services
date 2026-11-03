@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import { MongoServerError, ObjectId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
@@ -26,6 +27,8 @@ import {
   OtpRequest,
   OtpSent,
   OtpVerify,
+  ProfileParams,
+  ProfileResult,
   RefreshBody,
   RefreshResult,
   ResetBody,
@@ -34,9 +37,11 @@ import {
   SignupBody,
   SignupResult,
   Verified,
+  type PublicProfile,
   type User,
 } from "./contracts.js";
 import { checkCode, countText, sendCode, useVerification } from "./otp.js";
+import { PHOTO_MAX_BYTES, toAvatar } from "./photos.js";
 import { firstFreeUsername, isAvailable, isReserved, suggestUsernames } from "./usernames.js";
 import { checkPasswordRules, hashPassword, verifyAgainstNothing, verifyPassword, wasUsedRecently } from "./passwords.js";
 import {
@@ -76,6 +81,7 @@ const view = (user: UserDoc): User => ({
   username: user.username ?? "",
   email: user.email ?? null,
   emailVerified: Boolean(user.email && user.emailVerified),
+  avatarUrl: user.avatar ?? null,
   bio: user.bio ?? null,
   link: user.link ?? null,
   dob: user.dob ?? null,
@@ -89,6 +95,18 @@ const view = (user: UserDoc): User => ({
   },
   kyc: { base: user.kyc.base ?? "none" },
   createdAt: user.createdAt.toISOString(),
+});
+
+const publicView = (user: UserDoc): PublicProfile => ({
+  id: user._id.toHexString(),
+  name: user.name ?? "",
+  username: user.username ?? "",
+  avatarUrl: user.avatar ?? null,
+  bio: user.bio ?? null,
+  link: user.link ?? null,
+  city: user.home?.city ?? null,
+  badges: { vendor: Boolean(user.roles.vendor), delivery: Boolean(user.roles.delivery) },
+  memberSince: user.createdAt.toISOString(),
 });
 
 /** Password managers fill the saved phone number into the first text box; a name needs letters. */
@@ -123,6 +141,8 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
     if (!app.config.jwtSecret) throw new AppError("NOT_READY", "Sign-in is not configured.");
     return app.config.jwtSecret;
   };
+
+  app.addContentTypeParser(/^image\//, { parseAs: "buffer", bodyLimit: PHOTO_MAX_BYTES }, (_request, body, done) => done(null, body));
 
   app.post(
     "/otp",
@@ -556,6 +576,97 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
     },
   );
 
+  app.put(
+    "/me/photo",
+    {
+      preHandler: requireAuth,
+      config: secured(60, 10),
+      schema: {
+        tags: ["account"],
+        summary: "Add or replace the profile photo",
+        description:
+          "Send the image itself as the body with Content-Type image/jpeg, image/png or image/webp, up to 5 MB. " +
+          "It is cropped to a 512 x 512 square and saved as WebP without its metadata. The old photo is deleted.",
+        response: { 200: MeResult, ...Errors },
+        security: [{ bearer: [] }, { cookie: [] }],
+      },
+    },
+    async (request) => {
+      const db = requireDatabase(app.db);
+      const userId = request.auth!.userId;
+      if (!Buffer.isBuffer(request.body) || request.body.length === 0) throw new AppError("PHOTO_INVALID");
+      const photo = await toAvatar(request.body);
+      const key = `profile-pictures/${app.config.env}/${userId.toHexString()}/${randomUUID()}.webp`;
+      const url = await app.photos.save(key, photo);
+      const now = new Date();
+      const before = await db.users.findOneAndUpdate(
+        { _id: userId, status: { $ne: "deleted" } },
+        { $set: { avatar: url, avatarKey: key, updatedAt: now } },
+        { returnDocument: "before" },
+      );
+      if (!before) {
+        await app.photos.remove(key);
+        throw new AppError("UNAUTHENTICATED");
+      }
+      if (before.avatarKey) await app.photos.remove(before.avatarKey);
+      return ok(request, view({ ...before, avatar: url, avatarKey: key, updatedAt: now }));
+    },
+  );
+
+  app.delete(
+    "/me/photo",
+    {
+      preHandler: requireAuth,
+      config: secured(60, 10),
+      schema: {
+        tags: ["account"],
+        summary: "Remove the profile photo",
+        response: { 200: MeResult, ...Errors },
+        security: [{ bearer: [] }, { cookie: [] }],
+      },
+    },
+    async (request) => {
+      const db = requireDatabase(app.db);
+      const now = new Date();
+      const before = await db.users.findOneAndUpdate(
+        { _id: request.auth!.userId, status: { $ne: "deleted" } },
+        { $set: { avatar: null, avatarKey: null, updatedAt: now } },
+        { returnDocument: "before" },
+      );
+      if (!before) throw new AppError("UNAUTHENTICATED");
+      if (before.avatarKey) await app.photos.remove(before.avatarKey);
+      return ok(request, view({ ...before, avatar: null, avatarKey: null, updatedAt: now }));
+    },
+  );
+
+  app.get(
+    "/profiles/:ref",
+    {
+      // The website renders profiles on its server, so many visitors share its address.
+      config: secured(1, 300),
+      schema: {
+        tags: ["account"],
+        summary: "Anyone's public profile, by username or id",
+        description: "No sign-in needed. Deleted accounts answer NOT_FOUND.",
+        params: ProfileParams,
+        response: { 200: ProfileResult, ...Errors },
+        security: [{}],
+      },
+    },
+    async (request, reply) => {
+      const db = requireDatabase(app.db);
+      const ref = request.params.ref.toLowerCase();
+      const byId = /^[0-9a-f]{24}$/.test(ref);
+      const user = await db.users.findOne({
+        ...(byId ? { _id: new ObjectId(ref) } : { username: ref }),
+        status: { $ne: "deleted" },
+      });
+      if (!user?.username) throw new AppError("NOT_FOUND", "No one has that username.");
+      reply.header("cache-control", "public, max-age=60");
+      return ok(request, publicView(user));
+    },
+  );
+
   app.post(
     "/email/code",
     {
@@ -647,7 +758,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
         throw new AppError("INVALID_CREDENTIALS", "That password is not right.", [{ path: "body/password", message: "Not right" }]);
       }
       const now = new Date();
-      await db.transaction(async (session) => {
+      const photoKey = await db.transaction(async (session) => {
         const user = await db.users.findOne({ _id: userId, status: { $ne: "deleted" } }, { session });
         if (!user) throw new AppError("UNAUTHENTICATED");
         await db.users.updateOne(
@@ -660,7 +771,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
               purgeAt: new Date(now.getTime() + PURGE_AFTER_DAYS * 24 * 60 * 60_000),
               updatedAt: now,
             },
-            $unset: { username: "", email: "", emailVerified: "" },
+            $unset: { username: "", email: "", emailVerified: "", avatar: "", avatarKey: "" },
           },
           { session },
         );
@@ -670,7 +781,9 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
           { actor: { id: userId, kind: "user" }, scope: { module: "account" }, action: "user.delete", target: { type: "user", id: userId }, diff: {}, ip: request.ip },
           session,
         );
+        return user.avatarKey ?? null;
       });
+      if (photoKey) await app.photos.remove(photoKey);
       clearTokens(request, reply);
       return ok(request, { done: true as const });
     },

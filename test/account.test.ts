@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startStack, type Stack } from "./helpers.js";
 
@@ -581,6 +582,103 @@ describe("names, usernames and city", () => {
       expect(res.headers["retry-after"]).toBe("5");
     } finally {
       stack.db.ready = true;
+    }
+  });
+});
+
+describe("profile photos and public profiles", () => {
+  const image = (width: number, height: number, format: "jpeg" | "png" = "jpeg") =>
+    sharp({ create: { width, height, channels: 3, background: "#b45cf2" } })
+      .withExif({ IFD0: { Make: "TestCam", Model: "Leaky 1" } })
+      [format]()
+      .toBuffer();
+  const upload = (at: string, payload: Buffer | string, type = "image/jpeg") =>
+    stack.app.inject({ method: "PUT", url: "/v1/account/me/photo", headers: { ...WEB, "content-type": type }, cookies: { rx_at: at }, payload });
+
+  it("saves a square WebP without metadata, replaces the old one and removes it", async () => {
+    const { res } = await signUp();
+    const at = cookieMap(res).rx_at!;
+    const userId = res.json().data.user.id as string;
+    expect(res.json().data.user.avatarUrl).toBeNull();
+
+    const first = await upload(at, await image(1200, 800));
+    expect(first.statusCode).toBe(200);
+    const firstUrl = first.json().data.avatarUrl as string;
+    expect(firstUrl).toMatch(new RegExp(`^https://photos\\.test/profile-pictures/dev/${userId}/[\\w-]+\\.webp$`));
+    const firstKey = firstUrl.replace("https://photos.test/", "");
+    const meta = await sharp(stack.photos.get(firstKey)!).metadata();
+    expect(meta).toMatchObject({ format: "webp", width: 512, height: 512 });
+    expect(meta.exif).toBeUndefined();
+
+    const second = await upload(at, await image(300, 300, "png"), "image/png");
+    const secondUrl = second.json().data.avatarUrl as string;
+    expect(secondUrl).not.toBe(firstUrl);
+    expect(stack.photos.has(firstKey)).toBe(false);
+
+    const me = await stack.app.inject({ method: "GET", url: "/v1/account/me", headers: WEB, cookies: { rx_at: at } });
+    expect(me.json().data.avatarUrl).toBe(secondUrl);
+
+    const removed = await stack.app.inject({ method: "DELETE", url: "/v1/account/me/photo", headers: WEB, cookies: { rx_at: at } });
+    expect(removed.json().data.avatarUrl).toBeNull();
+    expect(stack.photos.has(secondUrl.replace("https://photos.test/", ""))).toBe(false);
+  });
+
+  it("refuses files that are not photos, tiny images, oversized uploads and signed-out callers", async () => {
+    const { res } = await signUp();
+    const at = cookieMap(res).rx_at!;
+    expect((await upload(at, "not really a jpeg")).json().error.code).toBe("PHOTO_INVALID");
+    expect((await upload(at, await image(40, 40))).json().error.code).toBe("PHOTO_INVALID");
+    expect((await upload(at, "{}", "application/json")).json().error.code).toBe("PHOTO_INVALID");
+    expect((await upload(at, Buffer.alloc(5 * 1024 * 1024 + 1))).statusCode).toBe(413);
+    const anon = await stack.app.inject({
+      method: "PUT",
+      url: "/v1/account/me/photo",
+      headers: { ...WEB, "content-type": "image/jpeg" },
+      payload: await image(200, 200),
+    });
+    expect(anon.statusCode).toBe(401);
+  });
+
+  it("shows the public profile by username or id, and never the private fields", async () => {
+    const { res } = await signUp();
+    const at = cookieMap(res).rx_at!;
+    const user = res.json().data.user as { id: string; username: string };
+    await stack.app.inject({
+      method: "PATCH",
+      url: "/v1/account/me",
+      headers: WEB,
+      cookies: { rx_at: at },
+      payload: { bio: "Bakes on weekends", city: "Pune", dob: "1995-01-01", gender: "female", email: "asha@example.com" },
+    });
+    await upload(at, await image(600, 600));
+
+    const byName = await stack.app.inject({ method: "GET", url: `/v1/account/profiles/${user.username.toUpperCase()}`, headers: WEB });
+    expect(byName.statusCode).toBe(200);
+    expect(byName.headers["cache-control"]).toBe("public, max-age=60");
+    const profile = byName.json().data;
+    expect(Object.keys(profile).sort()).toEqual(["avatarUrl", "badges", "bio", "city", "id", "link", "memberSince", "name", "username"]);
+    expect(profile).toMatchObject({ id: user.id, name: "Asha Rao", bio: "Bakes on weekends", city: "Pune", badges: { vendor: false, delivery: false } });
+    expect(profile.avatarUrl).toMatch(/\.webp$/);
+
+    const byId = await stack.app.inject({ method: "GET", url: `/v1/account/profiles/${user.id}`, headers: APP });
+    expect(byId.json().data.username).toBe(user.username);
+
+    const missing = await stack.app.inject({ method: "GET", url: "/v1/account/profiles/no.such.person", headers: WEB });
+    expect(missing.json().error.code).toBe("NOT_FOUND");
+  });
+
+  it("hides a deleted account's profile and deletes its photo", async () => {
+    const { password, res } = await signUp();
+    const at = cookieMap(res).rx_at!;
+    const user = res.json().data.user as { id: string; username: string };
+    const key = ((await upload(at, await image(200, 200))).json().data.avatarUrl as string).replace("https://photos.test/", "");
+    expect(stack.photos.has(key)).toBe(true);
+
+    await stack.app.inject({ method: "DELETE", url: "/v1/account/me", headers: WEB, cookies: { rx_at: at }, payload: { password } });
+    expect(stack.photos.has(key)).toBe(false);
+    for (const ref of [user.username, user.id]) {
+      const gone = await stack.app.inject({ method: "GET", url: `/v1/account/profiles/${ref}`, headers: WEB });
+      expect(gone.statusCode).toBe(404);
     }
   });
 });

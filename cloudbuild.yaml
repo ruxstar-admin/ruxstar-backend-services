@@ -3,6 +3,10 @@ substitutions:
   _AR_REPO: ruxstar-backend
   _SERVICE_NAME: ruxstar-backend-services
   _RUNTIME_SA: backend-service-account@ruxstar-platform.iam.gserviceaccount.com
+  _RUXSTAR_ENV: dev
+  _MONGODB_DB: ruxstar_dev
+  _GCS_BUCKET: ruxstar-profile-pictures
+  _CORS_ORIGINS: https://ruxstar.com,https://www.ruxstar.com
 
 steps:
   - name: gcr.io/cloud-builders/docker
@@ -32,8 +36,8 @@ steps:
       - --port=8080
       - --allow-unauthenticated
       - --service-account=${_RUNTIME_SA}
-      - --set-env-vars=NODE_ENV=production
-      - --clear-secrets
+      - --set-env-vars=^@^NODE_ENV=production@RUXSTAR_ENV=${_RUXSTAR_ENV}@MONGODB_DB=${_MONGODB_DB}@GCS_BUCKET=${_GCS_BUCKET}@LOG_LEVEL=info@CORS_ORIGINS=${_CORS_ORIGINS}
+      - --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}:$SHORT_SHA
@@ -41,3 +45,4 @@ images:
 
 options:
   logging: CLOUD_LOGGING_ONLY
+  substitutionOption: ALLOW_LOOSE

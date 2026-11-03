@@ -19,6 +19,8 @@ export interface Config {
     provider: "log" | "smtp";
     smtp: { host: string; port: number; user: string; pass: string; from: string } | null;
   };
+  /** Profile photos. Null leaves uploads off; they answer PHOTO_UNAVAILABLE. */
+  photos: { bucket: string; publicBaseUrl: string } | null;
 }
 
 export class ConfigError extends Error {
@@ -90,6 +92,11 @@ export function loadConfig(env: Env = process.env): Config {
   const smtpPass = read(env, "SMTP_PASS");
   const emailFrom = read(env, "EMAIL_FROM") ?? smtpUser;
 
+  const gcsBucket = read(env, "GCS_BUCKET");
+  if (gcsBucket && !/^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$/.test(gcsBucket)) problems.push("GCS_BUCKET must be a bucket name like ruxstar-profile-pictures");
+  const gcsPublic = read(env, "GCS_PUBLIC_BASE_URL")?.replace(/\/+$/, "");
+  if (gcsPublic && !/^https:\/\/[^\s]+$/.test(gcsPublic)) problems.push("GCS_PUBLIC_BASE_URL must start with https://");
+
   if (problems.length) throw new ConfigError(problems);
 
   return {
@@ -117,5 +124,6 @@ export function loadConfig(env: Env = process.env): Config {
           ? { host: smtpHost, port: smtpPort, user: smtpUser, pass: smtpPass, from: emailFrom }
           : null,
     },
+    photos: gcsBucket ? { bucket: gcsBucket, publicBaseUrl: gcsPublic ?? `https://storage.googleapis.com/${gcsBucket}` } : null,
   };
 }

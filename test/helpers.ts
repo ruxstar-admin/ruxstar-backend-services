@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import type { EmailSender } from "../src/adapters/email.js";
 import type { Geocoder } from "../src/adapters/geocoder.js";
+import type { PhotoStore } from "../src/adapters/photos.js";
 import type { SmsSender } from "../src/adapters/sms.js";
 import { ObjectId } from "mongodb";
 import { buildApp, type App } from "../src/app.js";
@@ -20,6 +21,8 @@ export interface Stack {
   sms: { sent: number; failNext: boolean };
   /** The last code emailed to each address. */
   emails: Map<string, string>;
+  /** Saved photos by object key; deleted keys are removed. */
+  photos: Map<string, Buffer>;
   stop: () => Promise<void>;
 }
 
@@ -54,7 +57,15 @@ export async function startStack(extend?: (app: App) => void, { rateLimit = fals
   const emails = new Map<string, string>();
   const email: EmailSender = { sendCode: async (to, code) => void emails.set(to, code) };
   const geocoder: Geocoder = { cityAt: async () => "Hyderabad" };
-  const app = await buildApp({ config, db, logger: false, sms, email, geocoder, rateLimit });
+  const saved = new Map<string, Buffer>();
+  const photos: PhotoStore = {
+    save: async (key, data) => {
+      saved.set(key, data);
+      return `https://photos.test/${key}`;
+    },
+    remove: async (key) => void saved.delete(key),
+  };
+  const app = await buildApp({ config, db, logger: false, sms, email, geocoder, photos, rateLimit });
   extend?.(app);
   await app.ready();
 
@@ -64,6 +75,7 @@ export async function startStack(extend?: (app: App) => void, { rateLimit = fals
     texts,
     sms: smsLog,
     emails,
+    photos: saved,
     stop: async () => {
       await app.close();
       await replSet.stop();

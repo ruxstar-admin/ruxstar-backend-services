@@ -26,6 +26,7 @@ export const User = Strict({
   username: Type.String(),
   email: Nullable(Type.String()),
   emailVerified: Type.Boolean({ description: "False until the code sent by POST /email/code is entered" }),
+  avatarUrl: Nullable(Type.String({ description: "512 x 512 WebP. Null until a photo is added." })),
   bio: Nullable(Type.String()),
   link: Nullable(Type.String()),
   dob: Nullable(Type.String({ format: "date" })),
@@ -149,6 +150,24 @@ export const CityResult = Envelope(
     attribution: Type.String({ description: "Show this wherever the city is shown as looked up" }),
   }),
 );
+
+/** What anyone can see. Never phone, email, date of birth or gender. */
+export const PublicProfile = Strict({
+  id: ObjectIdString,
+  name: Type.String(),
+  username: Type.String(),
+  avatarUrl: Nullable(Type.String()),
+  bio: Nullable(Type.String()),
+  link: Nullable(Type.String()),
+  city: Nullable(Type.String()),
+  badges: Strict({ vendor: Type.Boolean(), delivery: Type.Boolean() }),
+  memberSince: DateTime,
+});
+export type PublicProfile = Static<typeof PublicProfile>;
+export const ProfileResult = Envelope(PublicProfile);
+export const ProfileParams = Strict({
+  ref: Type.String({ minLength: 3, maxLength: 24, description: "A username, or a user id" }),
+});
 
 export const Session = Strict({
   id: ObjectIdString,

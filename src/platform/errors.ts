@@ -37,6 +37,8 @@ export const ERROR_CODES = {
   LOCATION_UNAVAILABLE: { status: 503, message: "We could not find your city right now. Type it instead." },
   EMAIL_TAKEN: { status: 409, message: "This email is on another account." },
   EMAIL_UNAVAILABLE: { status: 503, message: "We cannot send emails right now. Try again shortly." },
+  PHOTO_INVALID: { status: 422, message: "Choose a JPEG, PNG or WebP photo." },
+  PHOTO_UNAVAILABLE: { status: 503, message: "We cannot save photos right now. Try again shortly." },
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CODES;

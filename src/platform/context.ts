@@ -1,6 +1,7 @@
 import type { ObjectId } from "mongodb";
 import type { Geocoder } from "../adapters/geocoder.js";
 import type { EmailSender } from "../adapters/email.js";
+import type { PhotoStore } from "../adapters/photos.js";
 import type { SmsSender } from "../adapters/sms.js";
 import type { Config } from "../config.js";
 import type { Database, KycState, UserRoles } from "./db.js";
@@ -34,6 +35,7 @@ declare module "fastify" {
     sms: SmsSender;
     email: EmailSender;
     geocoder: Geocoder;
+    photos: PhotoStore;
   }
 
   interface FastifyRequest {

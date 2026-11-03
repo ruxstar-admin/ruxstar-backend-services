@@ -35,7 +35,10 @@ export interface UserDoc extends Stamped {
   username?: string;
   dob?: string | null;
   gender?: "female" | "male" | "other" | null;
+  /** Public URL of the profile photo. */
   avatar?: string | null;
+  /** Bucket object behind `avatar`, kept so a replaced or removed photo can be deleted. */
+  avatarKey?: string | null;
   bio?: string | null;
   link?: string | null;
   status: "active" | "locked" | "deleted";

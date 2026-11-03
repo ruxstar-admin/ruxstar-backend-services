@@ -7,6 +7,7 @@ import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import Fastify, { type FastifyServerOptions } from "fastify";
 import { createEmailSender, type EmailSender } from "./adapters/email.js";
 import { createGeocoder, type Geocoder } from "./adapters/geocoder.js";
+import { createPhotoStore, type PhotoStore } from "./adapters/photos.js";
 import { createSmsSender, type SmsSender } from "./adapters/sms.js";
 import type { Config } from "./config.js";
 import { ErrorEnvelope } from "./contracts/common.js";
@@ -54,11 +55,12 @@ export interface AppOptions {
   sms?: SmsSender;
   email?: EmailSender;
   geocoder?: Geocoder;
+  photos?: PhotoStore;
   /** Tests send every request from one address, so most of them switch per-IP limits off. */
   rateLimit?: boolean;
 }
 
-export async function buildApp({ config, db, logger = true, sms, email, geocoder, rateLimit: limitByIp = true }: AppOptions) {
+export async function buildApp({ config, db, logger = true, sms, email, geocoder, photos, rateLimit: limitByIp = true }: AppOptions) {
   const app = Fastify({
     logger: logger ? loggerOptions(config) : false,
     // Trust only Cloud Run's front end (hop 0). `true` would let a client fake its IP through X-Forwarded-For and
@@ -78,6 +80,7 @@ export async function buildApp({ config, db, logger = true, sms, email, geocoder
   app.decorate("sms", sms ?? createSmsSender(config, app.log));
   app.decorate("email", email ?? createEmailSender(config, app.log));
   app.decorate("geocoder", geocoder ?? createGeocoder(app.log));
+  app.decorate("photos", photos ?? createPhotoStore(config, app.log));
 
   app.addHook("onRequest", async (request, reply) => {
     reply.header("x-request-id", request.id);

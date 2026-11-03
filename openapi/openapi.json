@@ -221,6 +221,18 @@
                     "enum": [
                       "EMAIL_UNAVAILABLE"
                     ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "PHOTO_INVALID"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "PHOTO_UNAVAILABLE"
+                    ]
                   }
                 ]
               },
@@ -821,6 +833,7 @@
                             "username",
                             "email",
                             "emailVerified",
+                            "avatarUrl",
                             "bio",
                             "link",
                             "dob",
@@ -859,6 +872,17 @@
                             "emailVerified": {
                               "type": "boolean",
                               "description": "False until the code sent by POST /email/code is entered"
+                            },
+                            "avatarUrl": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "description": "512 x 512 WebP. Null until a photo is added."
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             },
                             "bio": {
                               "anyOf": [
@@ -1120,6 +1144,7 @@
                             "username",
                             "email",
                             "emailVerified",
+                            "avatarUrl",
                             "bio",
                             "link",
                             "dob",
@@ -1158,6 +1183,17 @@
                             "emailVerified": {
                               "type": "boolean",
                               "description": "False until the code sent by POST /email/code is entered"
+                            },
+                            "avatarUrl": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "description": "512 x 512 WebP. Null until a photo is added."
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             },
                             "bio": {
                               "anyOf": [
@@ -1419,6 +1455,7 @@
                             "username",
                             "email",
                             "emailVerified",
+                            "avatarUrl",
                             "bio",
                             "link",
                             "dob",
@@ -1457,6 +1494,17 @@
                             "emailVerified": {
                               "type": "boolean",
                               "description": "False until the code sent by POST /email/code is entered"
+                            },
+                            "avatarUrl": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "description": "512 x 512 WebP. Null until a photo is added."
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             },
                             "bio": {
                               "anyOf": [
@@ -2094,6 +2142,7 @@
                         "username",
                         "email",
                         "emailVerified",
+                        "avatarUrl",
                         "bio",
                         "link",
                         "dob",
@@ -2132,6 +2181,17 @@
                         "emailVerified": {
                           "type": "boolean",
                           "description": "False until the code sent by POST /email/code is entered"
+                        },
+                        "avatarUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "512 x 512 WebP. Null until a photo is added."
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "bio": {
                           "anyOf": [
@@ -2433,6 +2493,7 @@
                         "username",
                         "email",
                         "emailVerified",
+                        "avatarUrl",
                         "bio",
                         "link",
                         "dob",
@@ -2471,6 +2532,17 @@
                         "emailVerified": {
                           "type": "boolean",
                           "description": "False until the code sent by POST /email/code is entered"
+                        },
+                        "avatarUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "512 x 512 WebP. Null until a photo is added."
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "bio": {
                           "anyOf": [
@@ -2729,6 +2801,649 @@
         }
       }
     },
+    "/v1/account/me/photo": {
+      "put": {
+        "summary": "Add or replace the profile photo",
+        "tags": [
+          "account"
+        ],
+        "description": "Send the image itself as the body with Content-Type image/jpeg, image/png or image/webp, up to 5 MB. It is cropped to a 512 x 512 square and saved as WebP without its metadata. The old photo is deleted.",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "phone",
+                        "name",
+                        "username",
+                        "email",
+                        "emailVerified",
+                        "avatarUrl",
+                        "bio",
+                        "link",
+                        "dob",
+                        "gender",
+                        "city",
+                        "roles",
+                        "kyc",
+                        "createdAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "phone": {
+                          "type": "string",
+                          "description": "E.164, for example +919876543210"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "emailVerified": {
+                          "type": "boolean",
+                          "description": "False until the code sent by POST /email/code is entered"
+                        },
+                        "avatarUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "512 x 512 WebP. Null until a photo is added."
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bio": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "link": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "dob": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "gender": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "female"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "male"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "other"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "city": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "roles": {
+                          "type": "object",
+                          "required": [
+                            "vendor",
+                            "delivery",
+                            "ruxstarStaff",
+                            "admin"
+                          ],
+                          "properties": {
+                            "vendor": {
+                              "type": "boolean"
+                            },
+                            "delivery": {
+                              "type": "boolean"
+                            },
+                            "ruxstarStaff": {
+                              "type": "boolean"
+                            },
+                            "admin": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "kyc": {
+                          "type": "object",
+                          "required": [
+                            "base"
+                          ],
+                          "properties": {
+                            "base": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove the profile photo",
+        "tags": [
+          "account"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "phone",
+                        "name",
+                        "username",
+                        "email",
+                        "emailVerified",
+                        "avatarUrl",
+                        "bio",
+                        "link",
+                        "dob",
+                        "gender",
+                        "city",
+                        "roles",
+                        "kyc",
+                        "createdAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "phone": {
+                          "type": "string",
+                          "description": "E.164, for example +919876543210"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "emailVerified": {
+                          "type": "boolean",
+                          "description": "False until the code sent by POST /email/code is entered"
+                        },
+                        "avatarUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "512 x 512 WebP. Null until a photo is added."
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bio": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "link": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "dob": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "gender": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "female"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "male"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "other"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "city": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "roles": {
+                          "type": "object",
+                          "required": [
+                            "vendor",
+                            "delivery",
+                            "ruxstarStaff",
+                            "admin"
+                          ],
+                          "properties": {
+                            "vendor": {
+                              "type": "boolean"
+                            },
+                            "delivery": {
+                              "type": "boolean"
+                            },
+                            "ruxstarStaff": {
+                              "type": "boolean"
+                            },
+                            "admin": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "kyc": {
+                          "type": "object",
+                          "required": [
+                            "base"
+                          ],
+                          "properties": {
+                            "base": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account/profiles/{ref}": {
+      "get": {
+        "summary": "Anyone's public profile, by username or id",
+        "tags": [
+          "account"
+        ],
+        "description": "No sign-in needed. Deleted accounts answer NOT_FOUND.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 24
+            },
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "description": "A username, or a user id"
+          }
+        ],
+        "security": [
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name",
+                        "username",
+                        "avatarUrl",
+                        "bio",
+                        "link",
+                        "city",
+                        "badges",
+                        "memberSince"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "avatarUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bio": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "link": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "city": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "badges": {
+                          "type": "object",
+                          "required": [
+                            "vendor",
+                            "delivery"
+                          ],
+                          "properties": {
+                            "vendor": {
+                              "type": "boolean"
+                            },
+                            "delivery": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "memberSince": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/account/email/code": {
       "post": {
         "summary": "Email a 6-digit code to the address on the profile",
@@ -2874,6 +3589,7 @@
                         "username",
                         "email",
                         "emailVerified",
+                        "avatarUrl",
                         "bio",
                         "link",
                         "dob",
@@ -2912,6 +3628,17 @@
                         "emailVerified": {
                           "type": "boolean",
                           "description": "False until the code sent by POST /email/code is entered"
+                        },
+                        "avatarUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "512 x 512 WebP. Null until a photo is added."
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "bio": {
                           "anyOf": [
