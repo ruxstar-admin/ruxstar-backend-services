@@ -55,6 +55,70 @@ export interface UserDoc extends Stamped {
   prefs?: Record<string, unknown>;
   /** Counters kept by Social: live posts, and likes plus comments those posts have received. */
   social?: { posts?: number; engagements?: number };
+  /** The Ruxstar Card, issued when identity KYC is approved. `id` looks like RUX-1A2B-3C4D. */
+  card?: { id: string; issuedAt: Date };
+}
+
+export type KycTrack = "base" | "vendor";
+/** `locked` follows the third rejection; only support can reopen it. */
+export type KycCaseStatus = "in_progress" | "submitted" | "approved" | "rejected" | "locked";
+export type KycStepStatus = "pending" | "verified" | "failed";
+
+export interface KycAddress {
+  line1: string;
+  line2: string | null;
+  city: string;
+  state: string;
+  pincode: string;
+}
+
+/**
+ * One verification track for one user. Only Cashfree's references, the last 4 Aadhaar digits and a
+ * masked PAN are kept; the Aadhaar photo is held only until the face match uses it.
+ */
+export interface KycCaseDoc extends Stamped {
+  _id: ObjectId;
+  userId: ObjectId;
+  track: KycTrack;
+  status: KycCaseStatus;
+  /** Rejections so far. The third locks the case. */
+  rejections: number;
+  steps: {
+    aadhaar?: {
+      status: KycStepStatus;
+      verificationId: string;
+      referenceId: string | null;
+      name: string | null;
+      last4: string | null;
+      /** Base64 JPEG, removed once the face match passes or the case is decided. */
+      photo?: string;
+      reason: string | null;
+      tries: number;
+      at: Date;
+    };
+    pan?: {
+      status: KycStepStatus;
+      masked: string;
+      /** Keyed hash of the full PAN, so one PAN cannot verify two accounts. */
+      hash: string;
+      registeredName: string | null;
+      nameMatch: string | null;
+      reason: string | null;
+      tries: number;
+      at: Date;
+    };
+    face?: { status: KycStepStatus; livenessScore: number | null; matchScore: number | null; reason: string | null; tries: number; at: Date };
+    business?: {
+      name: string;
+      address: KycAddress;
+      gstin: { number: string; legalName: string | null; status: string | null } | null;
+      tries: number;
+      at: Date;
+    };
+  };
+  submittedAt: Date | null;
+  /** The latest decision. Earlier ones are in the audit log. */
+  review: { by: ObjectId; at: Date; decision: "approved" | "rejected"; reason: string | null } | null;
 }
 
 export type PostKind = "personal" | "business";
@@ -118,14 +182,18 @@ export interface ReportDoc {
   createdAt: Date;
 }
 
+export type NotificationType = "post.like" | "post.comment" | "kyc.approved" | "kyc.rejected";
+
 export interface NotificationDoc {
   _id: ObjectId;
   userId: ObjectId;
-  type: "post.like" | "post.comment";
+  type: NotificationType;
+  /** Who did it; for KYC decisions, the reviewer. */
   actorId: ObjectId;
   title: string;
   body: string;
-  link: { screen: "post"; id: string };
+  /** `verification` opens the KYC screen; its id is the track. */
+  link: { screen: "post" | "verification"; id: string };
   readAt: Date | null;
   createdAt: Date;
 }
@@ -289,6 +357,9 @@ export class Database {
   }
   get notifications() {
     return this.db.collection<NotificationDoc>("notifications");
+  }
+  get kycCases() {
+    return this.db.collection<KycCaseDoc>("kyc_cases");
   }
 
   /** Runs `work` in a majority-committed transaction, retrying transient errors. */

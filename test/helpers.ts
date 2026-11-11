@@ -4,6 +4,7 @@ import type { EmailSender } from "../src/adapters/email.js";
 import type { Geocoder } from "../src/adapters/geocoder.js";
 import type { PhotoStore } from "../src/adapters/photos.js";
 import type { SmsSender } from "../src/adapters/sms.js";
+import { FakeVerifier, type Verifier } from "../src/adapters/verification.js";
 import { ObjectId } from "mongodb";
 import { buildApp, type App } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
@@ -32,7 +33,10 @@ export interface Stack {
  * A real replica set, because transactions need one. Sessions are checked on every request unless
  * `authCacheSeconds` is given, since most tests change the database directly between requests.
  */
-export async function startStack(extend?: (app: App) => void, { rateLimit = false, authCacheSeconds = 0 } = {}): Promise<Stack> {
+export async function startStack(
+  extend?: (app: App) => void,
+  { rateLimit = false, authCacheSeconds = 0, verifier }: { rateLimit?: boolean; authCacheSeconds?: number; verifier?: Verifier } = {},
+): Promise<Stack> {
   const replSet = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: "wiredTiger" } });
   const config = loadConfig({
     RUXSTAR_ENV: "dev",
@@ -76,7 +80,18 @@ export async function startStack(extend?: (app: App) => void, { rateLimit = fals
   };
   const profilePhotos = fakeBucket("photos.test");
   const postMedia = fakeBucket("media.test");
-  const app = await buildApp({ config, db, logger: false, sms, email, geocoder, photos: profilePhotos.store, media: postMedia.store, rateLimit });
+  const app = await buildApp({
+    config,
+    db,
+    logger: false,
+    sms,
+    email,
+    geocoder,
+    photos: profilePhotos.store,
+    media: postMedia.store,
+    rateLimit,
+    verifier: verifier ?? new FakeVerifier(),
+  });
   extend?.(app);
   await app.ready();
 

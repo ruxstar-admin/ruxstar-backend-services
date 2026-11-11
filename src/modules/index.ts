@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import account from "./account/index.js";
+import kyc from "./kyc/index.js";
 import notifications from "./notifications/index.js";
 import ruxstar from "./ruxstar/index.js";
 import social from "./social/index.js";
@@ -25,6 +26,7 @@ export type Resource = (typeof RESOURCES)[number];
 
 const MODULES: Partial<Record<Resource, FastifyPluginAsync>> = {
   account,
+  kyc,
   social,
   notifications,
   ruxstar,

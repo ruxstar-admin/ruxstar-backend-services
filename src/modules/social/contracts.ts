@@ -13,6 +13,7 @@ export const Author = Strict({
   username: Type.String(),
   avatarUrl: Type.Union([Type.String(), Type.Null()]),
   vendor: Type.Boolean(),
+  verified: Type.Boolean({ description: "Identity verified by Ruxstar" }),
 });
 
 const PhotoFile = Strict({

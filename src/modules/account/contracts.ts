@@ -42,7 +42,11 @@ export const User = Strict({
     ruxstarStaff: Type.Boolean(),
     admin: Type.Boolean(),
   }),
-  kyc: Strict({ base: Type.String() }),
+  kyc: Strict({
+    base: Type.String({ description: "none, pending, approved or rejected. Details at GET /v1/kyc" }),
+    vendor: Type.String({ description: "none, pending, approved or rejected" }),
+  }),
+  card: Nullable(Strict({ id: Type.String({ description: "For example RUX-1A2B-3C4D. The full card is at GET /v1/kyc/card" }) })),
   stats: Stats,
   createdAt: DateTime,
 });
@@ -163,7 +167,11 @@ export const PublicProfile = Strict({
   avatarUrl: Nullable(Type.String()),
   bio: Nullable(Type.String()),
   city: Nullable(Type.String()),
-  badges: Strict({ vendor: Type.Boolean(), delivery: Type.Boolean() }),
+  badges: Strict({
+    verified: Type.Boolean({ description: "Identity verified by Ruxstar" }),
+    vendor: Type.Boolean(),
+    delivery: Type.Boolean(),
+  }),
   stats: Stats,
   memberSince: DateTime,
 });

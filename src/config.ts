@@ -28,6 +28,19 @@ export interface Config {
    * on another instance can take this long to apply; 0 checks every request.
    */
   authCacheSeconds: number;
+  /** The website, for links the API hands out (profile QR codes, the DigiLocker return page). */
+  siteUrl: string;
+  /** `fake` passes every check without calling Cashfree, for tests and local runs; refused in prod. */
+  kyc: { provider: "fake" | "cashfree"; cashfree: CashfreeSettings | null; redirectUrl: string };
+}
+
+export interface CashfreeSettings {
+  clientId: string;
+  clientSecret: string;
+  env: "sandbox" | "production";
+  apiVersion: string;
+  /** Cashfree's public key (PEM). With it, requests are signed and need no allow-listed IP. */
+  publicKey: string | null;
 }
 
 export interface BucketSettings {
@@ -119,6 +132,20 @@ export function loadConfig(env: Env = process.env): Config {
     problems.push("AUTH_CACHE_SECONDS must be a whole number from 0 to 300");
   }
 
+  const siteUrl = (read(env, "SITE_URL") ?? "https://ruxstar.com").replace(/\/+$/, "");
+  if (!/^https?:\/\/[^/\s]+$/.test(siteUrl)) problems.push("SITE_URL must be an origin like https://ruxstar.com");
+
+  const cfId = read(env, "CASHFREE_CLIENT_ID");
+  const cfSecret = read(env, "CASHFREE_CLIENT_SECRET");
+  const cfEnv = read(env, "CASHFREE_ENV") ?? "sandbox";
+  if (cfEnv !== "sandbox" && cfEnv !== "production") problems.push("CASHFREE_ENV must be sandbox or production");
+  const kycProvider = read(env, "KYC_PROVIDER") ?? (cfId && cfSecret ? "cashfree" : ruxstarEnv === "prod" ? "cashfree" : "fake");
+  if (kycProvider !== "fake" && kycProvider !== "cashfree") problems.push("KYC_PROVIDER must be fake or cashfree");
+  if (kycProvider === "fake" && ruxstarEnv === "prod") problems.push("KYC_PROVIDER=fake is not allowed in prod");
+  const kycRedirect = read(env, "KYC_REDIRECT_URL") ?? `${siteUrl}/kyc/done`;
+  const localRedirect = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(kycRedirect) && ruxstarEnv !== "prod";
+  if (!/^https:\/\/[^\s]+$/.test(kycRedirect) && !localRedirect) problems.push("KYC_REDIRECT_URL must start with https://");
+
   if (problems.length) throw new ConfigError(problems);
 
   return {
@@ -149,5 +176,20 @@ export function loadConfig(env: Env = process.env): Config {
     photos,
     media,
     authCacheSeconds,
+    siteUrl,
+    kyc: {
+      provider: kycProvider as "fake" | "cashfree",
+      cashfree:
+        cfId && cfSecret
+          ? {
+              clientId: cfId,
+              clientSecret: cfSecret,
+              env: cfEnv as "sandbox" | "production",
+              apiVersion: read(env, "CASHFREE_API_VERSION") ?? "2024-12-01",
+              publicKey: read(env, "CASHFREE_PUBLIC_KEY")?.replace(/\\n/g, "\n") ?? null,
+            }
+          : null,
+      redirectUrl: kycRedirect,
+    },
   };
 }

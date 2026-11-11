@@ -1,6 +1,6 @@
 import type { FastifyBaseLogger } from "fastify";
 import { ObjectId } from "mongodb";
-import type { Database, NotificationDoc } from "../../platform/db.js";
+import type { Database, KycTrack, NotificationDoc } from "../../platform/db.js";
 
 interface PostEvent {
   type: NotificationDoc["type"];
@@ -56,5 +56,39 @@ export async function notifyPostEvent(db: Database, log: FastifyBaseLogger, even
     });
   } catch (err) {
     log.warn({ err: (err as Error).message, type: event.type }, "Notification not saved");
+  }
+}
+
+const KYC_COPY = {
+  base: { approved: ["You are verified", "Your Ruxstar Card is ready."] },
+  vendor: { approved: ["You are a verified vendor", "You can post as a business and open your vendor portal."] },
+} as const;
+
+/** Tells a user their verification was decided. Logged, never thrown: the decision is already saved. */
+export async function notifyKycDecision(
+  db: Database,
+  log: FastifyBaseLogger,
+  event: { to: ObjectId; reviewer: ObjectId; track: KycTrack; decision: "approved" | "rejected" | "locked"; reason: string | null },
+): Promise<void> {
+  const [title, body] =
+    event.decision === "approved"
+      ? KYC_COPY[event.track].approved
+      : event.decision === "locked"
+        ? ["Verification is on hold", "Contact support to continue."]
+        : ["Verification needs a change", clip(event.reason ?? "Open verification to see what to fix.", 140)];
+  try {
+    await db.notifications.insertOne({
+      _id: new ObjectId(),
+      userId: event.to,
+      type: event.decision === "approved" ? "kyc.approved" : "kyc.rejected",
+      actorId: event.reviewer,
+      title,
+      body,
+      link: { screen: "verification", id: event.track },
+      readAt: null,
+      createdAt: new Date(),
+    });
+  } catch (err) {
+    log.warn({ err: (err as Error).message, type: "kyc" }, "Notification not saved");
   }
 }

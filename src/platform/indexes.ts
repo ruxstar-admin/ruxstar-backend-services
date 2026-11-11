@@ -47,6 +47,12 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.notifications.createIndex({ userId: 1, readAt: 1 }),
     db.notifications.createIndex({ userId: 1, type: 1, "link.id": 1, actorId: 1 }),
     db.notifications.createIndex({ createdAt: 1 }, { expireAfterSeconds: NOTIFICATION_DAYS * 24 * 60 * 60 }),
+    db.kycCases.createIndex({ userId: 1, track: 1 }, { unique: true }),
+    // The review queue, by status and optionally track, newest activity first.
+    db.kycCases.createIndex({ status: 1, updatedAt: -1, _id: -1 }),
+    db.kycCases.createIndex({ status: 1, track: 1, updatedAt: -1, _id: -1 }),
+    db.kycCases.createIndex({ "steps.pan.hash": 1 }, { partialFilterExpression: { "steps.pan.hash": { $type: "string" } } }),
+    db.users.createIndex({ "card.id": 1 }, { unique: true, partialFilterExpression: { "card.id": { $type: "string" } } }),
   ]);
 }
 

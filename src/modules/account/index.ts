@@ -119,7 +119,8 @@ const view = (user: UserDoc): User => ({
     ruxstarStaff: Boolean(user.roles.ruxstarStaff),
     admin: Boolean(user.roles.admin),
   },
-  kyc: { base: user.kyc.base ?? "none" },
+  kyc: { base: user.kyc.base ?? "none", vendor: user.kyc.vendor ?? "none" },
+  card: user.card ? { id: user.card.id } : null,
   stats: statsOf(user),
   createdAt: user.createdAt.toISOString(),
 });
@@ -131,7 +132,7 @@ const publicView = (user: UserDoc): PublicProfile => ({
   avatarUrl: user.avatar ?? null,
   bio: tidyBio(user.bio),
   city: user.home?.city ?? null,
-  badges: { vendor: Boolean(user.roles.vendor), delivery: Boolean(user.roles.delivery) },
+  badges: { verified: user.kyc.base === "approved", vendor: Boolean(user.roles.vendor), delivery: Boolean(user.roles.delivery) },
   stats: statsOf(user),
   memberSince: user.createdAt.toISOString(),
 });

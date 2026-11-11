@@ -9,11 +9,14 @@ import { findPage } from "../../platform/pagination.js";
 
 const Notification = Strict({
   id: ObjectIdString,
-  kind: Type.Literal("social"),
-  type: Type.Union([Type.Literal("post.like"), Type.Literal("post.comment")]),
+  kind: Type.Union([Type.Literal("social"), Type.Literal("account")]),
+  type: Type.Union([Type.Literal("post.like"), Type.Literal("post.comment"), Type.Literal("kyc.approved"), Type.Literal("kyc.rejected")]),
   title: Type.String(),
   body: Type.String(),
-  link: Strict({ screen: Type.Literal("post"), id: ObjectIdString }),
+  link: Strict({
+    screen: Type.Union([Type.Literal("post"), Type.Literal("verification")], { description: "`verification` opens the KYC screen; `id` is base or vendor" }),
+    id: Type.String(),
+  }),
   read: Type.Boolean(),
   createdAt: DateTime,
 });
@@ -46,7 +49,7 @@ const notifications: FastifyPluginAsyncTypebox = async (app) => {
         request,
         items.map((n) => ({
           id: n._id.toHexString(),
-          kind: "social" as const,
+          kind: n.type.startsWith("kyc.") ? ("account" as const) : ("social" as const),
           type: n.type,
           title: n.title,
           body: n.body,

@@ -40,8 +40,8 @@ const limit = (perMinutes: number, max: number) => ({ rateLimit: { max, timeWind
 /** Uploaded photos that never made it into a post are deleted after a day. */
 const STALE_UPLOAD_MS = 24 * 60 * 60_000;
 
-type AuthorFields = Pick<UserDoc, "_id" | "name" | "username" | "avatar" | "roles">;
-const AUTHOR_PROJECTION = { name: 1, username: 1, avatar: 1, "roles.vendor": 1 } as const;
+type AuthorFields = Pick<UserDoc, "_id" | "name" | "username" | "avatar" | "roles" | "kyc">;
+const AUTHOR_PROJECTION = { name: 1, username: 1, avatar: 1, "roles.vendor": 1, "kyc.base": 1 } as const;
 
 const authorView = (user: AuthorFields) => ({
   id: user._id.toHexString(),
@@ -49,6 +49,7 @@ const authorView = (user: AuthorFields) => ({
   username: user.username ?? "",
   avatarUrl: user.avatar ?? null,
   vendor: Boolean(user.roles?.vendor),
+  verified: user.kyc?.base === "approved",
 });
 
 const photoView = ({ url, width, height, smaller }: PostPhoto) => ({

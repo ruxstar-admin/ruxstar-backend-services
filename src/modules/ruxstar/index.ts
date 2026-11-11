@@ -9,6 +9,7 @@ import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { forgetModuleState } from "../../platform/module-switch.js";
 import { ModuleParams, ModuleSettingsList, ModuleSettingsOne, ModuleSettingsPatch, type ModuleSettings } from "./contracts.js";
+import kycReview from "./kyc.js";
 
 const ORDER = ["pod", "events", "coaching", "stays", "delivery", "ledger"];
 
@@ -23,6 +24,8 @@ const view = (doc: ModuleSettingsDoc): ModuleSettings => ({
 });
 
 const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
+  await app.register(kycReview);
+
   app.get(
     "/modules",
     {

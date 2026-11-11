@@ -39,6 +39,11 @@ export const ERROR_CODES = {
   EMAIL_UNAVAILABLE: { status: 503, message: "We cannot send emails right now. Try again shortly." },
   PHOTO_INVALID: { status: 422, message: "Choose a JPEG, PNG or WebP photo." },
   PHOTO_UNAVAILABLE: { status: 503, message: "We cannot save photos right now. Try again shortly." },
+  // KYC
+  KYC_CHECK_FAILED: { status: 422, message: "We could not verify this. Check it and try again." },
+  KYC_STEP_ORDER: { status: 409, message: "Finish the earlier verification steps first." },
+  KYC_LOCKED: { status: 423, message: "Verification is on hold. Contact support to continue." },
+  KYC_UNAVAILABLE: { status: 503, message: "Verification is not available right now. Try again shortly." },
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CODES;

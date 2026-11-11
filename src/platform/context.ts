@@ -3,6 +3,7 @@ import type { Geocoder } from "../adapters/geocoder.js";
 import type { EmailSender } from "../adapters/email.js";
 import type { PhotoStore } from "../adapters/photos.js";
 import type { SmsSender } from "../adapters/sms.js";
+import type { Verifier } from "../adapters/verification.js";
 import type { Config } from "../config.js";
 import type { SessionCache } from "./auth.js";
 import type { Database, KycState, UserRoles } from "./db.js";
@@ -39,6 +40,8 @@ declare module "fastify" {
     photos: PhotoStore;
     /** Post photos; a separate bucket from profile photos. */
     media: PhotoStore;
+    /** Aadhaar, PAN, face and GSTIN checks. */
+    verifier: Verifier;
     authCache: SessionCache;
   }
 
