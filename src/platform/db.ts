@@ -59,11 +59,16 @@ export interface UserDoc extends Stamped {
 
 export type PostKind = "personal" | "business";
 
-export interface PostPhoto {
+export interface PostPhotoFile {
   key: string;
   url: string;
   width: number;
   height: number;
+}
+
+export interface PostPhoto extends PostPhotoFile {
+  /** Narrower copies, narrowest first. Missing on photos uploaded before they were made. */
+  smaller?: PostPhotoFile[];
 }
 
 /** Authors are read from `users` when posts are shown, so a new name or photo shows everywhere at once. */

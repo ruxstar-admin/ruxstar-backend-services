@@ -1,3 +1,4 @@
+import { MongoBulkWriteError } from "mongodb";
 import type { Database, ModuleSettingsDoc, SwitchableModule } from "./db.js";
 import { stamp } from "./db.js";
 
@@ -35,6 +36,8 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.posts.createIndex({ status: 1, createdAt: -1, _id: -1 }),
     db.posts.createIndex({ authorId: 1, kind: 1, status: 1, createdAt: -1, _id: -1 }),
     db.postMedia.createIndex({ userId: 1, postId: 1, createdAt: 1 }),
+    // Releasing and deleting a post's photos.
+    db.postMedia.createIndex({ postId: 1 }),
     db.postReactions.createIndex({ postId: 1, userId: 1, kind: 1 }, { unique: true }),
     db.postReactions.createIndex({ userId: 1, kind: 1, createdAt: -1, _id: -1 }),
     db.postComments.createIndex({ postId: 1, status: 1, createdAt: -1, _id: -1 }),
@@ -58,7 +61,10 @@ async function ensureVerifiedEmailIndex(db: Database): Promise<void> {
   await db.users.createIndex({ email: 1 }, { unique: true, partialFilterExpression: filter });
 }
 
-/** New modules start switched off. Existing settings are never overwritten. */
+/**
+ * New modules start switched off. Existing settings are never overwritten. When another instance
+ * seeds at the same moment, its rows win and the duplicate-key errors here are expected.
+ */
 export async function seedModuleSettings(db: Database): Promise<void> {
   const now = new Date();
   await db.moduleSettings.bulkWrite(
@@ -76,5 +82,8 @@ export async function seedModuleSettings(db: Database): Promise<void> {
       return { updateOne: { filter: { module }, update: { $setOnInsert: defaults }, upsert: true } };
     }),
     { ordered: false },
-  );
+  ).catch((err: unknown) => {
+    const errors = err instanceof MongoBulkWriteError ? [err.writeErrors].flat() : [];
+    if (errors.length === 0 || errors.some((e) => e.code !== 11000)) throw err;
+  });
 }

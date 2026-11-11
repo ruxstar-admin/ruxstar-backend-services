@@ -4754,7 +4754,8 @@
                               "required": [
                                 "url",
                                 "width",
-                                "height"
+                                "height",
+                                "smaller"
                               ],
                               "properties": {
                                 "url": {
@@ -4765,6 +4766,30 @@
                                 },
                                 "height": {
                                   "type": "integer"
+                                },
+                                "smaller": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "required": [
+                                      "url",
+                                      "width",
+                                      "height"
+                                    ],
+                                    "properties": {
+                                      "url": {
+                                        "type": "string"
+                                      },
+                                      "width": {
+                                        "type": "integer"
+                                      },
+                                      "height": {
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  "description": "Narrower copies of the same photo, narrowest first, for grids and small screens. Empty for photos posted before they existed."
                                 }
                               },
                               "additionalProperties": false
@@ -5034,7 +5059,8 @@
                               "required": [
                                 "url",
                                 "width",
-                                "height"
+                                "height",
+                                "smaller"
                               ],
                               "properties": {
                                 "url": {
@@ -5045,6 +5071,30 @@
                                 },
                                 "height": {
                                   "type": "integer"
+                                },
+                                "smaller": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "required": [
+                                      "url",
+                                      "width",
+                                      "height"
+                                    ],
+                                    "properties": {
+                                      "url": {
+                                        "type": "string"
+                                      },
+                                      "width": {
+                                        "type": "integer"
+                                      },
+                                      "height": {
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  "description": "Narrower copies of the same photo, narrowest first, for grids and small screens. Empty for photos posted before they existed."
                                 }
                               },
                               "additionalProperties": false
@@ -5280,7 +5330,8 @@
                               "required": [
                                 "url",
                                 "width",
-                                "height"
+                                "height",
+                                "smaller"
                               ],
                               "properties": {
                                 "url": {
@@ -5291,6 +5342,30 @@
                                 },
                                 "height": {
                                   "type": "integer"
+                                },
+                                "smaller": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "required": [
+                                      "url",
+                                      "width",
+                                      "height"
+                                    ],
+                                    "properties": {
+                                      "url": {
+                                        "type": "string"
+                                      },
+                                      "width": {
+                                        "type": "integer"
+                                      },
+                                      "height": {
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  "description": "Narrower copies of the same photo, narrowest first, for grids and small screens. Empty for photos posted before they existed."
                                 }
                               },
                               "additionalProperties": false
@@ -5516,7 +5591,8 @@
                             "required": [
                               "url",
                               "width",
-                              "height"
+                              "height",
+                              "smaller"
                             ],
                             "properties": {
                               "url": {
@@ -5527,6 +5603,30 @@
                               },
                               "height": {
                                 "type": "integer"
+                              },
+                              "smaller": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "url",
+                                    "width",
+                                    "height"
+                                  ],
+                                  "properties": {
+                                    "url": {
+                                      "type": "string"
+                                    },
+                                    "width": {
+                                      "type": "integer"
+                                    },
+                                    "height": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                "description": "Narrower copies of the same photo, narrowest first, for grids and small screens. Empty for photos posted before they existed."
                               }
                             },
                             "additionalProperties": false
@@ -5756,7 +5856,8 @@
                             "required": [
                               "url",
                               "width",
-                              "height"
+                              "height",
+                              "smaller"
                             ],
                             "properties": {
                               "url": {
@@ -5767,6 +5868,30 @@
                               },
                               "height": {
                                 "type": "integer"
+                              },
+                              "smaller": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "url",
+                                    "width",
+                                    "height"
+                                  ],
+                                  "properties": {
+                                    "url": {
+                                      "type": "string"
+                                    },
+                                    "width": {
+                                      "type": "integer"
+                                    },
+                                    "height": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                "description": "Narrower copies of the same photo, narrowest first, for grids and small screens. Empty for photos posted before they existed."
                               }
                             },
                             "additionalProperties": false
@@ -5954,7 +6079,7 @@
         "tags": [
           "social"
         ],
-        "description": "Send the image itself with Content-Type image/jpeg, image/png or image/webp, up to 8 MB. It is saved as WebP, at most 1440 pixels on its long side, without its metadata. Pass the returned id in `mediaIds` when creating the post. Photos not used in a post within a day are deleted.",
+        "description": "Send the image itself with Content-Type image/jpeg, image/png or image/webp, up to 8 MB. It is saved as WebP, at most 1440 pixels on its long side, without its metadata, with copies 320 and 640 pixels wide in `smaller`. Pass the returned id in `mediaIds` when creating the post. Photos not used in a post within a day are deleted.",
         "security": [
           {
             "bearer": []
@@ -5981,7 +6106,8 @@
                         "id",
                         "url",
                         "width",
-                        "height"
+                        "height",
+                        "smaller"
                       ],
                       "properties": {
                         "id": {
@@ -5997,6 +6123,30 @@
                         },
                         "height": {
                           "type": "integer"
+                        },
+                        "smaller": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "url",
+                              "width",
+                              "height"
+                            ],
+                            "properties": {
+                              "url": {
+                                "type": "string"
+                              },
+                              "width": {
+                                "type": "integer"
+                              },
+                              "height": {
+                                "type": "integer"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Narrower copies of the same photo, narrowest first, for grids and small screens. Empty for photos posted before they existed."
                         }
                       },
                       "additionalProperties": false
@@ -6199,7 +6349,8 @@
                             "required": [
                               "url",
                               "width",
-                              "height"
+                              "height",
+                              "smaller"
                             ],
                             "properties": {
                               "url": {
@@ -6210,6 +6361,30 @@
                               },
                               "height": {
                                 "type": "integer"
+                              },
+                              "smaller": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "url",
+                                    "width",
+                                    "height"
+                                  ],
+                                  "properties": {
+                                    "url": {
+                                      "type": "string"
+                                    },
+                                    "width": {
+                                      "type": "integer"
+                                    },
+                                    "height": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                "description": "Narrower copies of the same photo, narrowest first, for grids and small screens. Empty for photos posted before they existed."
                               }
                             },
                             "additionalProperties": false

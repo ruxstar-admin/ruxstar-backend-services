@@ -5,7 +5,7 @@ import { MongoServerError, ObjectId, type WithId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { requireAuth } from "../../platform/auth.js";
 import { requireDatabase } from "../../platform/context.js";
-import type { Database, PostCommentDoc, PostDoc, UserDoc } from "../../platform/db.js";
+import type { Database, PostCommentDoc, PostDoc, PostMediaDoc, PostPhoto, UserDoc } from "../../platform/db.js";
 import { stamp } from "../../platform/db.js";
 import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
@@ -50,6 +50,14 @@ const authorView = (user: AuthorFields) => ({
   avatarUrl: user.avatar ?? null,
   vendor: Boolean(user.roles?.vendor),
 });
+
+const photoView = ({ url, width, height, smaller }: PostPhoto) => ({
+  url,
+  width,
+  height,
+  smaller: (smaller ?? []).map((s) => ({ url: s.url, width: s.width, height: s.height })),
+});
+const keysOf = (photo: Pick<PostPhoto, "key" | "smaller">) => [photo.key, ...(photo.smaller ?? []).map((s) => s.key)];
 
 /** One empty line in a row at most, no spaces at line ends. */
 const tidy = (text: string) =>
@@ -97,7 +105,7 @@ async function present(db: Database, posts: WithId<PostDoc>[], me: ObjectId | nu
         author,
         kind: post.kind,
         text: post.text,
-        media: post.media.map(({ url, width, height }) => ({ url, width, height })),
+        media: post.media.map(photoView),
         counts: { likes: post.counts.likes, comments: post.counts.comments },
         createdAt: post.createdAt.toISOString(),
         editedAt: post.editedAt?.toISOString() ?? null,
@@ -132,8 +140,6 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
   app.addContentTypeParser(/^image\//, { parseAs: "buffer", bodyLimit: POST_PHOTO_MAX_BYTES }, (_request, body, done) => done(null, body));
 
   const me = (request: FastifyRequest) => request.auth?.userId ?? null;
-  const nameOf = async (db: Database, userId: ObjectId) =>
-    (await db.users.findOne({ _id: userId }, { projection: { name: 1 } }))?.name ?? "Someone";
   // A cached anonymous answer must not be reused once someone signs in: it would show "not liked".
   const publicCache = (request: FastifyRequest, reply: FastifyReply) => {
     const vary = reply.getHeader("vary");
@@ -182,17 +188,22 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
     async (request, reply) => {
       const db = requireDatabase(app.db);
       const ref = request.params.ref.toLowerCase();
-      const user = await db.users.findOne(
-        { ...(/^[0-9a-f]{24}$/.test(ref) ? { _id: new ObjectId(ref) } : { username: ref }), status: { $ne: "deleted" } },
+      const byId = /^[0-9a-f]{24}$/.test(ref) ? new ObjectId(ref) : null;
+      const postsOf = (authorId: ObjectId) =>
+        findPage(db.posts, {
+          filter: { authorId, kind: request.query.kind ?? "personal", status: "live" },
+          sortField: "createdAt",
+          cursor: request.query.cursor,
+          limit: request.query.limit,
+        });
+      const findUser = db.users.findOne(
+        { ...(byId ? { _id: byId } : { username: ref }), status: { $ne: "deleted" } },
         { projection: { _id: 1, username: 1 } },
       );
+      // By id, the posts are read alongside the profile; by username, they need its id first.
+      const [user, early] = await Promise.all([findUser, byId ? postsOf(byId) : null]);
       if (!user?.username) throw new AppError("NOT_FOUND", "No one has that username.");
-      const { items, nextCursor } = await findPage(db.posts, {
-        filter: { authorId: user._id, kind: request.query.kind ?? "personal", status: "live" },
-        sortField: "createdAt",
-        cursor: request.query.cursor,
-        limit: request.query.limit,
-      });
+      const { items, nextCursor } = early ?? (await postsOf(user._id));
       publicCache(request, reply);
       return page(request, await present(db, items, me(request)), nextCursor);
     },
@@ -257,7 +268,8 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
         summary: "Upload one photo for a post you are about to make",
         description:
           "Send the image itself with Content-Type image/jpeg, image/png or image/webp, up to 8 MB. It is saved as WebP, at most " +
-          "1440 pixels on its long side, without its metadata. Pass the returned id in `mediaIds` when creating the post. " +
+          "1440 pixels on its long side, without its metadata, with copies 320 and 640 pixels wide in `smaller`. " +
+          "Pass the returned id in `mediaIds` when creating the post. " +
           "Photos not used in a post within a day are deleted.",
         response: { 201: UploadResult, ...Errors },
         security,
@@ -267,23 +279,28 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
       const db = requireDatabase(app.db);
       const userId = request.auth!.userId;
       if (!Buffer.isBuffer(request.body) || request.body.length === 0) throw new AppError("PHOTO_INVALID");
-      const photo = await toPostPhoto(request.body);
-      const key = `post-media/${app.config.env}/${userId.toHexString()}/${randomUUID()}.webp`;
-      const url = await app.media.save(key, photo.data);
+      const { full, smaller } = await toPostPhoto(request.body);
+      const base = `post-media/${app.config.env}/${userId.toHexString()}/${randomUUID()}`;
+      const save = async (file: typeof full, suffix: string) => {
+        const key = `${base}${suffix}.webp`;
+        return { key, url: await app.media.save(key, file.data), width: file.width, height: file.height };
+      };
+      const [saved, ...copies] = await Promise.all([save(full, ""), ...smaller.map((file) => save(file, `-${file.width}w`))]);
+      const photo: PostPhoto = { ...saved!, smaller: copies };
       const _id = new ObjectId();
-      await db.postMedia.insertOne({ _id, userId, postId: null, key, url, width: photo.width, height: photo.height, createdAt: new Date() });
+      await db.postMedia.insertOne({ _id, userId, postId: null, ...photo, createdAt: new Date() });
       void sweepStaleUploads(db, userId);
-      return reply.status(201).send(ok(request, { id: _id.toHexString(), url, width: photo.width, height: photo.height }));
+      return reply.status(201).send(ok(request, { id: _id.toHexString(), ...photoView(photo) }));
     },
   );
 
   async function sweepStaleUploads(db: Database, userId: ObjectId) {
     try {
       const stale = await db.postMedia
-        .find({ userId, postId: null, createdAt: { $lt: new Date(Date.now() - STALE_UPLOAD_MS) } }, { projection: { key: 1 } })
+        .find({ userId, postId: null, createdAt: { $lt: new Date(Date.now() - STALE_UPLOAD_MS) } }, { projection: { key: 1, smaller: 1 } })
         .limit(20)
         .toArray();
-      await Promise.all(stale.map((m) => app.media.remove(m.key)));
+      await Promise.all(stale.flatMap(keysOf).map((key) => app.media.remove(key)));
       if (stale.length) await db.postMedia.deleteMany({ _id: { $in: stale.map((m) => m._id) }, postId: null });
     } catch (err) {
       app.log.warn({ err: (err as Error).message }, "Unused post photos not swept");
@@ -316,19 +333,21 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
       if (kind === "business" && !auth.roles.vendor) throw new AppError("FORBIDDEN", "Only vendors can post as a business.");
 
       const postId = new ObjectId();
+      let media: WithId<PostMediaDoc>[] = [];
       if (mediaIds.length) {
-        const claimed = await db.postMedia.updateMany(
-          { _id: { $in: mediaIds }, userId: auth.userId, postId: null },
-          { $set: { postId } },
-        );
+        // A photo's files never change once uploaded, so they are read while the claim decides who gets it.
+        const [claimed, found] = await Promise.all([
+          db.postMedia.updateMany({ _id: { $in: mediaIds }, userId: auth.userId, postId: null }, { $set: { postId } }),
+          db.postMedia.find({ _id: { $in: mediaIds }, userId: auth.userId }).toArray(),
+        ]);
         if (claimed.modifiedCount !== mediaIds.length) {
           await db.postMedia.updateMany({ postId }, { $set: { postId: null } });
           throw new AppError("VALIDATION_FAILED", "Some photos are no longer available. Add them again.", [
             { path: "body/mediaIds", message: "Unknown or used photo" },
           ]);
         }
+        media = found;
       }
-      const media = mediaIds.length ? await db.postMedia.find({ _id: { $in: mediaIds } }).toArray() : [];
       const byId = new Map(media.map((m) => [m._id.toHexString(), m]));
       const now = new Date();
       const doc: PostDoc = {
@@ -337,17 +356,19 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
         kind,
         text,
         media: mediaIds.map((id) => {
-          const { key, url, width, height } = byId.get(id.toHexString())!;
-          return { key, url, width, height };
+          const { key, url, width, height, smaller } = byId.get(id.toHexString())!;
+          return { key, url, width, height, ...(smaller ? { smaller } : {}) };
         }),
         counts: { likes: 0, comments: 0 },
         status: "live",
         editedAt: null,
         ...stamp(now),
       };
-      await db.posts.insertOne(doc);
-      await db.users.updateOne({ _id: auth.userId }, { $inc: { "social.posts": 1 } });
-      const [post] = await present(db, [doc], auth.userId);
+      // The author's details are read while the post is saved; the count only moves once it is.
+      const [, [post]] = await Promise.all([
+        db.posts.insertOne(doc).then(() => db.users.updateOne({ _id: auth.userId }, { $inc: { "social.posts": 1 } })),
+        present(db, [doc], auth.userId),
+      ]);
       return reply.status(201).send(ok(request, post!));
     },
   );
@@ -418,7 +439,7 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
         db.postReactions.deleteMany({ postId: gone._id }),
         db.postComments.updateMany({ postId: gone._id }, { $set: { status: "deleted" } }),
         db.postMedia.deleteMany({ postId: gone._id }),
-        ...gone.media.map((m) => app.media.remove(m.key)),
+        ...gone.media.flatMap(keysOf).map((key) => app.media.remove(key)),
       ]);
       return ok(request, { done: true as const });
     },
@@ -445,10 +466,12 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
     let likes = post.counts.likes;
     if (changed) {
       const step = on ? 1 : -1;
-      const after = await db.posts.findOneAndUpdate({ _id: post._id }, { $inc: { "counts.likes": step } }, { returnDocument: "after", projection: { counts: 1 } });
+      const [after] = await Promise.all([
+        db.posts.findOneAndUpdate({ _id: post._id }, { $inc: { "counts.likes": step } }, { returnDocument: "after", projection: { counts: 1 } }),
+        db.users.updateOne({ _id: post.authorId }, { $inc: { "social.engagements": step } }),
+      ]);
       likes = after?.counts.likes ?? likes + step;
-      await db.users.updateOne({ _id: post.authorId }, { $inc: { "social.engagements": step } });
-      if (on) void notifyPostEvent(db, app.log, { type: "post.like", to: post.authorId, actor: { id: userId, name: await nameOf(db, userId) }, postId: post._id });
+      if (on) void notifyPostEvent(db, app.log, { type: "post.like", to: post.authorId, actor: { id: userId }, postId: post._id });
     }
     return ok(request, { likes, likedByMe: on });
   };
@@ -508,12 +531,15 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
       if (!text) throw new AppError("VALIDATION_FAILED", "Write a comment first.", [{ path: "body/text", message: "Empty comment" }]);
       const post = await livePost(db, request.params.id);
       const doc: PostCommentDoc = { _id: new ObjectId(), postId: post._id, authorId: userId, text, status: "live", ...stamp() };
-      await db.postComments.insertOne(doc);
-      await Promise.all([
-        db.posts.updateOne({ _id: post._id }, { $inc: { "counts.comments": 1 } }),
-        db.users.updateOne({ _id: post.authorId }, { $inc: { "social.engagements": 1 } }),
+      const [, [comment]] = await Promise.all([
+        db.postComments.insertOne(doc).then(() =>
+          Promise.all([
+            db.posts.updateOne({ _id: post._id }, { $inc: { "counts.comments": 1 } }),
+            db.users.updateOne({ _id: post.authorId }, { $inc: { "social.engagements": 1 } }),
+          ]),
+        ),
+        presentComments(db, [doc], userId),
       ]);
-      const [comment] = await presentComments(db, [doc], userId);
       void notifyPostEvent(db, app.log, { type: "post.comment", to: post.authorId, actor: { id: userId, name: comment!.author.name }, postId: post._id, excerpt: text });
       return reply.status(201).send(ok(request, comment!));
     },

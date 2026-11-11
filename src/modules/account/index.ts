@@ -61,6 +61,8 @@ const LOCK_AFTER_FAILURES = 5;
 const LOCK_MINUTES = 15;
 const MIN_AGE_YEARS = 13;
 const PURGE_AFTER_DAYS = 30;
+/** For reads that never check a password. */
+const WITHOUT_PASSWORDS = { passwordHash: 0, passwordHistory: 0 } as const;
 
 const e164 = (phone: string) => `+91${phone}`;
 const maskPhone = (phone: string) => `+91 ••••• •${phone.slice(-4)}`;
@@ -401,6 +403,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       const user = await d.db.users.findOne({ _id: rotation.userId }, { projection: { status: 1 } });
       if (!user || user.status !== "active") {
         await d.db.sessions.updateOne({ _id: rotation.sessionId }, { $set: { revokedAt: new Date() } });
+        app.authCache.forget(rotation.userId);
         clearTokens(request, reply);
         throw new AppError("UNAUTHENTICATED");
       }
@@ -431,9 +434,11 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       const claims = await readAccessClaims(request);
       if (claims) {
         await db.sessions.updateOne({ _id: claims.sessionId, userId: claims.userId }, { $set: { revokedAt: now, updatedAt: now } });
+        app.authCache.forget(claims.userId);
       } else {
         const token = readRefreshToken(request, request.body?.refreshToken);
-        if (token) await revokeByRefreshToken(db, token);
+        const userId = token ? await revokeByRefreshToken(db, token) : null;
+        if (userId) app.authCache.forget(userId);
       }
       clearTokens(request, reply);
       return ok(request, { done: true as const });
@@ -455,7 +460,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       const d = deps();
       const now = new Date();
       const hash = await hashPassword(request.body.password);
-      await d.db.transaction(async (session) => {
+      const userId = await d.db.transaction(async (session) => {
         const phone = await useVerification(d, request.body.verificationToken, "reset", session);
         const user = await d.db.users.findOne({ phone, status: { $ne: "deleted" } }, { session });
         if (!user) throw new AppError("VERIFICATION_INVALID");
@@ -481,7 +486,9 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
           { actor: { id: user._id, kind: "user" }, scope: { module: "account" }, action: "user.password_reset", target: { type: "user", id: user._id }, diff: {}, ip: request.ip },
           session,
         );
+        return user._id;
       });
+      app.authCache.forget(userId);
       return ok(request, { done: true as const });
     },
   );
@@ -529,6 +536,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
           session,
         );
       });
+      app.authCache.forget(user._id);
       return ok(request, { done: true as const });
     },
   );
@@ -540,7 +548,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       schema: { tags: ["account"], summary: "The signed-in user", response: { 200: MeResult, ...Errors }, security: [{ bearer: [] }, { cookie: [] }] },
     },
     async (request) => {
-      const user = await requireDatabase(app.db).users.findOne({ _id: request.auth!.userId });
+      const user = await requireDatabase(app.db).users.findOne({ _id: request.auth!.userId }, { projection: WITHOUT_PASSWORDS });
       if (!user) throw new AppError("UNAUTHENTICATED");
       return ok(request, view(user));
     },
@@ -748,7 +756,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const d = deps();
-      const user = await d.db.users.findOne({ _id: request.auth!.userId });
+      const user = await d.db.users.findOne({ _id: request.auth!.userId }, { projection: WITHOUT_PASSWORDS });
       if (!user) throw new AppError("UNAUTHENTICATED");
       if (!user.email) throw noEmail();
       if (user.emailVerified) throw new AppError("CONFLICT", "Your email is already verified.");
@@ -774,7 +782,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const d = deps();
-      const user = await d.db.users.findOne({ _id: request.auth!.userId });
+      const user = await d.db.users.findOne({ _id: request.auth!.userId }, { projection: WITHOUT_PASSWORDS });
       if (!user) throw new AppError("UNAUTHENTICATED");
       if (!user.email) throw noEmail();
       if (user.emailVerified) return ok(request, view(user));
@@ -850,6 +858,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
         );
         return user.avatarKey ?? null;
       });
+      app.authCache.forget(userId);
       if (photoKey) await app.photos.remove(photoKey);
       clearTokens(request, reply);
       return ok(request, { done: true as const });
@@ -957,6 +966,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
         { $set: { revokedAt: now, updatedAt: now } },
       );
       if (!res.matchedCount) throw new AppError("NOT_FOUND", "That device is already signed out.");
+      app.authCache.forget(auth.userId);
       if (id.equals(auth.sessionId)) clearTokens(request, reply);
       return ok(request, { done: true as const });
     },

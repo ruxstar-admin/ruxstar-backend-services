@@ -15,10 +15,17 @@ export const Author = Strict({
   vendor: Type.Boolean(),
 });
 
-export const Photo = Strict({
+const PhotoFile = Strict({
   url: Type.String(),
   width: Type.Integer(),
   height: Type.Integer(),
+});
+
+export const Photo = Strict({
+  ...PhotoFile.properties,
+  smaller: Type.Array(PhotoFile, {
+    description: "Narrower copies of the same photo, narrowest first, for grids and small screens. Empty for photos posted before they existed.",
+  }),
 });
 
 export const Post = Strict({

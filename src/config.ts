@@ -23,6 +23,11 @@ export interface Config {
   photos: BucketSettings | null;
   /** Post photos, in their own public bucket. Null leaves post photos off. */
   media: BucketSettings | null;
+  /**
+   * How long one instance trusts a checked session before reading it again. A logout or role change
+   * on another instance can take this long to apply; 0 checks every request.
+   */
+  authCacheSeconds: number;
 }
 
 export interface BucketSettings {
@@ -109,6 +114,11 @@ export function loadConfig(env: Env = process.env): Config {
   const photos = bucketOf("GCS_BUCKET", "GCS_PUBLIC_BASE_URL", "ruxstar-profile-pictures");
   const media = bucketOf("GCS_MEDIA_BUCKET", "GCS_MEDIA_PUBLIC_BASE_URL", "ruxstar-post-media");
 
+  const authCacheSeconds = Number(read(env, "AUTH_CACHE_SECONDS") ?? 30);
+  if (!Number.isInteger(authCacheSeconds) || authCacheSeconds < 0 || authCacheSeconds > 300) {
+    problems.push("AUTH_CACHE_SECONDS must be a whole number from 0 to 300");
+  }
+
   if (problems.length) throw new ConfigError(problems);
 
   return {
@@ -138,5 +148,6 @@ export function loadConfig(env: Env = process.env): Config {
     },
     photos,
     media,
+    authCacheSeconds,
   };
 }

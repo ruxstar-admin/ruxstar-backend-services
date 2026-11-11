@@ -3,6 +3,7 @@ import { buildApp } from "../src/app.js";
 import { ConfigError, loadConfig } from "../src/config.js";
 import { codeEmail } from "../src/adapters/email-template.js";
 import { compareVersions } from "../src/platform/client.js";
+import { seedModuleSettings } from "../src/platform/indexes.js";
 import { requireModuleLive } from "../src/platform/module-switch.js";
 import { decodeCursor, encodeCursor } from "../src/platform/pagination.js";
 import { ObjectId } from "mongodb";
@@ -122,6 +123,11 @@ describe("platform", () => {
     expect(off.json().error.code).toBe("MODULE_OFF");
   });
 
+  it("seeds module settings again without failing or duplicating", async () => {
+    await Promise.all([seedModuleSettings(stack.db), seedModuleSettings(stack.db)]);
+    expect(await stack.db.moduleSettings.countDocuments({ module: "pod" })).toBe(1);
+  });
+
   it("swaps in a working connection when the database is renewed", async () => {
     const stale = stack.db.client;
     stack.db.renew();
@@ -129,5 +135,29 @@ describe("platform", () => {
     await expect(stack.db.users.countDocuments()).resolves.toBeTypeOf("number");
     const ready = await stack.app.inject({ url: "/ready" });
     expect(ready.statusCode).toBe(200);
+  });
+});
+
+describe("session cache", () => {
+  let stack: Stack;
+
+  beforeAll(async () => {
+    stack = await startStack(undefined, { authCacheSeconds: 30 });
+  }, 120_000);
+  afterAll(() => stack?.stop());
+
+  const modules = (token: string) => stack.app.inject({ url: "/v1/ruxstar/modules", headers: web(token) });
+
+  it("reuses a checked session, and forgets it at once on logout here", async () => {
+    const admin = await signIn(stack, { admin: true });
+    expect((await modules(admin.token)).statusCode).toBe(200);
+    // Ended elsewhere: this instance keeps trusting it until the cache runs out.
+    await stack.db.sessions.updateOne({ _id: admin.sessionId }, { $set: { revokedAt: new Date() } });
+    expect((await modules(admin.token)).statusCode).toBe(200);
+
+    const other = await signIn(stack, { admin: true });
+    expect((await modules(other.token)).statusCode).toBe(200);
+    await stack.app.inject({ method: "POST", url: "/v1/account/logout", headers: web(other.token), payload: {} });
+    expect((await modules(other.token)).statusCode).toBe(401);
   });
 });

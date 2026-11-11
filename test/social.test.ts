@@ -57,13 +57,21 @@ describe("posts", () => {
     const meta = await sharp(stack.media.get(key)!).metadata();
     expect(meta).toMatchObject({ format: "webp", width: 1440, height: 960 });
     expect(meta.exif).toBeUndefined();
+    expect(photo.smaller).toEqual([
+      { url: photo.url.replace(".webp", "-320w.webp"), width: 320, height: 213 },
+      { url: photo.url.replace(".webp", "-640w.webp"), width: 640, height: 427 },
+    ]);
+    const small = await sharp(stack.media.get(key.replace(".webp", "-320w.webp"))!).metadata();
+    expect(small).toMatchObject({ format: "webp", width: 320, height: 213 });
 
     const tall = (await upload(asha, 600, 2000)).json().data;
     expect(tall.width / tall.height).toBeCloseTo(0.8, 2);
+    expect(tall.smaller.map((s: { width: number }) => s.width)).toEqual([320]);
 
     const post = await makePost(asha, { text: "  First batch of mugs.\n\n\n\nGlazed today.  ", mediaIds: [photo.id, tall.id] });
     expect(post).toMatchObject({ text: "First batch of mugs.\n\nGlazed today.", kind: "personal", mine: true, likedByMe: false });
     expect(post.media.map((m) => m.url)).toEqual([photo.url, tall.url]);
+    expect(post.media[0]).toEqual({ url: photo.url, width: 1440, height: 960, smaller: photo.smaller });
 
     expect((await call("POST", "/social/posts", asha, { text: "again", mediaIds: [photo.id] })).json().error.code).toBe("VALIDATION_FAILED");
     const ravisPhoto = (await upload(ravi)).json().data;
@@ -120,7 +128,7 @@ describe("posts", () => {
 
     expect((await call("DELETE", `/social/posts/${post.id}`, other)).statusCode).toBe(403);
     expect((await call("DELETE", `/social/posts/${post.id}`, owner)).json().data.done).toBe(true);
-    expect(stack.media.has(photo.url.replace("https://media.test/", ""))).toBe(false);
+    for (const { url } of [photo, ...photo.smaller]) expect(stack.media.has(url.replace("https://media.test/", ""))).toBe(false);
     expect((await call("GET", `/social/posts/${post.id}`)).json().error.code).toBe("NOT_FOUND");
     expect((await call("GET", `/account/profiles/${owner.username}`)).json().data.stats).toEqual({ posts: 0, engagements: 0 });
   });

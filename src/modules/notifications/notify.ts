@@ -5,7 +5,8 @@ import type { Database, NotificationDoc } from "../../platform/db.js";
 interface PostEvent {
   type: NotificationDoc["type"];
   to: ObjectId;
-  actor: { id: ObjectId; name: string };
+  /** Without a name, it is read here, off the request's path. */
+  actor: { id: ObjectId; name?: string };
   postId: ObjectId;
   /** The comment, for comment notifications. */
   excerpt?: string;
@@ -23,6 +24,8 @@ export async function notifyPostEvent(db: Database, log: FastifyBaseLogger, even
   const now = new Date();
   const link = { screen: "post" as const, id: event.postId.toHexString() };
   try {
+    const name =
+      event.actor.name ?? (await db.users.findOne({ _id: event.actor.id }, { projection: { name: 1 } }))?.name ?? "Someone";
     if (event.type === "post.like") {
       await db.notifications.updateOne(
         { userId: event.to, type: "post.like", "link.id": link.id, actorId: event.actor.id },
@@ -30,7 +33,7 @@ export async function notifyPostEvent(db: Database, log: FastifyBaseLogger, even
           $setOnInsert: {
             _id: new ObjectId(),
             title: "New like",
-            body: `${event.actor.name} liked your post.`,
+            body: `${name} liked your post.`,
             "link.screen": "post",
             readAt: null,
             createdAt: now,
@@ -46,7 +49,7 @@ export async function notifyPostEvent(db: Database, log: FastifyBaseLogger, even
       type: event.type,
       actorId: event.actor.id,
       title: "New comment",
-      body: `${event.actor.name}: ${clip(event.excerpt ?? "")}`,
+      body: `${name}: ${clip(event.excerpt ?? "")}`,
       link,
       readAt: null,
       createdAt: now,

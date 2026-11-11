@@ -24,7 +24,9 @@ if (!config.jwtSecret) app.log.warn("JWT_SECRET is not set. Every signed-in rout
 async function setUpDatabase(database: NonNullable<typeof db>, attempt: number): Promise<boolean> {
   try {
     await database.client.connect();
-    await Promise.all([ensurePlatformIndexes(database), seedModuleSettings(database)]);
+    // The unique index on module must exist before seeding, or two instances starting together can insert twins.
+    await ensurePlatformIndexes(database);
+    await seedModuleSettings(database);
     database.ready = true;
     app.log.info({ db: config.mongo!.db, attempt }, "Database ready");
     return true;

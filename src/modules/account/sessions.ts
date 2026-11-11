@@ -127,9 +127,15 @@ export function readRefreshToken(request: FastifyRequest, bodyToken?: string): s
   return request.client?.kind === "web" ? (request.cookies?.[REFRESH_COOKIE] ?? null) : null;
 }
 
-export async function revokeByRefreshToken(db: Database, token: string) {
+/** Returns whose session it was, or null when the token matched none. */
+export async function revokeByRefreshToken(db: Database, token: string): Promise<ObjectId | null> {
   const now = new Date();
-  await db.sessions.updateOne({ refreshTokenHash: hashToken(token), revokedAt: null }, { $set: { revokedAt: now, updatedAt: now } });
+  const session = await db.sessions.findOneAndUpdate(
+    { refreshTokenHash: hashToken(token), revokedAt: null },
+    { $set: { revokedAt: now, updatedAt: now } },
+    { projection: { userId: 1 } },
+  );
+  return session?.userId ?? null;
 }
 
 type Rotation =
@@ -170,6 +176,7 @@ export async function rotateRefreshToken(db: Database, request: FastifyRequest, 
       reused.expiresAt > now;
     if (raced) return { kind: "raced", userId: reused.userId, sessionId: reused._id };
     await db.sessions.updateOne({ _id: reused._id }, { $set: { revokedAt: now, updatedAt: now } });
+    request.server.authCache.forget(reused.userId);
     request.log.warn({ sessionId: reused._id.toHexString() }, "Refresh token reused; session ended");
   }
   throw new AppError("UNAUTHENTICATED", "Your session has ended. Sign in again.");

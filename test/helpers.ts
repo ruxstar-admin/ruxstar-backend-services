@@ -28,8 +28,11 @@ export interface Stack {
   stop: () => Promise<void>;
 }
 
-/** A real replica set, because transactions need one. */
-export async function startStack(extend?: (app: App) => void, { rateLimit = false } = {}): Promise<Stack> {
+/**
+ * A real replica set, because transactions need one. Sessions are checked on every request unless
+ * `authCacheSeconds` is given, since most tests change the database directly between requests.
+ */
+export async function startStack(extend?: (app: App) => void, { rateLimit = false, authCacheSeconds = 0 } = {}): Promise<Stack> {
   const replSet = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: "wiredTiger" } });
   const config = loadConfig({
     RUXSTAR_ENV: "dev",
@@ -37,6 +40,7 @@ export async function startStack(extend?: (app: App) => void, { rateLimit = fals
     MONGODB_URI: replSet.getUri(),
     MONGODB_DB: "ruxstar_test",
     MIN_APP_VERSION: "2.0.0",
+    AUTH_CACHE_SECONDS: String(authCacheSeconds),
   });
   const db = createDatabase(config.mongo!.uri, config.mongo!.db);
   await db.client.connect();
