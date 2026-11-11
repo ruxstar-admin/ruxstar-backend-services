@@ -218,11 +218,27 @@ export interface PlatformSettingDoc extends Stamped {
 export class Database {
   /** False until the first connect and the index build succeed; requests get 503 until then. */
   ready = false;
+  client: MongoClient;
+  db: Db;
 
   constructor(
-    readonly client: MongoClient,
-    readonly db: Db,
-  ) {}
+    private readonly open: () => MongoClient,
+    private readonly dbName: string,
+  ) {
+    this.client = open();
+    this.db = this.client.db(dbName);
+  }
+
+  /**
+   * Swaps in a new client. One that failed to set up can keep a round-trip estimate above
+   * `timeoutMS`, and then refuses every operation, so a retry on it never succeeds.
+   */
+  renew(): void {
+    const stale = this.client;
+    this.client = this.open();
+    this.db = this.client.db(this.dbName);
+    stale.close().catch(() => undefined);
+  }
 
   get users() {
     return this.db.collection<UserDoc>("users");
@@ -303,16 +319,17 @@ export class Database {
 }
 
 export function createDatabase(uri: string, dbName: string): Database {
-  const client = new MongoClient(uri, {
-    appName: "ruxstar-api",
-    maxPoolSize: 20,
-    minPoolSize: 1,
-    // The cluster's first answer after a cold start often takes over 5 s. Requests stay capped by timeoutMS.
-    serverSelectionTimeoutMS: 15_000,
-    timeoutMS: 10_000,
-    retryWrites: true,
-  });
-  return new Database(client, client.db(dbName));
+  const open = () =>
+    new MongoClient(uri, {
+      appName: "ruxstar-api",
+      maxPoolSize: 20,
+      minPoolSize: 1,
+      // The cluster's first answer after a cold start often takes over 5 s. Requests stay capped by timeoutMS.
+      serverSelectionTimeoutMS: 15_000,
+      timeoutMS: 10_000,
+      retryWrites: true,
+    });
+  return new Database(open, dbName);
 }
 
 export const stamp = (now = new Date()): Stamped => ({ createdAt: now, updatedAt: now, schemaVersion: 1 });

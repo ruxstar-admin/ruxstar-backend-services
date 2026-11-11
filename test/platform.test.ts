@@ -121,4 +121,13 @@ describe("platform", () => {
     expect(off.statusCode).toBe(503);
     expect(off.json().error.code).toBe("MODULE_OFF");
   });
+
+  it("swaps in a working connection when the database is renewed", async () => {
+    const stale = stack.db.client;
+    stack.db.renew();
+    expect(stack.db.client).not.toBe(stale);
+    await expect(stack.db.users.countDocuments()).resolves.toBeTypeOf("number");
+    const ready = await stack.app.inject({ url: "/ready" });
+    expect(ready.statusCode).toBe(200);
+  });
 });

@@ -32,7 +32,8 @@ async function setUpDatabase(database: NonNullable<typeof db>) {
     } catch (err) {
       const wait = Math.min(30, 2 ** attempt);
       const { name, message } = err as Error;
-      app.log.error({ attempt, error: name }, `Database setup failed: ${message}. Retrying in ${wait}s`);
+      app.log.error({ attempt, error: name }, `Database setup failed: ${message}. Retrying in ${wait}s with a new connection`);
+      database.renew();
       await new Promise((resolve) => setTimeout(resolve, wait * 1000).unref());
     }
   }
