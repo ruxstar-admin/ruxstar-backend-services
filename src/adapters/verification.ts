@@ -29,6 +29,16 @@ export interface GstinResult {
   message: string | null;
 }
 
+export interface PayoutAccountResult {
+  valid: boolean;
+  /** The name the bank has for the account. */
+  holderName: string | null;
+  /** Cashfree's grade of that name against the one we sent. */
+  nameMatch: string | null;
+  bankName: string | null;
+  message: string | null;
+}
+
 /** Identity checks. Cashfree in sandbox and production; a fake for tests and local runs. */
 export interface Verifier {
   startDigilocker(verificationId: string, redirectUrl: string): Promise<{ url: string; referenceId: string | null }>;
@@ -39,6 +49,9 @@ export interface Verifier {
   liveness(verificationId: string, selfie: Buffer): Promise<{ live: boolean; score: number | null }>;
   faceMatch(verificationId: string, selfie: Buffer, aadhaarPhoto: Buffer): Promise<{ match: boolean; score: number | null }>;
   gstin(gstin: string, businessName: string): Promise<GstinResult>;
+  bankAccount(accountNumber: string, ifsc: string, name: string): Promise<PayoutAccountResult>;
+  /** Sends ₹1 to the UPI ID to prove it is real and read the account holder's name. */
+  upi(verificationId: string, vpa: string, name: string): Promise<PayoutAccountResult>;
 }
 
 /** Below this, Cashfree's face match says NO. v1 used the same. */
@@ -179,6 +192,42 @@ class CashfreeVerifier implements Verifier {
       message: str(body.message),
     };
   }
+
+  /** Like the PAN check, the sandbox's test accounts belong to JOHN DOE and friends, so a valid one counts as a match there. */
+  private payoutAnswer(body: Json, valid: boolean): PayoutAccountResult {
+    const sandboxMatch = this.settings.env === "sandbox" && valid ? "DIRECT_MATCH" : null;
+    return {
+      valid,
+      holderName: str(body.name_at_bank),
+      nameMatch: (this.settings.env === "sandbox" ? null : str(body.name_match_result)) ?? sandboxMatch,
+      bankName: str(body.bank_name) ?? str((body.ifsc_details as Json | undefined)?.bank),
+      message: str(body.message),
+    };
+  }
+
+  async bankAccount(accountNumber: string, ifsc: string, name: string) {
+    const { body } = await this.json("/bank-account/sync", { bank_account: accountNumber, ifsc, name }, { answers: true });
+    return this.payoutAnswer(body, body.account_status === "VALID");
+  }
+
+  async upi(verificationId: string, vpa: string, name: string) {
+    const { body } = await this.json(
+      "/upi/penny-drop",
+      {
+        verification_id: verificationId,
+        vpa,
+        name,
+        user_consent: {
+          obtained: true,
+          type: "EXPLICIT",
+          timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+          purpose: "Vendor_payout_UPI_verification",
+        },
+      },
+      { answers: true },
+    );
+    return this.payoutAnswer(body, body.status === "VALID");
+  }
 }
 
 /**
@@ -193,6 +242,9 @@ export class FakeVerifier implements Verifier {
   live = true;
   match = true;
   gstinValid = true;
+  accountValid = true;
+  accountName = "ASHA RAO";
+  accountMatch = "DIRECT_MATCH";
   down = false;
   calls = 0;
 
@@ -241,6 +293,21 @@ export class FakeVerifier implements Verifier {
       ? { valid: true, legalName: businessName.toUpperCase(), status: "Active", message: null }
       : { valid: false, legalName: null, status: null, message: "GSTIN not found" };
   }
+
+  private account(bankName: string | null): PayoutAccountResult {
+    this.touch();
+    return this.accountValid
+      ? { valid: true, holderName: this.accountName, nameMatch: this.accountMatch, bankName, message: null }
+      : { valid: false, holderName: null, nameMatch: null, bankName: null, message: "Invalid account" };
+  }
+
+  async bankAccount() {
+    return this.account("YES BANK");
+  }
+
+  async upi() {
+    return this.account(null);
+  }
 }
 
 class UnavailableVerifier implements Verifier {
@@ -254,6 +321,8 @@ class UnavailableVerifier implements Verifier {
   liveness = async () => this.no();
   faceMatch = async () => this.no();
   gstin = async () => this.no();
+  bankAccount = async () => this.no();
+  upi = async () => this.no();
 }
 
 export function createVerifier(config: Config, log: FastifyBaseLogger): Verifier {

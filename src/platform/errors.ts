@@ -44,6 +44,11 @@ export const ERROR_CODES = {
   KYC_STEP_ORDER: { status: 409, message: "Finish the earlier verification steps first." },
   KYC_LOCKED: { status: 423, message: "Verification is on hold. Contact support to continue." },
   KYC_UNAVAILABLE: { status: 503, message: "Verification is not available right now. Try again shortly." },
+  // Vendor
+  SIGNUPS_CLOSED: { status: 403, message: "This service isn't taking new businesses right now." },
+  BUSINESS_INCOMPLETE: { status: 422, message: "Finish the business details first." },
+  BUSINESS_SUSPENDED: { status: 423, message: "This business is on hold. Contact support to continue." },
+  PAYOUTS_UNAVAILABLE: { status: 503, message: "Payout accounts can't be added right now. Try again later." },
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CODES;

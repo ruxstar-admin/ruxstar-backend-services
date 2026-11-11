@@ -16,11 +16,15 @@ const Notification = Strict({
     Type.Literal("post.removed"),
     Type.Literal("kyc.approved"),
     Type.Literal("kyc.rejected"),
+    Type.Literal("business.suspended"),
+    Type.Literal("business.restored"),
   ]),
   title: Type.String(),
   body: Type.String(),
   link: Strict({
-    screen: Type.Union([Type.Literal("post"), Type.Literal("verification")], { description: "`verification` opens the KYC screen; `id` is base or vendor" }),
+    screen: Type.Union([Type.Literal("post"), Type.Literal("verification"), Type.Literal("business")], {
+      description: "`verification` opens the KYC screen and `business` one of your businesses in the vendor portal; `id` says which",
+    }),
     id: Type.String(),
   }),
   read: Type.Boolean(),

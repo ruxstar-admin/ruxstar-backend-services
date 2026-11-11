@@ -1,6 +1,6 @@
 import type { FastifyBaseLogger } from "fastify";
 import { ObjectId } from "mongodb";
-import type { Database, KycTrack, NotificationDoc } from "../../platform/db.js";
+import type { Database, NotificationDoc } from "../../platform/db.js";
 
 interface PostEvent {
   type: NotificationDoc["type"];
@@ -82,20 +82,38 @@ export async function notifyPostRemoved(
   }
 }
 
-const KYC_COPY = {
-  base: { approved: ["You are verified", "Your Ruxstar Card is ready."] },
-  vendor: { approved: ["You are a verified vendor", "You can post as a business and open your vendor portal."] },
-} as const;
+/** Tells a vendor the Ruxstar team put one of their businesses on hold, or lifted it. Logged, never thrown. */
+export async function notifyBusinessHold(
+  db: Database,
+  log: FastifyBaseLogger,
+  event: { to: ObjectId; moderator: ObjectId; businessId: ObjectId; name: string; held: boolean; reason: string | null },
+): Promise<void> {
+  try {
+    await db.notifications.insertOne({
+      _id: new ObjectId(),
+      userId: event.to,
+      type: event.held ? "business.suspended" : "business.restored",
+      actorId: event.moderator,
+      title: event.held ? `${clip(event.name, 40)} is on hold` : `${clip(event.name, 40)} is back`,
+      body: event.held ? clip(event.reason ?? "Contact support to continue.", 140) : "Customers can see it again.",
+      link: { screen: "business", id: event.businessId.toHexString() },
+      readAt: null,
+      createdAt: new Date(),
+    });
+  } catch (err) {
+    log.warn({ err: (err as Error).message, type: "business" }, "Notification not saved");
+  }
+}
 
 /** Tells a user their verification was decided. Logged, never thrown: the decision is already saved. */
 export async function notifyKycDecision(
   db: Database,
   log: FastifyBaseLogger,
-  event: { to: ObjectId; reviewer: ObjectId; track: KycTrack; decision: "approved" | "rejected" | "locked"; reason: string | null },
+  event: { to: ObjectId; reviewer: ObjectId; decision: "approved" | "rejected" | "locked"; reason: string | null },
 ): Promise<void> {
   const [title, body] =
     event.decision === "approved"
-      ? KYC_COPY[event.track].approved
+      ? ["You are verified", "Your Ruxstar Card is ready and your vendor portal is open."]
       : event.decision === "locked"
         ? ["Verification is on hold", "Contact support to continue."]
         : ["Verification needs a change", clip(event.reason ?? "Open verification to see what to fix.", 140)];
@@ -107,7 +125,7 @@ export async function notifyKycDecision(
       actorId: event.reviewer,
       title,
       body,
-      link: { screen: "verification", id: event.track },
+      link: { screen: "verification", id: "base" },
       readAt: null,
       createdAt: new Date(),
     });

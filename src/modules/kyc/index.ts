@@ -18,7 +18,7 @@ import {
   triesToday,
   verificationId,
 } from "./cases.js";
-import { CardResult, DigilockerResult, OverviewResult, PanBody, VendorBody } from "./contracts.js";
+import { CardResult, DigilockerResult, OverviewResult, PanBody } from "./contracts.js";
 import { SELFIE_MAX_BYTES, toSelfie } from "./selfie.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
@@ -70,7 +70,7 @@ const kyc: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: requireAuth,
       schema: {
         tags: ["kyc"],
-        summary: "Where your identity and vendor verification stand",
+        summary: "Where your identity verification stands",
         response: { 200: OverviewResult, ...Errors },
         security,
       },
@@ -273,7 +273,8 @@ const kyc: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["kyc"],
         summary: "Send identity verification for review",
-        description: "Needs the Aadhaar, PAN and selfie steps verified. Our team approves it, then your Ruxstar Card is issued.",
+        description:
+          "Needs the Aadhaar, PAN and selfie steps verified. Once our team approves it your Ruxstar Card is issued and the vendor portal opens.",
         response: { 200: OverviewResult, ...Errors },
         security,
       },
@@ -287,79 +288,12 @@ const kyc: FastifyPluginAsyncTypebox = async (app) => {
       if (aadhaar?.status !== "verified" || pan?.status !== "verified" || face?.status !== "verified") {
         throw new AppError("KYC_STEP_ORDER", "Finish the Aadhaar, PAN and selfie steps first.");
       }
-      await submit(doc, "base");
+      await submit(doc);
       return ok(request, await answer(userId));
     },
   );
 
-  app.put(
-    "/vendor",
-    {
-      preHandler: requireAuth,
-      config: limit(60, 20),
-      schema: {
-        tags: ["kyc"],
-        summary: "Save your business details for vendor verification",
-        description: "Needs approved identity verification. A GSTIN is optional and is checked when given.",
-        body: VendorBody,
-        response: { 200: OverviewResult, ...Errors },
-        security,
-      },
-    },
-    async (request) => {
-      const userId = request.auth!.userId;
-      const user = await db().users.findOne({ _id: userId }, { projection: { kyc: 1 } });
-      if (user?.kyc.base !== "approved") throw new AppError("KYC_REQUIRED", "Get your identity verified first.");
-      const doc = await openCase(db(), userId, "vendor");
-      guardEditable(doc);
-      const tries = checkTries(doc.steps.business);
-      const { businessName, address, gstin } = request.body;
-
-      let gst: NonNullable<KycCaseDoc["steps"]["business"]>["gstin"] = null;
-      if (gstin) {
-        const result = await app.verifier.gstin(gstin, businessName);
-        if (!result.valid) throw failed("body/gstin", "We could not find this GSTIN. Check it, or leave it empty.");
-        if (result.status && result.status.toLowerCase() !== "active") throw failed("body/gstin", "This GSTIN is not active.");
-        gst = { number: gstin, legalName: result.legalName, status: result.status };
-      }
-      await saveStep(doc, {
-        $set: {
-          "steps.business": {
-            name: businessName.trim(),
-            address: { ...address, line2: address.line2?.trim() || null },
-            gstin: gst,
-            tries,
-            at: new Date(),
-          },
-        },
-      });
-      return ok(request, await answer(userId));
-    },
-  );
-
-  app.post(
-    "/vendor/submit",
-    {
-      preHandler: requireAuth,
-      schema: {
-        tags: ["kyc"],
-        summary: "Send vendor verification for review",
-        description: "Once approved you are a vendor: business posts and the vendor portal open.",
-        response: { 200: OverviewResult, ...Errors },
-        security,
-      },
-    },
-    async (request) => {
-      const userId = request.auth!.userId;
-      const doc = await loadCase(db(), userId, "vendor");
-      if (!doc?.steps.business?.name) throw new AppError("KYC_STEP_ORDER", "Add your business details first.");
-      guardEditable(doc);
-      await submit(doc, "vendor");
-      return ok(request, await answer(userId));
-    },
-  );
-
-  async function submit(doc: KycCaseDoc, track: KycCaseDoc["track"]) {
+  async function submit(doc: KycCaseDoc) {
     const database = db();
     await database.transaction(async (session) => {
       const now = new Date();
@@ -369,7 +303,7 @@ const kyc: FastifyPluginAsyncTypebox = async (app) => {
         { session },
       );
       if (res.matchedCount === 0) throw new AppError("CONFLICT");
-      await database.users.updateOne({ _id: doc.userId }, { $set: { [`kyc.${track}`]: "pending", updatedAt: now } }, { session });
+      await database.users.updateOne({ _id: doc.userId }, { $set: { "kyc.base": "pending", updatedAt: now } }, { session });
     });
     app.authCache.forget(doc.userId);
   }

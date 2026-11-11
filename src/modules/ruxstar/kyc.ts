@@ -45,7 +45,7 @@ const kycReview: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: requireRuxstar("kyc.view"),
       schema: {
         tags: ["ruxstar"],
-        summary: "Verification cases, waiting for review first by default",
+        summary: "Identity verification cases, waiting for review first by default",
         description: "Newest activity first. `status` defaults to `submitted`.",
         querystring: ReviewQuery,
         response: { 200: ReviewList, ...Errors },
@@ -53,9 +53,9 @@ const kycReview: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (request) => {
-      const { status = "submitted", track, cursor, limit } = request.query;
+      const { status = "submitted", cursor, limit } = request.query;
       const { items, nextCursor } = await findPage(db().kycCases, {
-        filter: { status, ...(track ? { track } : {}) },
+        filter: { status, track: "base" },
         sortField: "updatedAt",
         cursor,
         limit,
@@ -78,15 +78,15 @@ const kycReview: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (request) => {
-      const doc = await db().kycCases.findOne({ _id: new ObjectId(request.params.id) }, { projection: { "steps.aadhaar.photo": 0 } });
+      const doc = await db().kycCases.findOne({ _id: new ObjectId(request.params.id), track: "base" }, { projection: { "steps.aadhaar.photo": 0 } });
       if (!doc) throw new AppError("NOT_FOUND", "Case not found.");
       return ok(request, (await withUsers([doc]))[0]!);
     },
   );
 
   /**
-   * Decides a submitted case in one transaction with its audit entry. Approving identity issues the
-   * Ruxstar Card; approving vendor turns the vendor role on. Either way the held Aadhaar photo goes.
+   * Decides a submitted case in one transaction with its audit entry. Approving issues the Ruxstar
+   * Card and turns the vendor role on. Either way the held Aadhaar photo goes.
    */
   async function decide(request: FastifyRequest, id: string, decision: "approved" | "rejected", reason: string | null) {
     const database = db();
@@ -95,7 +95,7 @@ const kycReview: FastifyPluginAsyncTypebox = async (app) => {
     let outcome: "approved" | "rejected" | "locked" = decision;
 
     const updated = await database.transaction(async (session) => {
-      const doc = await database.kycCases.findOne({ _id: new ObjectId(id) }, { session });
+      const doc = await database.kycCases.findOne({ _id: new ObjectId(id), track: "base" }, { session });
       if (!doc) throw new AppError("NOT_FOUND", "Case not found.");
       if (doc.status !== "submitted") throw new AppError("CONFLICT", "This case is not waiting for review.");
 
@@ -112,9 +112,9 @@ const kycReview: FastifyPluginAsyncTypebox = async (app) => {
       if (!after) throw new AppError("CONFLICT");
 
       const user = await database.users.findOne({ _id: doc.userId }, { session, projection: { card: 1 } });
-      const set: Record<string, unknown> = { [`kyc.${doc.track}`]: decision, updatedAt: now };
-      if (decision === "approved" && doc.track === "vendor") set["roles.vendor"] = true;
-      if (decision === "approved" && doc.track === "base" && !user?.card) set.card = { id: await newCardId(database, session), issuedAt: now };
+      const set: Record<string, unknown> = { "kyc.base": decision, updatedAt: now };
+      if (decision === "approved") set["roles.vendor"] = true;
+      if (decision === "approved" && !user?.card) set.card = { id: await newCardId(database, session), issuedAt: now };
       await database.users.updateOne({ _id: doc.userId }, { $set: set }, { session });
 
       await writeAudit(
@@ -133,7 +133,7 @@ const kycReview: FastifyPluginAsyncTypebox = async (app) => {
     });
 
     app.authCache.forget(updated.userId);
-    await notifyKycDecision(database, app.log, { to: updated.userId, reviewer: request.auth!.userId, track: updated.track, decision: outcome, reason });
+    await notifyKycDecision(database, app.log, { to: updated.userId, reviewer: request.auth!.userId, decision: outcome, reason });
     return (await withUsers([updated]))[0]!;
   }
 
@@ -144,7 +144,7 @@ const kycReview: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["ruxstar"],
         summary: "Approve a verification case",
-        description: "Identity: issues the Ruxstar Card and the Verified tick. Vendor: makes the user a vendor.",
+        description: "Issues the Ruxstar Card and the Verified tick, and makes the person a vendor so the vendor portal opens.",
         params: CaseParams,
         response: { 200: ReviewOne, ...Errors },
         security,

@@ -32,6 +32,8 @@ export interface Config {
   siteUrl: string;
   /** `fake` passes every check without calling Cashfree, for tests and local runs; refused in prod. */
   kyc: { provider: "fake" | "cashfree"; cashfree: CashfreeSettings | null; redirectUrl: string };
+  /** AES-256 key that seals vendors' bank account numbers. Null leaves bank accounts off; UPI still works. */
+  payoutKey: Buffer | null;
 }
 
 export interface CashfreeSettings {
@@ -146,6 +148,10 @@ export function loadConfig(env: Env = process.env): Config {
   const localRedirect = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(kycRedirect) && ruxstarEnv !== "prod";
   if (!/^https:\/\/[^\s]+$/.test(kycRedirect) && !localRedirect) problems.push("KYC_REDIRECT_URL must start with https://");
 
+  const payoutKeyText = read(env, "PAYOUT_ENCRYPTION_KEY");
+  const payoutKey = payoutKeyText ? Buffer.from(payoutKeyText, "base64") : null;
+  if (payoutKey && payoutKey.length !== 32) problems.push("PAYOUT_ENCRYPTION_KEY must be 32 bytes, base64 encoded");
+
   if (problems.length) throw new ConfigError(problems);
 
   return {
@@ -191,5 +197,6 @@ export function loadConfig(env: Env = process.env): Config {
           : null,
       redirectUrl: kycRedirect,
     },
+    payoutKey,
   };
 }

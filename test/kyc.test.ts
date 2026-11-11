@@ -58,8 +58,7 @@ describe("kyc", () => {
     const user = await person();
     const res = await get("/v1/kyc", user.token);
     expect(res.statusCode).toBe(200);
-    expect(res.json().data.base.status).toBe("not_started");
-    expect(res.json().data.vendor.status).toBe("not_started");
+    expect(res.json().data).toEqual({ base: expect.objectContaining({ status: "not_started" }) });
     expect((await get("/v1/kyc/card", user.token)).statusCode).toBe(403);
   });
 
@@ -93,9 +92,6 @@ describe("kyc", () => {
     expect((await post("/v1/kyc/base/pan", user.token, { pan: "ABCDE1234F" })).json().error.code).toBe("KYC_STEP_ORDER");
     expect((await sendSelfie(user.token)).json().error.code).toBe("KYC_STEP_ORDER");
     expect((await post("/v1/kyc/base/submit", user.token)).json().error.code).toBe("KYC_STEP_ORDER");
-    expect((await stack.app.inject({ method: "PUT", url: "/v1/kyc/vendor", headers: web(user.token), payload: business() })).json().error.code).toBe(
-      "KYC_REQUIRED",
-    );
   });
 
   it("waits while DigiLocker is pending and fails when it expires", async () => {
@@ -198,28 +194,31 @@ describe("kyc", () => {
       const res = await get("/v1/ruxstar/kyc", admin.token);
       expect(res.statusCode).toBe(200);
       const item = res.json().data.find((c: { id: string }) => c.id === id);
-      expect(item).toMatchObject({ track: "base", status: "submitted", user: { name: "Ravi Kumar" } });
+      expect(item).toMatchObject({ status: "submitted", user: { name: "Ravi Kumar" } });
       expect(item.identity).toMatchObject({ aadhaarName: "Ravi Kumar", aadhaarLast4: "1234", nameMatch: "DIRECT_MATCH" });
       expect(item.identity.panMasked).toMatch(/^AB\*{6}\dF$/);
       expect(JSON.stringify(item)).not.toContain("photo");
       expect((await get(`/v1/ruxstar/kyc/${id}`, admin.token)).json().data.id).toBe(id);
     });
 
-    it("approves identity: card, Verified tick, notification and audit", async () => {
+    it("approves identity: card, Verified tick, vendor portal, notification and audit", async () => {
       const user = await person();
       const id = await submitIdentity(user);
+      expect((await get("/v1/vendor/businesses", user.token)).json().error.code).toBe("KYC_REQUIRED");
       const res = await review(id, "approve");
       expect(res.statusCode).toBe(200);
       expect(res.json().data.status).toBe("approved");
 
       const card = (await get("/v1/kyc/card", user.token)).json().data;
       expect(card.id).toMatch(/^RUX-[0-9A-F]{4}-[0-9A-F]{4}$/);
-      expect(card).toMatchObject({ name: "Asha Rao", aadhaar: "XXXX XXXX 1234", vendor: false });
+      expect(card).toMatchObject({ name: "Asha Rao", aadhaar: "XXXX XXXX 1234", vendor: true });
       expect(card.profileUrl).toContain("ruxstar.com");
 
       const me = (await get("/v1/account/me", user.token)).json().data;
       expect(me.kyc.base).toBe("approved");
+      expect(me.roles.vendor).toBe(true);
       expect(me.card.id).toBe(card.id);
+      expect((await get("/v1/vendor/businesses", user.token)).statusCode).toBe(200);
 
       const inbox = (await get("/v1/notifications", user.token)).json().data;
       expect(inbox[0]).toMatchObject({ kind: "account", type: "kyc.approved", link: { screen: "verification", id: "base" } });
@@ -246,56 +245,13 @@ describe("kyc", () => {
         }
       }
       expect((await stack.db.users.findOne({ _id: user.userId }))!.kyc.base).toBe("rejected");
-    });
-  });
-
-  describe("vendor", () => {
-    it("needs approved identity, takes business details and makes the user a vendor", async () => {
-      const user = await person();
-      await review(await submitIdentity(user), "approve");
-
-      const saved = await stack.app.inject({ method: "PUT", url: "/v1/kyc/vendor", headers: web(user.token), payload: business() });
-      expect(saved.statusCode).toBe(200);
-      expect(saved.json().data.vendor.business).toMatchObject({ name: "Rao Stores", gstin: null });
-      expect((await post("/v1/kyc/vendor/submit", user.token)).statusCode).toBe(200);
-
-      const vendorCase = await stack.db.kycCases.findOne({ userId: user.userId, track: "vendor" });
-      expect((await review(vendorCase!._id.toHexString(), "approve")).statusCode).toBe(200);
-      const after = await stack.db.users.findOne({ _id: user.userId });
-      expect(after!.roles.vendor).toBe(true);
-      expect(after!.kyc.vendor).toBe("approved");
-      expect((await get("/v1/kyc/card", user.token)).json().data.vendor).toBe(true);
+      expect((await stack.db.users.findOne({ _id: user.userId }))!.roles.vendor).toBeUndefined();
     });
 
-    it("checks a GSTIN when one is given", async () => {
+    it("has no vendor verification any more", async () => {
       const user = await person();
-      await review(await submitIdentity(user), "approve");
-      verifier.gstinValid = false;
-      const bad = await stack.app.inject({
-        method: "PUT",
-        url: "/v1/kyc/vendor",
-        headers: web(user.token),
-        payload: business({ gstin: "36ABCDE1234F1Z5" }),
-      });
-      expect(bad.statusCode).toBe(422);
-      expect(bad.json().error.details[0].path).toBe("body/gstin");
-
-      verifier.gstinValid = true;
-      const good = await stack.app.inject({
-        method: "PUT",
-        url: "/v1/kyc/vendor",
-        headers: web(user.token),
-        payload: business({ gstin: "36ABCDE1234F1Z5" }),
-      });
-      expect(good.json().data.vendor.business.gstin).toMatchObject({ number: "36ABCDE1234F1Z5", status: "Active" });
+      expect((await stack.app.inject({ method: "PUT", url: "/v1/kyc/vendor", headers: web(user.token), payload: {} })).statusCode).toBe(404);
+      expect((await post("/v1/kyc/vendor/submit", user.token)).statusCode).toBe(404);
     });
   });
 });
-
-function business(extra: Record<string, unknown> = {}) {
-  return {
-    businessName: "Rao Stores",
-    address: { line1: "12 Main Road", city: "Hyderabad", state: "Telangana", pincode: "500001" },
-    ...extra,
-  };
-}

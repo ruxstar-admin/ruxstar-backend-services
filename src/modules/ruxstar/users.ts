@@ -42,7 +42,7 @@ const rowOf = (u: WithId<UserDoc>): UserRow => ({
   avatarUrl: u.avatar ?? null,
   status: u.status,
   roles: { vendor: !!u.roles?.vendor, delivery: !!u.roles?.delivery, ruxstarStaff: !!u.roles?.ruxstarStaff, admin: !!u.roles?.admin },
-  kyc: { base: u.kyc?.base ?? "none", vendor: u.kyc?.vendor ?? "none" },
+  kyc: { base: u.kyc?.base ?? "none" },
   createdAt: u.createdAt.toISOString(),
 });
 

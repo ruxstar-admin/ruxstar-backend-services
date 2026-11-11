@@ -1,5 +1,6 @@
 import { Type, type Static, type TSchema } from "typebox";
 import { DateTime, Envelope, ListEnvelope, ModuleName, ObjectIdString, PageQuery, Strict } from "../../contracts/common.js";
+import { Business, BusinessModule, PayoutMethod } from "../vendor/contracts.js";
 
 const Nullable = <T extends TSchema>(schema: T) => Type.Union([schema, Type.Null()]);
 const Count = Type.Integer({ minimum: 0 });
@@ -42,6 +43,8 @@ export const PermissionKey = Type.Union([
   Type.Literal("users.manage"),
   Type.Literal("modules.view"),
   Type.Literal("modules.manage"),
+  Type.Literal("businesses.view"),
+  Type.Literal("businesses.manage"),
   Type.Literal("audit.view"),
 ]);
 
@@ -57,9 +60,10 @@ export const AccessResult = Envelope(
 export const OverviewResult = Envelope(
   Strict(
     {
-      kyc: Nullable(Strict({ waiting: Count, identity: Count, vendor: Count })),
+      kyc: Nullable(Strict({ waiting: Count })),
       reports: Nullable(Strict({ posts: Count, reports: Count })),
       users: Nullable(Strict({ total: Count, newThisWeek: Count, suspended: Count })),
+      businesses: Nullable(Strict({ total: Count, live: Count, suspended: Count })),
       modules: Nullable(Type.Array(Strict({ module: ModuleName, live: Type.Boolean() }))),
       staff: Nullable(Strict({ active: Count })),
     },
@@ -122,7 +126,7 @@ const userRow = {
   avatarUrl: Nullable(Type.String()),
   status: UserStatus,
   roles: Roles,
-  kyc: Strict({ base: Type.String(), vendor: Type.String() }),
+  kyc: Strict({ base: Type.String() }),
   createdAt: DateTime,
 };
 export const UserRow = Strict(userRow);
@@ -166,6 +170,36 @@ export const StaffBody = Strict({
   title: Type.String({ minLength: 2, maxLength: 60, description: "For example Support lead" }),
   permissions: Type.Array(PermissionKey, { minItems: 1, uniqueItems: true }),
 });
+
+// Vendors' businesses.
+
+export const BusinessesQuery = Strict({
+  ...PageQuery,
+  q: Type.Optional(Type.String({ maxLength: 80, description: "The start of a business name word, or an id" })),
+  module: Type.Optional(BusinessModule),
+  state: Type.Optional(Type.Union([Type.Literal("draft"), Type.Literal("live"), Type.Literal("suspended")])),
+});
+
+const BusinessOwner = Strict({
+  id: ObjectIdString,
+  name: Type.String(),
+  username: Type.String(),
+  phone: Type.String(),
+  avatarUrl: Nullable(Type.String()),
+  status: UserStatus,
+});
+
+export const BusinessRow = Strict({ business: Business, owner: Nullable(BusinessOwner) });
+export type BusinessRow = Static<typeof BusinessRow>;
+export const BusinessCase = Strict({
+  business: Business,
+  owner: Nullable(BusinessOwner),
+  payoutMethod: Nullable(PayoutMethod),
+  suspendedBy: Nullable(Strict({ id: ObjectIdString, name: Type.String() })),
+});
+export type BusinessCase = Static<typeof BusinessCase>;
+export const BusinessRows = ListEnvelope(BusinessRow);
+export const BusinessCaseOne = Envelope(BusinessCase);
 
 // Audit log.
 

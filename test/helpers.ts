@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import type { EmailSender } from "../src/adapters/email.js";
 import type { Geocoder } from "../src/adapters/geocoder.js";
@@ -45,6 +45,7 @@ export async function startStack(
     MONGODB_DB: "ruxstar_test",
     MIN_APP_VERSION: "2.0.0",
     AUTH_CACHE_SECONDS: String(authCacheSeconds),
+    PAYOUT_ENCRYPTION_KEY: randomBytes(32).toString("base64"),
   });
   const db = createDatabase(config.mongo!.uri, config.mongo!.db);
   await db.client.connect();

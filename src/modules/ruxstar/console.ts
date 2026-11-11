@@ -53,14 +53,8 @@ const consoleHome: FastifyPluginAsyncTypebox = async (app) => {
       const d = db();
       const when = <T>(allowed: boolean, work: () => Promise<T>) => (allowed ? work() : Promise.resolve(null));
 
-      const [kyc, reports, users, modules, staff] = await Promise.all([
-        when(can("kyc.view"), async () => {
-          const [identity, vendor] = await Promise.all([
-            d.kycCases.countDocuments({ status: "submitted", track: "base" }),
-            d.kycCases.countDocuments({ status: "submitted", track: "vendor" }),
-          ]);
-          return { waiting: identity + vendor, identity, vendor };
-        }),
+      const [kyc, reports, users, businesses, modules, staff] = await Promise.all([
+        when(can("kyc.view"), async () => ({ waiting: await d.kycCases.countDocuments({ status: "submitted", track: "base" }) })),
         when(can("reports.view"), async () => {
           const [row] = await d.reports
             .aggregate<{ posts: number; reports: number }>([
@@ -79,13 +73,21 @@ const consoleHome: FastifyPluginAsyncTypebox = async (app) => {
           ]);
           return { total, newThisWeek, suspended };
         }),
+        when(can("businesses.view"), async () => {
+          const [total, live, suspended] = await Promise.all([
+            d.businesses.estimatedDocumentCount(),
+            d.businesses.countDocuments({ status: "live", suspension: { $exists: false } }),
+            d.businesses.countDocuments({ suspension: { $exists: true } }),
+          ]);
+          return { total, live, suspended };
+        }),
         when(can("modules.view"), async () => {
           const docs = await d.moduleSettings.find({}, { projection: { module: 1, live: 1 } }).toArray();
           return SWITCHABLE_MODULES.map((module) => ({ module, live: docs.find((m) => m.module === module)?.live ?? false }));
         }),
         when(access.admin, async () => ({ active: await d.ruxstarStaff.countDocuments({ status: "active" }) })),
       ]);
-      return ok(request, { kyc, reports, users, modules, staff });
+      return ok(request, { kyc, reports, users, businesses, modules, staff });
     },
   );
 };

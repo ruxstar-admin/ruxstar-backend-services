@@ -16,6 +16,8 @@ export const PERMISSIONS = [
   { key: "users.manage", label: "Suspend, unlock and sign people out" },
   { key: "modules.view", label: "See module settings" },
   { key: "modules.manage", label: "Change module settings" },
+  { key: "businesses.view", label: "See vendors' businesses" },
+  { key: "businesses.manage", label: "Suspend and restore businesses" },
   { key: "audit.view", label: "Read the audit log" },
 ] as const;
 

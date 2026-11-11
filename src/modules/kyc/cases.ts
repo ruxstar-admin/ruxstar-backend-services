@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import type { ObjectId } from "mongodb";
 import type { Database, KycCaseDoc, KycTrack, UserDoc } from "../../platform/db.js";
-import { MAX_REJECTIONS, type BaseCase, type Card, type ReviewCase, type VendorCase } from "./contracts.js";
+import { MAX_REJECTIONS, type BaseCase, type Card, type ReviewCase } from "./contracts.js";
 
 /** Tries per step in a day. Production checks cost money, so this caps both abuse and the bill. */
 export const MAX_TRIES_PER_DAY = 5;
@@ -54,23 +54,8 @@ export function baseView(doc: KycCaseDoc | null): BaseCase {
   };
 }
 
-const businessView = (business: NonNullable<KycCaseDoc["steps"]["business"]>) => ({
-  name: business.name,
-  address: { ...business.address, line2: business.address.line2 ?? null },
-  gstin: business.gstin,
-});
-
-export function vendorView(doc: KycCaseDoc | null): VendorCase {
-  const business = doc?.steps.business;
-  return { ...decision(doc), business: business ? businessView(business) : null };
-}
-
 export async function overview(db: Database, userId: ObjectId) {
-  const cases = await db.kycCases.find({ userId }).toArray();
-  return {
-    base: baseView(cases.find((c) => c.track === "base") ?? null),
-    vendor: vendorView(cases.find((c) => c.track === "vendor") ?? null),
-  };
+  return { base: baseView(await loadCase(db, userId, "base")) };
 }
 
 export function cardView(user: UserDoc, base: KycCaseDoc, siteUrl: string): Card {
@@ -89,10 +74,9 @@ export function cardView(user: UserDoc, base: KycCaseDoc, siteUrl: string): Card
 type ReviewUser = Pick<UserDoc, "_id" | "name" | "username" | "phone" | "avatar" | "createdAt">;
 
 export function reviewView(doc: KycCaseDoc, user: ReviewUser | undefined): ReviewCase {
-  const { aadhaar, pan, face, business } = doc.steps;
+  const { aadhaar, pan, face } = doc.steps;
   return {
     id: doc._id.toHexString(),
-    track: doc.track,
     status: doc.status,
     rejections: doc.rejections,
     user: {
@@ -103,19 +87,15 @@ export function reviewView(doc: KycCaseDoc, user: ReviewUser | undefined): Revie
       avatarUrl: user?.avatar ?? null,
       memberSince: (user?.createdAt ?? doc.createdAt).toISOString(),
     },
-    identity:
-      doc.track === "base"
-        ? {
-            aadhaarName: aadhaar?.name ?? null,
-            aadhaarLast4: aadhaar?.last4 ?? null,
-            panMasked: pan?.masked ?? null,
-            panName: pan?.registeredName ?? null,
-            nameMatch: pan?.nameMatch ?? null,
-            livenessScore: face?.livenessScore ?? null,
-            faceMatchScore: face?.matchScore ?? null,
-          }
-        : null,
-    business: business ? businessView(business) : null,
+    identity: {
+      aadhaarName: aadhaar?.name ?? null,
+      aadhaarLast4: aadhaar?.last4 ?? null,
+      panMasked: pan?.masked ?? null,
+      panName: pan?.registeredName ?? null,
+      nameMatch: pan?.nameMatch ?? null,
+      livenessScore: face?.livenessScore ?? null,
+      faceMatchScore: face?.matchScore ?? null,
+    },
     submittedAt: doc.submittedAt?.toISOString() ?? null,
     review: doc.review ? { decision: doc.review.decision, reason: doc.review.reason, at: doc.review.at.toISOString() } : null,
   };

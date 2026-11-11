@@ -10,6 +10,7 @@ import { idempotent } from "../../platform/idempotency.js";
 import { forgetModuleState } from "../../platform/module-switch.js";
 import { ModuleParams, ModuleSettingsList, ModuleSettingsOne, ModuleSettingsPatch, type ModuleSettings } from "./contracts.js";
 import auditLog from "./audit-log.js";
+import businesses from "./businesses.js";
 import consoleHome from "./console.js";
 import kycReview from "./kyc.js";
 import reports from "./reports.js";
@@ -34,6 +35,7 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(reports);
   await app.register(users);
   await app.register(staff);
+  await app.register(businesses);
   await app.register(auditLog);
 
   app.get(

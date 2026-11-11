@@ -123,6 +123,60 @@ export interface KycCaseDoc extends Stamped {
   review: { by: ObjectId; at: Date; decision: "approved" | "rejected"; reason: string | null } | null;
 }
 
+/** The modules a vendor can open a business in. Each business is in exactly one. */
+export type BusinessModule = "pod" | "events" | "coaching" | "stays";
+
+export interface BusinessPhoto extends PostPhoto {
+  id: string;
+}
+
+export interface BusinessDoc extends Stamped {
+  _id: ObjectId;
+  ownerId: ObjectId;
+  module: BusinessModule;
+  name: string;
+  description: string | null;
+  /** 10 digits. */
+  phone: string | null;
+  email: string | null;
+  address: KycAddress | null;
+  gstin: { number: string; legalName: string | null; status: string | null } | null;
+  photos: BusinessPhoto[];
+  /** `draft` until the vendor publishes it. Only drafts can be deleted. */
+  status: "draft" | "live";
+  /** Whether a live business is taking orders and bookings right now. */
+  open: boolean;
+  publishedAt: Date | null;
+  /** Set while the Ruxstar team holds the business; customers can't see it. Removed on restore. */
+  suspension?: { by: ObjectId; at: Date; reason: string };
+}
+
+/** Where a vendor is paid. One per vendor, checked with Cashfree before it is saved. */
+export interface PayoutMethodDoc extends Stamped {
+  _id: ObjectId;
+  userId: ObjectId;
+  kind: "bank" | "upi";
+  /** The name the bank has for the account. */
+  holderName: string | null;
+  nameMatch: string | null;
+  /** `number` is sealed with the payout key; only the last 4 digits are ever shown. */
+  bank?: { number: string; last4: string; ifsc: string; bankName: string | null };
+  upi?: { vpa: string };
+  verifiedAt: Date;
+}
+
+export interface PayoutDoc extends Stamped {
+  _id: ObjectId;
+  vendorId: ObjectId;
+  /** Paise. */
+  amount: number;
+  status: "pending" | "paid" | "failed";
+  /** How it was sent, for example "Bank ••1191" or "asha@upi". */
+  to: string;
+  utr: string | null;
+  paidAt: Date | null;
+}
+
 export type PostKind = "personal" | "business";
 
 export interface PostPhotoFile {
@@ -190,7 +244,14 @@ export interface ReportDoc {
   closedAt?: Date;
 }
 
-export type NotificationType = "post.like" | "post.comment" | "post.removed" | "kyc.approved" | "kyc.rejected";
+export type NotificationType =
+  | "post.like"
+  | "post.comment"
+  | "post.removed"
+  | "kyc.approved"
+  | "kyc.rejected"
+  | "business.suspended"
+  | "business.restored";
 
 export interface NotificationDoc {
   _id: ObjectId;
@@ -200,8 +261,8 @@ export interface NotificationDoc {
   actorId: ObjectId;
   title: string;
   body: string;
-  /** `verification` opens the KYC screen; its id is the track. */
-  link: { screen: "post" | "verification"; id: string };
+  /** `verification` opens the KYC screen (its id is the track); `business` opens a business in the vendor portal. */
+  link: { screen: "post" | "verification" | "business"; id: string };
   readAt: Date | null;
   createdAt: Date;
 }
@@ -368,6 +429,15 @@ export class Database {
   }
   get kycCases() {
     return this.db.collection<KycCaseDoc>("kyc_cases");
+  }
+  get businesses() {
+    return this.db.collection<BusinessDoc>("businesses");
+  }
+  get payoutMethods() {
+    return this.db.collection<PayoutMethodDoc>("payout_methods");
+  }
+  get payouts() {
+    return this.db.collection<PayoutDoc>("payouts");
   }
 
   /** Runs `work` in a majority-committed transaction, retrying transient errors. */

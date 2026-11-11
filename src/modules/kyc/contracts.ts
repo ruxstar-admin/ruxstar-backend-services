@@ -8,7 +8,6 @@ export const GSTIN_PATTERN = "^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$";
 /** Rejections allowed before a case needs support. */
 export const MAX_REJECTIONS = 3;
 
-export const Track = Type.Union([Type.Literal("base"), Type.Literal("vendor")]);
 const StoredStatus = [
   Type.Literal("in_progress"),
   Type.Literal("submitted"),
@@ -31,27 +30,6 @@ const Decision = {
   decidedAt: Nullable(DateTime),
 };
 
-export const Address = Strict({
-  line1: Type.String({ minLength: 3, maxLength: 120 }),
-  line2: Type.Optional(Nullable(Type.String({ maxLength: 120 }))),
-  city: Type.String({ minLength: 2, maxLength: 60 }),
-  state: Type.String({ minLength: 2, maxLength: 60 }),
-  pincode: Type.String({ pattern: "^[1-9][0-9]{5}$" }),
-});
-const AddressView = Strict({
-  line1: Type.String(),
-  line2: Nullable(Type.String()),
-  city: Type.String(),
-  state: Type.String(),
-  pincode: Type.String(),
-});
-
-const Business = Strict({
-  name: Type.String(),
-  address: AddressView,
-  gstin: Nullable(Strict({ number: Type.String(), legalName: Nullable(Type.String()), status: Nullable(Type.String()) })),
-});
-
 export const BaseCase = Strict({
   ...Decision,
   steps: Strict({
@@ -62,10 +40,7 @@ export const BaseCase = Strict({
 });
 export type BaseCase = Static<typeof BaseCase>;
 
-export const VendorCase = Strict({ ...Decision, business: Nullable(Business) });
-export type VendorCase = Static<typeof VendorCase>;
-
-export const Overview = Strict({ base: BaseCase, vendor: VendorCase });
+export const Overview = Strict({ base: BaseCase });
 export type Overview = Static<typeof Overview>;
 export const OverviewResult = Envelope(Overview);
 
@@ -75,19 +50,13 @@ export const DigilockerResult = Envelope(
 
 export const PanBody = Strict({ pan: Type.String({ pattern: PAN_PATTERN, description: "10 characters, capitals, like ABCDE1234F" }) });
 
-export const VendorBody = Strict({
-  businessName: Type.String({ minLength: 2, maxLength: 80 }),
-  address: Address,
-  gstin: Type.Optional(Nullable(Type.String({ pattern: GSTIN_PATTERN, description: "Optional. Checked with the GST network when given." }))),
-});
-
 export const Card = Strict({
   id: Type.String({ description: "For example RUX-1A2B-3C4D" }),
   name: Type.String({ description: "As on the Aadhaar" }),
   photoUrl: Nullable(Type.String()),
   aadhaar: Type.String({ description: "Masked, for example XXXX XXXX 1234" }),
   pan: Nullable(Type.String({ description: "Masked" })),
-  vendor: Type.Boolean(),
+  vendor: Type.Boolean({ description: "Verified people are vendors and can open the vendor portal" }),
   memberSince: DateTime,
   profileUrl: Type.String({ description: "The public profile, for the QR code" }),
 });
@@ -99,12 +68,10 @@ export const CardResult = Envelope(Card);
 export const ReviewQuery = Strict({
   ...PageQuery,
   status: Type.Optional(Type.Union([...StoredStatus], { default: "submitted" })),
-  track: Type.Optional(Track),
 });
 
 export const ReviewCase = Strict({
   id: ObjectIdString,
-  track: Track,
   status: CaseStatus,
   rejections: Type.Integer(),
   user: Strict({
@@ -115,18 +82,15 @@ export const ReviewCase = Strict({
     avatarUrl: Nullable(Type.String()),
     memberSince: DateTime,
   }),
-  identity: Nullable(
-    Strict({
-      aadhaarName: Nullable(Type.String()),
-      aadhaarLast4: Nullable(Type.String()),
-      panMasked: Nullable(Type.String()),
-      panName: Nullable(Type.String({ description: "The name the tax department has for this PAN" })),
-      nameMatch: Nullable(Type.String({ description: "Cashfree's grade, for example DIRECT_MATCH" })),
-      livenessScore: Nullable(Type.Number()),
-      faceMatchScore: Nullable(Type.Number()),
-    }),
-  ),
-  business: Nullable(Business),
+  identity: Strict({
+    aadhaarName: Nullable(Type.String()),
+    aadhaarLast4: Nullable(Type.String()),
+    panMasked: Nullable(Type.String()),
+    panName: Nullable(Type.String({ description: "The name the tax department has for this PAN" })),
+    nameMatch: Nullable(Type.String({ description: "Cashfree's grade, for example DIRECT_MATCH" })),
+    livenessScore: Nullable(Type.Number()),
+    faceMatchScore: Nullable(Type.Number()),
+  }),
   submittedAt: Nullable(DateTime),
   review: Nullable(Strict({ decision: Type.Union([Type.Literal("approved"), Type.Literal("rejected")]), reason: Nullable(Type.String()), at: DateTime })),
 });
