@@ -144,10 +144,14 @@ class CashfreeVerifier implements Verifier {
 
   async pan(pan: string, name: string): Promise<PanResult> {
     const { body } = await this.json("/pan", { pan, name }, { answers: true });
+    const valid = body.valid === true && body.pan_status === "VALID";
+    // The sandbox knows only Cashfree's test PANs (ABCPV1234D is JOHN DOE) and never grades the name,
+    // so a valid sandbox PAN counts as a match. Production always grades it.
+    const sandboxMatch = this.settings.env === "sandbox" && valid ? "DIRECT_MATCH" : null;
     return {
-      valid: body.valid === true && body.pan_status === "VALID",
+      valid,
       registeredName: str(body.registered_name),
-      nameMatch: str(body.name_match_result),
+      nameMatch: str(body.name_match_result) ?? sandboxMatch,
       message: str(body.message),
     };
   }
