@@ -37,8 +37,8 @@ steps:
       - --port=8080
       - --allow-unauthenticated
       - --service-account=${_RUNTIME_SA}
-      - --set-env-vars=^@^NODE_ENV=production@RUXSTAR_ENV=${_RUXSTAR_ENV}@MONGODB_DB=${_MONGODB_DB}@GCS_BUCKET=${_GCS_BUCKET}@GCS_MEDIA_BUCKET=${_GCS_MEDIA_BUCKET}@LOG_LEVEL=info@CORS_ORIGINS=${_CORS_ORIGINS}
-      - --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest
+      - --set-env-vars=^@^NODE_ENV=production@RUXSTAR_ENV=${_RUXSTAR_ENV}@MONGODB_DB=${_MONGODB_DB}@GCS_BUCKET=${_GCS_BUCKET}@GCS_MEDIA_BUCKET=${_GCS_MEDIA_BUCKET}@LOG_LEVEL=info@CORS_ORIGINS=${_CORS_ORIGINS}@OTP_PROVIDER=msg91
+      - --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest,MSG91_AUTH_KEY=msg91-auth-key:latest,MSG91_TEMPLATE_ID=msg91-template-id:latest,MSG91_SENDER_ID=msg91-sender-id:latest
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}:$SHORT_SHA
