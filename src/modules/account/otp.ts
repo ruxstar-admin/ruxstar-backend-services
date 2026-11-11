@@ -5,7 +5,8 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Database, OtpDoc, OtpPurpose } from "../../platform/db.js";
 import { AppError } from "../../platform/errors.js";
 
-export const OTP_TTL_SECONDS = 5 * 60;
+/** Matches the DLT-approved SMS text, which says the code is valid for 10 minutes. */
+export const OTP_TTL_SECONDS = 10 * 60;
 export const RESEND_COOLDOWN_SECONDS = 30;
 export const VERIFICATION_TTL_SECONDS = 10 * 60;
 const MAX_ATTEMPTS = 5;

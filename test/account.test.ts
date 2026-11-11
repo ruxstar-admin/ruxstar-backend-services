@@ -41,7 +41,7 @@ describe("signup", () => {
   it("texts a 6-digit code and masks the number in the reply", async () => {
     const phone = newPhone();
     const sent = await post("/otp", { phone, purpose: "signup" });
-    expect(sent.json().data).toEqual({ sentTo: `+91 ••••• •${phone.slice(-4)}`, expiresInSeconds: 300, resendInSeconds: 30 });
+    expect(sent.json().data).toEqual({ sentTo: `+91 ••••• •${phone.slice(-4)}`, expiresInSeconds: 600, resendInSeconds: 30 });
     expect(stack.texts.get(`+91${phone}`)).toMatch(/^\d{6}$/);
     expect((await stack.db.otps.findOne({ target: `+91${phone}` }))?.codeHash).not.toContain(stack.texts.get(`+91${phone}`));
   });
