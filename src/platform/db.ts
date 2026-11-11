@@ -57,6 +57,8 @@ export interface UserDoc extends Stamped {
   social?: { posts?: number; engagements?: number };
   /** The Ruxstar Card, issued when identity KYC is approved. `id` looks like RUX-1A2B-3C4D. */
   card?: { id: string; issuedAt: Date };
+  /** Why the Ruxstar team put the account on hold (`status: "locked"`). Removed when it is unlocked. */
+  suspension?: { by: ObjectId; at: Date; reason: string };
 }
 
 export type KycTrack = "base" | "vendor";
@@ -143,8 +145,10 @@ export interface PostDoc extends Stamped {
   text: string;
   media: PostPhoto[];
   counts: { likes: number; comments: number };
-  status: "live" | "deleted";
+  /** `removed` is a takedown by the Ruxstar team; its photos are deleted like a deleted post's. */
+  status: "live" | "deleted" | "removed";
   editedAt: Date | null;
+  removal?: { by: ObjectId; at: Date; reason: string };
 }
 
 /** A photo uploaded for a post. Unused ones are deleted a day later, on the uploader's next upload. */
@@ -180,9 +184,13 @@ export interface ReportDoc {
   reason: ReportReason;
   status: "open" | "closed";
   createdAt: Date;
+  /** Set when the Ruxstar team decides the post: kept up, or removed. */
+  outcome?: "kept" | "removed";
+  closedBy?: ObjectId;
+  closedAt?: Date;
 }
 
-export type NotificationType = "post.like" | "post.comment" | "kyc.approved" | "kyc.rejected";
+export type NotificationType = "post.like" | "post.comment" | "post.removed" | "kyc.approved" | "kyc.rejected";
 
 export interface NotificationDoc {
   _id: ObjectId;

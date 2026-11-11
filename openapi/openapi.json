@@ -11964,6 +11964,12 @@
                               {
                                 "type": "string",
                                 "enum": [
+                                  "post.removed"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
                                   "kyc.approved"
                                 ]
                               },
@@ -12211,6 +12217,486 @@
                         }
                       },
                       "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/access": {
+      "get": {
+        "summary": "What you may do in the Ruxstar console",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "FORBIDDEN for anyone who is not an admin or active Ruxstar staff.",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "admin",
+                        "title",
+                        "permissions",
+                        "catalog"
+                      ],
+                      "properties": {
+                        "admin": {
+                          "type": "boolean",
+                          "description": "Admins have every permission and manage staff"
+                        },
+                        "title": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "kyc.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "kyc.review"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "reports.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "reports.act"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "users.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "users.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "modules.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "modules.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "audit.view"
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        "catalog": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "label"
+                            ],
+                            "properties": {
+                              "key": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "kyc.view"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "kyc.review"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "reports.view"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "reports.act"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "users.view"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "users.manage"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "modules.view"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "modules.manage"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "audit.view"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "label": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Every permission staff can be given"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/overview": {
+      "get": {
+        "summary": "Counts for the console home page",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "Each section needs its view permission; staff numbers are for admins.",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "kyc",
+                        "reports",
+                        "users",
+                        "modules",
+                        "staff"
+                      ],
+                      "properties": {
+                        "kyc": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "waiting",
+                                "identity",
+                                "vendor"
+                              ],
+                              "properties": {
+                                "waiting": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "identity": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "vendor": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "reports": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "posts",
+                                "reports"
+                              ],
+                              "properties": {
+                                "posts": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "reports": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "users": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "total",
+                                "newThisWeek",
+                                "suspended"
+                              ],
+                              "properties": {
+                                "total": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "newThisWeek": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "suspended": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "modules": {
+                          "anyOf": [
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "required": [
+                                  "module",
+                                  "live"
+                                ],
+                                "properties": {
+                                  "module": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "pod"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "events"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "coaching"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "stays"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "delivery"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "ledger"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "live": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "staff": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "active"
+                              ],
+                              "properties": {
+                                "active": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false,
+                      "description": "A section is null when you lack the permission to see it"
                     },
                     "meta": {
                       "type": "object",
@@ -14142,6 +14628,4222 @@
                       "properties": {
                         "requestId": {
                           "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/reports": {
+      "get": {
+        "summary": "Reported posts, one row per post",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "`open` (the default) is waiting for a decision, newest report first. `closed` is decided, newest decision first.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "open"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "closed"
+                  ]
+                }
+              ],
+              "default": "open"
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "postId",
+                          "post",
+                          "status",
+                          "reports",
+                          "reasons",
+                          "firstAt",
+                          "lastAt",
+                          "outcome",
+                          "closedAt"
+                        ],
+                        "properties": {
+                          "postId": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "post": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "kind",
+                                  "text",
+                                  "media",
+                                  "status",
+                                  "createdAt",
+                                  "author",
+                                  "removal"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "kind": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "personal"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "business"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "text": {
+                                    "type": "string"
+                                  },
+                                  "media": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "url",
+                                        "width",
+                                        "height"
+                                      ],
+                                      "properties": {
+                                        "url": {
+                                          "type": "string"
+                                        },
+                                        "width": {
+                                          "type": "integer"
+                                        },
+                                        "height": {
+                                          "type": "integer"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "status": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "live"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "deleted"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "removed"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "createdAt": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  "author": {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "required": [
+                                          "id",
+                                          "name",
+                                          "username",
+                                          "avatarUrl",
+                                          "status"
+                                        ],
+                                        "properties": {
+                                          "id": {
+                                            "type": "string",
+                                            "pattern": "^[a-f0-9]{24}$",
+                                            "description": "MongoDB ObjectId as hex"
+                                          },
+                                          "name": {
+                                            "type": "string"
+                                          },
+                                          "username": {
+                                            "type": "string"
+                                          },
+                                          "avatarUrl": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          },
+                                          "status": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "enum": [
+                                                  "active"
+                                                ]
+                                              },
+                                              {
+                                                "type": "string",
+                                                "enum": [
+                                                  "locked"
+                                                ]
+                                              },
+                                              {
+                                                "type": "string",
+                                                "enum": [
+                                                  "deleted"
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "removal": {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "required": [
+                                          "reason",
+                                          "at"
+                                        ],
+                                        "properties": {
+                                          "reason": {
+                                            "type": "string"
+                                          },
+                                          "at": {
+                                            "type": "string",
+                                            "format": "date-time"
+                                          }
+                                        },
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "open"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "closed"
+                                ]
+                              }
+                            ]
+                          },
+                          "reports": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "reasons": {
+                            "type": "object",
+                            "required": [
+                              "spam",
+                              "fake",
+                              "abuse",
+                              "undelivered",
+                              "other"
+                            ],
+                            "properties": {
+                              "spam": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "fake": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "abuse": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "undelivered": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "other": {
+                                "type": "integer",
+                                "minimum": 0
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "firstAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "lastAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "outcome": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "kept"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "removed"
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "closedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/reports/{postId}/keep": {
+      "post": {
+        "summary": "Keep a reported post up and close its reports",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "Anyone who has not reported it yet can still report it later.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "postId",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "postId",
+                        "post",
+                        "status",
+                        "reports",
+                        "reasons",
+                        "firstAt",
+                        "lastAt",
+                        "outcome",
+                        "closedAt"
+                      ],
+                      "properties": {
+                        "postId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "post": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "kind",
+                                "text",
+                                "media",
+                                "status",
+                                "createdAt",
+                                "author",
+                                "removal"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "personal"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "business"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "text": {
+                                  "type": "string"
+                                },
+                                "media": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "required": [
+                                      "url",
+                                      "width",
+                                      "height"
+                                    ],
+                                    "properties": {
+                                      "url": {
+                                        "type": "string"
+                                      },
+                                      "width": {
+                                        "type": "integer"
+                                      },
+                                      "height": {
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "status": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "live"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "deleted"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "removed"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "author": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "id",
+                                        "name",
+                                        "username",
+                                        "avatarUrl",
+                                        "status"
+                                      ],
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{24}$",
+                                          "description": "MongoDB ObjectId as hex"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "username": {
+                                          "type": "string"
+                                        },
+                                        "avatarUrl": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "status": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "active"
+                                              ]
+                                            },
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "locked"
+                                              ]
+                                            },
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "deleted"
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "removal": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "reason",
+                                        "at"
+                                      ],
+                                      "properties": {
+                                        "reason": {
+                                          "type": "string"
+                                        },
+                                        "at": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "open"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "closed"
+                              ]
+                            }
+                          ]
+                        },
+                        "reports": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "reasons": {
+                          "type": "object",
+                          "required": [
+                            "spam",
+                            "fake",
+                            "abuse",
+                            "undelivered",
+                            "other"
+                          ],
+                          "properties": {
+                            "spam": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "fake": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "abuse": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "undelivered": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "other": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "firstAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "lastAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "outcome": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "kept"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "removed"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "closedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/reports/{postId}/remove": {
+      "post": {
+        "summary": "Take a post down and close its reports",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "The post's photos, likes, saves and comments are deleted, and the author is told why. This can't be undone.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 300,
+                    "description": "Shown to the person, so be clear"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "postId",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "postId",
+                        "post",
+                        "status",
+                        "reports",
+                        "reasons",
+                        "firstAt",
+                        "lastAt",
+                        "outcome",
+                        "closedAt"
+                      ],
+                      "properties": {
+                        "postId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "post": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "kind",
+                                "text",
+                                "media",
+                                "status",
+                                "createdAt",
+                                "author",
+                                "removal"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "personal"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "business"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "text": {
+                                  "type": "string"
+                                },
+                                "media": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "required": [
+                                      "url",
+                                      "width",
+                                      "height"
+                                    ],
+                                    "properties": {
+                                      "url": {
+                                        "type": "string"
+                                      },
+                                      "width": {
+                                        "type": "integer"
+                                      },
+                                      "height": {
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "status": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "live"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "deleted"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "removed"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "author": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "id",
+                                        "name",
+                                        "username",
+                                        "avatarUrl",
+                                        "status"
+                                      ],
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{24}$",
+                                          "description": "MongoDB ObjectId as hex"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "username": {
+                                          "type": "string"
+                                        },
+                                        "avatarUrl": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "status": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "active"
+                                              ]
+                                            },
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "locked"
+                                              ]
+                                            },
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "deleted"
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "removal": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "reason",
+                                        "at"
+                                      ],
+                                      "properties": {
+                                        "reason": {
+                                          "type": "string"
+                                        },
+                                        "at": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "open"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "closed"
+                              ]
+                            }
+                          ]
+                        },
+                        "reports": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "reasons": {
+                          "type": "object",
+                          "required": [
+                            "spam",
+                            "fake",
+                            "abuse",
+                            "undelivered",
+                            "other"
+                          ],
+                          "properties": {
+                            "spam": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "fake": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "abuse": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "undelivered": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "other": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "firstAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "lastAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "outcome": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "kept"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "removed"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "closedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/users": {
+      "get": {
+        "summary": "Find people",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "Newest first. Without `status`, deleted accounts are left out.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "description": "Phone digits, @username, a name, a card number like RUX-1A2B-3C4D, or an id"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "active"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "locked"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "deleted"
+                  ]
+                }
+              ]
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "name",
+                          "username",
+                          "phone",
+                          "avatarUrl",
+                          "status",
+                          "roles",
+                          "kyc",
+                          "createdAt"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "username": {
+                            "type": "string"
+                          },
+                          "phone": {
+                            "type": "string"
+                          },
+                          "avatarUrl": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "active"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "locked"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "deleted"
+                                ]
+                              }
+                            ]
+                          },
+                          "roles": {
+                            "type": "object",
+                            "required": [
+                              "vendor",
+                              "delivery",
+                              "ruxstarStaff",
+                              "admin"
+                            ],
+                            "properties": {
+                              "vendor": {
+                                "type": "boolean"
+                              },
+                              "delivery": {
+                                "type": "boolean"
+                              },
+                              "ruxstarStaff": {
+                                "type": "boolean"
+                              },
+                              "admin": {
+                                "type": "boolean"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "kyc": {
+                            "type": "object",
+                            "required": [
+                              "base",
+                              "vendor"
+                            ],
+                            "properties": {
+                              "base": {
+                                "type": "string"
+                              },
+                              "vendor": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/users/{id}": {
+      "get": {
+        "summary": "One person's account",
+        "tags": [
+          "ruxstar"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name",
+                        "username",
+                        "phone",
+                        "avatarUrl",
+                        "status",
+                        "roles",
+                        "kyc",
+                        "createdAt",
+                        "email",
+                        "emailVerified",
+                        "city",
+                        "bio",
+                        "card",
+                        "signInLockedUntil",
+                        "suspension",
+                        "stats",
+                        "sessions",
+                        "openReports",
+                        "staff"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "phone": {
+                          "type": "string"
+                        },
+                        "avatarUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "active"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "locked"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "deleted"
+                              ]
+                            }
+                          ]
+                        },
+                        "roles": {
+                          "type": "object",
+                          "required": [
+                            "vendor",
+                            "delivery",
+                            "ruxstarStaff",
+                            "admin"
+                          ],
+                          "properties": {
+                            "vendor": {
+                              "type": "boolean"
+                            },
+                            "delivery": {
+                              "type": "boolean"
+                            },
+                            "ruxstarStaff": {
+                              "type": "boolean"
+                            },
+                            "admin": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "kyc": {
+                          "type": "object",
+                          "required": [
+                            "base",
+                            "vendor"
+                          ],
+                          "properties": {
+                            "base": {
+                              "type": "string"
+                            },
+                            "vendor": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "email": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "emailVerified": {
+                          "type": "boolean"
+                        },
+                        "city": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bio": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "card": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "Ruxstar Card number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "signInLockedUntil": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "suspension": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "reason",
+                                "at",
+                                "by"
+                              ],
+                              "properties": {
+                                "reason": {
+                                  "type": "string"
+                                },
+                                "at": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "by": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "id",
+                                        "name"
+                                      ],
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{24}$",
+                                          "description": "MongoDB ObjectId as hex"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "stats": {
+                          "type": "object",
+                          "required": [
+                            "posts",
+                            "engagements"
+                          ],
+                          "properties": {
+                            "posts": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "engagements": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "sessions": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Devices signed in now"
+                        },
+                        "openReports": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Open reports on their posts"
+                        },
+                        "staff": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "title",
+                                "permissions",
+                                "status"
+                              ],
+                              "properties": {
+                                "title": {
+                                  "type": "string"
+                                },
+                                "permissions": {
+                                  "type": "array",
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "kyc.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "kyc.review"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "reports.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "reports.act"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "users.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "users.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "modules.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "modules.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "audit.view"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                },
+                                "status": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "active"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "revoked"
+                                      ]
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/users/{id}/suspend": {
+      "post": {
+        "summary": "Put an account on hold and sign it out everywhere",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "They can't sign in until it is unlocked; sign-in tells them to contact support. Admins can't be suspended here.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 300,
+                    "description": "Shown to the person, so be clear"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name",
+                        "username",
+                        "phone",
+                        "avatarUrl",
+                        "status",
+                        "roles",
+                        "kyc",
+                        "createdAt",
+                        "email",
+                        "emailVerified",
+                        "city",
+                        "bio",
+                        "card",
+                        "signInLockedUntil",
+                        "suspension",
+                        "stats",
+                        "sessions",
+                        "openReports",
+                        "staff"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "phone": {
+                          "type": "string"
+                        },
+                        "avatarUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "active"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "locked"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "deleted"
+                              ]
+                            }
+                          ]
+                        },
+                        "roles": {
+                          "type": "object",
+                          "required": [
+                            "vendor",
+                            "delivery",
+                            "ruxstarStaff",
+                            "admin"
+                          ],
+                          "properties": {
+                            "vendor": {
+                              "type": "boolean"
+                            },
+                            "delivery": {
+                              "type": "boolean"
+                            },
+                            "ruxstarStaff": {
+                              "type": "boolean"
+                            },
+                            "admin": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "kyc": {
+                          "type": "object",
+                          "required": [
+                            "base",
+                            "vendor"
+                          ],
+                          "properties": {
+                            "base": {
+                              "type": "string"
+                            },
+                            "vendor": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "email": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "emailVerified": {
+                          "type": "boolean"
+                        },
+                        "city": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bio": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "card": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "Ruxstar Card number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "signInLockedUntil": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "suspension": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "reason",
+                                "at",
+                                "by"
+                              ],
+                              "properties": {
+                                "reason": {
+                                  "type": "string"
+                                },
+                                "at": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "by": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "id",
+                                        "name"
+                                      ],
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{24}$",
+                                          "description": "MongoDB ObjectId as hex"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "stats": {
+                          "type": "object",
+                          "required": [
+                            "posts",
+                            "engagements"
+                          ],
+                          "properties": {
+                            "posts": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "engagements": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "sessions": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Devices signed in now"
+                        },
+                        "openReports": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Open reports on their posts"
+                        },
+                        "staff": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "title",
+                                "permissions",
+                                "status"
+                              ],
+                              "properties": {
+                                "title": {
+                                  "type": "string"
+                                },
+                                "permissions": {
+                                  "type": "array",
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "kyc.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "kyc.review"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "reports.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "reports.act"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "users.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "users.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "modules.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "modules.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "audit.view"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                },
+                                "status": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "active"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "revoked"
+                                      ]
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/users/{id}/unlock": {
+      "post": {
+        "summary": "Lift a hold, or the lock after too many wrong passwords",
+        "tags": [
+          "ruxstar"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name",
+                        "username",
+                        "phone",
+                        "avatarUrl",
+                        "status",
+                        "roles",
+                        "kyc",
+                        "createdAt",
+                        "email",
+                        "emailVerified",
+                        "city",
+                        "bio",
+                        "card",
+                        "signInLockedUntil",
+                        "suspension",
+                        "stats",
+                        "sessions",
+                        "openReports",
+                        "staff"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "phone": {
+                          "type": "string"
+                        },
+                        "avatarUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "active"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "locked"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "deleted"
+                              ]
+                            }
+                          ]
+                        },
+                        "roles": {
+                          "type": "object",
+                          "required": [
+                            "vendor",
+                            "delivery",
+                            "ruxstarStaff",
+                            "admin"
+                          ],
+                          "properties": {
+                            "vendor": {
+                              "type": "boolean"
+                            },
+                            "delivery": {
+                              "type": "boolean"
+                            },
+                            "ruxstarStaff": {
+                              "type": "boolean"
+                            },
+                            "admin": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "kyc": {
+                          "type": "object",
+                          "required": [
+                            "base",
+                            "vendor"
+                          ],
+                          "properties": {
+                            "base": {
+                              "type": "string"
+                            },
+                            "vendor": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "email": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "emailVerified": {
+                          "type": "boolean"
+                        },
+                        "city": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bio": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "card": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "Ruxstar Card number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "signInLockedUntil": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "suspension": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "reason",
+                                "at",
+                                "by"
+                              ],
+                              "properties": {
+                                "reason": {
+                                  "type": "string"
+                                },
+                                "at": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "by": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "id",
+                                        "name"
+                                      ],
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{24}$",
+                                          "description": "MongoDB ObjectId as hex"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "stats": {
+                          "type": "object",
+                          "required": [
+                            "posts",
+                            "engagements"
+                          ],
+                          "properties": {
+                            "posts": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "engagements": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "sessions": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Devices signed in now"
+                        },
+                        "openReports": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Open reports on their posts"
+                        },
+                        "staff": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "title",
+                                "permissions",
+                                "status"
+                              ],
+                              "properties": {
+                                "title": {
+                                  "type": "string"
+                                },
+                                "permissions": {
+                                  "type": "array",
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "kyc.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "kyc.review"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "reports.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "reports.act"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "users.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "users.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "modules.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "modules.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "audit.view"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                },
+                                "status": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "active"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "revoked"
+                                      ]
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/users/{id}/sign-out": {
+      "post": {
+        "summary": "Sign an account out on every device",
+        "tags": [
+          "ruxstar"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name",
+                        "username",
+                        "phone",
+                        "avatarUrl",
+                        "status",
+                        "roles",
+                        "kyc",
+                        "createdAt",
+                        "email",
+                        "emailVerified",
+                        "city",
+                        "bio",
+                        "card",
+                        "signInLockedUntil",
+                        "suspension",
+                        "stats",
+                        "sessions",
+                        "openReports",
+                        "staff"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "username": {
+                          "type": "string"
+                        },
+                        "phone": {
+                          "type": "string"
+                        },
+                        "avatarUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "active"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "locked"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "deleted"
+                              ]
+                            }
+                          ]
+                        },
+                        "roles": {
+                          "type": "object",
+                          "required": [
+                            "vendor",
+                            "delivery",
+                            "ruxstarStaff",
+                            "admin"
+                          ],
+                          "properties": {
+                            "vendor": {
+                              "type": "boolean"
+                            },
+                            "delivery": {
+                              "type": "boolean"
+                            },
+                            "ruxstarStaff": {
+                              "type": "boolean"
+                            },
+                            "admin": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "kyc": {
+                          "type": "object",
+                          "required": [
+                            "base",
+                            "vendor"
+                          ],
+                          "properties": {
+                            "base": {
+                              "type": "string"
+                            },
+                            "vendor": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "email": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "emailVerified": {
+                          "type": "boolean"
+                        },
+                        "city": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "bio": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "card": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "Ruxstar Card number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "signInLockedUntil": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "suspension": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "reason",
+                                "at",
+                                "by"
+                              ],
+                              "properties": {
+                                "reason": {
+                                  "type": "string"
+                                },
+                                "at": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "by": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "id",
+                                        "name"
+                                      ],
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{24}$",
+                                          "description": "MongoDB ObjectId as hex"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "stats": {
+                          "type": "object",
+                          "required": [
+                            "posts",
+                            "engagements"
+                          ],
+                          "properties": {
+                            "posts": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "engagements": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "sessions": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Devices signed in now"
+                        },
+                        "openReports": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Open reports on their posts"
+                        },
+                        "staff": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "title",
+                                "permissions",
+                                "status"
+                              ],
+                              "properties": {
+                                "title": {
+                                  "type": "string"
+                                },
+                                "permissions": {
+                                  "type": "array",
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "kyc.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "kyc.review"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "reports.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "reports.act"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "users.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "users.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "modules.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "modules.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "audit.view"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                },
+                                "status": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "active"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "revoked"
+                                      ]
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/staff": {
+      "get": {
+        "summary": "Ruxstar staff, active first",
+        "tags": [
+          "ruxstar"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "user",
+                          "title",
+                          "permissions",
+                          "status",
+                          "grantedAt",
+                          "updatedAt"
+                        ],
+                        "properties": {
+                          "user": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name",
+                              "username",
+                              "phone",
+                              "avatarUrl"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "username": {
+                                "type": "string"
+                              },
+                              "phone": {
+                                "type": "string"
+                              },
+                              "avatarUrl": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "permissions": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "kyc.view"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "kyc.review"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "reports.view"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "reports.act"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "users.view"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "users.manage"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "modules.view"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "modules.manage"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "audit.view"
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "active"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "revoked"
+                                ]
+                              }
+                            ]
+                          },
+                          "grantedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/staff/{userId}": {
+      "put": {
+        "summary": "Make someone Ruxstar staff, or change their title and permissions",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "Also brings back staff who were removed.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "permissions"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 60,
+                    "description": "For example Support lead"
+                  },
+                  "permissions": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "kyc.view"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "kyc.review"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "reports.view"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "reports.act"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "users.view"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "users.manage"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "modules.view"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "modules.manage"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "audit.view"
+                          ]
+                        }
+                      ]
+                    },
+                    "minItems": 1,
+                    "uniqueItems": true
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "user",
+                        "title",
+                        "permissions",
+                        "status",
+                        "grantedAt",
+                        "updatedAt"
+                      ],
+                      "properties": {
+                        "user": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "name",
+                            "username",
+                            "phone",
+                            "avatarUrl"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "username": {
+                              "type": "string"
+                            },
+                            "phone": {
+                              "type": "string"
+                            },
+                            "avatarUrl": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "kyc.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "kyc.review"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "reports.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "reports.act"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "users.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "users.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "modules.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "modules.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "audit.view"
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "active"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "revoked"
+                              ]
+                            }
+                          ]
+                        },
+                        "grantedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove someone from Ruxstar staff",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "They lose console access at once. Their account stays as it is.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "user",
+                        "title",
+                        "permissions",
+                        "status",
+                        "grantedAt",
+                        "updatedAt"
+                      ],
+                      "properties": {
+                        "user": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "name",
+                            "username",
+                            "phone",
+                            "avatarUrl"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "username": {
+                              "type": "string"
+                            },
+                            "phone": {
+                              "type": "string"
+                            },
+                            "avatarUrl": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "kyc.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "kyc.review"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "reports.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "reports.act"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "users.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "users.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "modules.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "modules.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "audit.view"
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "active"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "revoked"
+                              ]
+                            }
+                          ]
+                        },
+                        "grantedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/audit": {
+      "get": {
+        "summary": "The audit log",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "Filter by module, action, who did it (`actor`, a user id) or what it was done to (`target`).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z_]{2,40}$"
+            },
+            "in": "query",
+            "name": "module",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z_.]{2,60}$"
+            },
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "description": "For example kyc.approve"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "query",
+            "name": "actor",
+            "required": false,
+            "description": "MongoDB ObjectId as hex"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "target",
+            "required": false,
+            "description": "The id of what was changed"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "at",
+                          "actor",
+                          "module",
+                          "action",
+                          "target",
+                          "diff",
+                          "ip"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "actor": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "kind",
+                              "name",
+                              "username"
+                            ],
+                            "properties": {
+                              "id": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "kind": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "user"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "staff"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "admin"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "system"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "name": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "username": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "module": {
+                            "type": "string"
+                          },
+                          "action": {
+                            "type": "string"
+                          },
+                          "target": {
+                            "type": "object",
+                            "required": [
+                              "type",
+                              "id"
+                            ],
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "diff": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "object",
+                              "properties": {
+                                "from": {},
+                                "to": {}
+                              }
+                            }
+                          },
+                          "ip": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         }
                       },
                       "additionalProperties": false

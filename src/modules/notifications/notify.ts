@@ -59,6 +59,29 @@ export async function notifyPostEvent(db: Database, log: FastifyBaseLogger, even
   }
 }
 
+/** Tells an author the Ruxstar team took their post down, and why. Logged, never thrown. */
+export async function notifyPostRemoved(
+  db: Database,
+  log: FastifyBaseLogger,
+  event: { to: ObjectId; moderator: ObjectId; postId: ObjectId; reason: string },
+): Promise<void> {
+  try {
+    await db.notifications.insertOne({
+      _id: new ObjectId(),
+      userId: event.to,
+      type: "post.removed",
+      actorId: event.moderator,
+      title: "Your post was removed",
+      body: clip(event.reason, 140),
+      link: { screen: "post", id: event.postId.toHexString() },
+      readAt: null,
+      createdAt: new Date(),
+    });
+  } catch (err) {
+    log.warn({ err: (err as Error).message, type: "post.removed" }, "Notification not saved");
+  }
+}
+
 const KYC_COPY = {
   base: { approved: ["You are verified", "Your Ruxstar Card is ready."] },
   vendor: { approved: ["You are a verified vendor", "You can post as a business and open your vendor portal."] },

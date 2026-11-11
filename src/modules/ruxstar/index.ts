@@ -9,7 +9,12 @@ import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { forgetModuleState } from "../../platform/module-switch.js";
 import { ModuleParams, ModuleSettingsList, ModuleSettingsOne, ModuleSettingsPatch, type ModuleSettings } from "./contracts.js";
+import auditLog from "./audit-log.js";
+import consoleHome from "./console.js";
 import kycReview from "./kyc.js";
+import reports from "./reports.js";
+import staff from "./staff.js";
+import users from "./users.js";
 
 const ORDER = ["pod", "events", "coaching", "stays", "delivery", "ledger"];
 
@@ -24,7 +29,12 @@ const view = (doc: ModuleSettingsDoc): ModuleSettings => ({
 });
 
 const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
+  await app.register(consoleHome);
   await app.register(kycReview);
+  await app.register(reports);
+  await app.register(users);
+  await app.register(staff);
+  await app.register(auditLog);
 
   app.get(
     "/modules",

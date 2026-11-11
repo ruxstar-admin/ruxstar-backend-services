@@ -32,6 +32,7 @@ import {
   type Post,
 } from "./contracts.js";
 import { POST_PHOTO_MAX_BYTES, toPostPhoto } from "./photos.js";
+import { clearPost, keysOf } from "./takedown.js";
 
 type Security = Record<string, string[]>[];
 const security: Security = [{ bearer: [] }, { cookie: [] }];
@@ -58,8 +59,6 @@ const photoView = ({ url, width, height, smaller }: PostPhoto) => ({
   height,
   smaller: (smaller ?? []).map((s) => ({ url: s.url, width: s.width, height: s.height })),
 });
-const keysOf = (photo: Pick<PostPhoto, "key" | "smaller">) => [photo.key, ...(photo.smaller ?? []).map((s) => s.key)];
-
 /** One empty line in a row at most, no spaces at line ends. */
 const tidy = (text: string) =>
   text
@@ -432,16 +431,7 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
         { returnDocument: "before" },
       );
       if (!gone) throw removed();
-      await Promise.all([
-        db.users.updateOne(
-          { _id: userId },
-          { $inc: { "social.posts": -1, "social.engagements": -(gone.counts.likes + gone.counts.comments) } },
-        ),
-        db.postReactions.deleteMany({ postId: gone._id }),
-        db.postComments.updateMany({ postId: gone._id }, { $set: { status: "deleted" } }),
-        db.postMedia.deleteMany({ postId: gone._id }),
-        ...gone.media.flatMap(keysOf).map((key) => app.media.remove(key)),
-      ]);
+      await clearPost(app, db, gone);
       return ok(request, { done: true as const });
     },
   );

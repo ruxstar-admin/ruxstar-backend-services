@@ -30,6 +30,9 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.auditLogs.createIndex({ "scope.module": 1, at: -1 }),
     db.auditLogs.createIndex({ "actor.id": 1, at: -1 }),
     db.auditLogs.createIndex({ "target.id": 1, at: -1 }),
+    // The admin audit log: everything newest first, or one action.
+    db.auditLogs.createIndex({ at: -1, _id: -1 }),
+    db.auditLogs.createIndex({ action: 1, at: -1, _id: -1 }),
     db.idempotencyKeys.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.users.createIndex({ createdAt: -1, _id: -1 }),
     // The feed, and one person's posts on one tab.
@@ -43,6 +46,7 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.postComments.createIndex({ postId: 1, status: 1, createdAt: -1, _id: -1 }),
     db.reports.createIndex({ "target.id": 1, userId: 1 }, { unique: true }),
     db.reports.createIndex({ status: 1, createdAt: -1 }),
+    db.reports.createIndex({ "target.id": 1, status: 1 }),
     db.notifications.createIndex({ userId: 1, createdAt: -1, _id: -1 }),
     db.notifications.createIndex({ userId: 1, readAt: 1 }),
     db.notifications.createIndex({ userId: 1, type: 1, "link.id": 1, actorId: 1 }),

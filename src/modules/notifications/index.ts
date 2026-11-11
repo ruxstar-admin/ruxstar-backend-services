@@ -10,7 +10,13 @@ import { findPage } from "../../platform/pagination.js";
 const Notification = Strict({
   id: ObjectIdString,
   kind: Type.Union([Type.Literal("social"), Type.Literal("account")]),
-  type: Type.Union([Type.Literal("post.like"), Type.Literal("post.comment"), Type.Literal("kyc.approved"), Type.Literal("kyc.rejected")]),
+  type: Type.Union([
+    Type.Literal("post.like"),
+    Type.Literal("post.comment"),
+    Type.Literal("post.removed"),
+    Type.Literal("kyc.approved"),
+    Type.Literal("kyc.rejected"),
+  ]),
   title: Type.String(),
   body: Type.String(),
   link: Strict({
@@ -49,7 +55,7 @@ const notifications: FastifyPluginAsyncTypebox = async (app) => {
         request,
         items.map((n) => ({
           id: n._id.toHexString(),
-          kind: n.type.startsWith("kyc.") ? ("account" as const) : ("social" as const),
+          kind: n.type === "post.like" || n.type === "post.comment" ? ("social" as const) : ("account" as const),
           type: n.type,
           title: n.title,
           body: n.body,
