@@ -49,7 +49,7 @@ steps:
       - --subnet=${_VPC_SUBNET}
       - --vpc-egress=all-traffic
       - --set-env-vars=^@^NODE_ENV=production@RUXSTAR_ENV=${_RUXSTAR_ENV}@MONGODB_DB=${_MONGODB_DB}@GCS_BUCKET=${_GCS_BUCKET}@GCS_MEDIA_BUCKET=${_GCS_MEDIA_BUCKET}@LOG_LEVEL=info@CORS_ORIGINS=${_CORS_ORIGINS}@OTP_PROVIDER=msg91@CASHFREE_ENV=${_CASHFREE_ENV}
-      - --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest,MSG91_AUTH_KEY=msg91-auth-key:latest,MSG91_TEMPLATE_ID=msg91-template-id:latest,MSG91_SENDER_ID=msg91-sender-id:latest,CASHFREE_CLIENT_ID=${_CASHFREE_ID_SECRET}:latest,CASHFREE_CLIENT_SECRET=${_CASHFREE_KEY_SECRET}:latest
+      - --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest,MSG91_AUTH_KEY=msg91-auth-key:latest,MSG91_TEMPLATE_ID=msg91-template-id:latest,MSG91_SENDER_ID=msg91-sender-id:latest,CASHFREE_CLIENT_ID=${_CASHFREE_ID_SECRET}:latest,CASHFREE_CLIENT_SECRET=${_CASHFREE_KEY_SECRET}:latest,PAYOUT_ENCRYPTION_KEY=payout-encryption-key:latest
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_SERVICE_NAME}:$SHORT_SHA
