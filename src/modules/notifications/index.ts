@@ -20,15 +20,16 @@ const Notification = Strict({
     Type.Literal("business.restored"),
     Type.Literal("order.placed"),
     Type.Literal("order.updated"),
+    Type.Literal("user.followed"),
   ]),
   title: Type.String(),
   body: Type.String(),
   link: Strict({
     screen: Type.Union(
-      [Type.Literal("post"), Type.Literal("verification"), Type.Literal("business"), Type.Literal("order"), Type.Literal("shop_order")],
+      [Type.Literal("post"), Type.Literal("verification"), Type.Literal("business"), Type.Literal("order"), Type.Literal("shop_order"), Type.Literal("profile")],
       {
         description:
-          "`verification` opens the KYC screen, `business` one of your businesses in the vendor portal, `order` one of your print orders and `shop_order` an order to your shop in the vendor portal; `id` says which",
+          "`verification` opens the KYC screen, `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal and `profile` someone's profile (by user id); `id` says which",
       },
     ),
     id: Type.String(),

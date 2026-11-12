@@ -55,7 +55,7 @@ export interface UserDoc extends Stamped {
   home?: { city: string | null };
   prefs?: Record<string, unknown>;
   /** Counters kept by Social: live posts, and likes plus comments those posts have received. */
-  social?: { posts?: number; engagements?: number };
+  social?: { posts?: number; engagements?: number; followers?: number; following?: number };
   /** The Ruxstar Card, issued when identity KYC is approved. `id` looks like RUX-1A2B-3C4D. */
   card?: { id: string; issuedAt: Date };
   /** Why the Ruxstar team put the account on hold (`status: "locked"`). Removed when it is unlocked. */
@@ -245,6 +245,8 @@ export interface PostDoc extends Stamped {
   text: string;
   media: PostPhoto[];
   counts: { likes: number; comments: number };
+  /** The business a business post is for. Posts linked to a live print shop show an Order button. */
+  businessId?: ObjectId | null;
   /** `removed` is a takedown by the Ruxstar team; its photos are deleted like a deleted post's. */
   status: "live" | "deleted" | "removed";
   editedAt: Date | null;
@@ -290,7 +292,40 @@ export interface ReportDoc {
   closedAt?: Date;
 }
 
+/** One person following another. Open: no request or approval. */
+export interface FollowDoc {
+  _id?: ObjectId;
+  followerId: ObjectId;
+  followeeId: ObjectId;
+  createdAt: Date;
+}
+
+/** The two people stop seeing each other, and neither can follow, comment on or message the other. */
+export interface BlockDoc {
+  _id?: ObjectId;
+  blockerId: ObjectId;
+  blockedId: ObjectId;
+  createdAt: Date;
+}
+
+export type UserReportReason = "spam" | "fake" | "abuse" | "scam" | "other";
+
+/** A report about a person, one open report per reporter and person. Closed when the Ruxstar team decides. */
+export interface UserReportDoc {
+  _id?: ObjectId;
+  userId: ObjectId;
+  reporterId: ObjectId;
+  reason: UserReportReason;
+  note: string | null;
+  status: "open" | "closed";
+  createdAt: Date;
+  outcome?: "dismissed" | "held";
+  closedBy?: ObjectId;
+  closedAt?: Date;
+}
+
 export type NotificationType =
+  | "user.followed"
   | "post.like"
   | "post.comment"
   | "post.removed"
@@ -311,9 +346,9 @@ export interface NotificationDoc {
   body: string;
   /**
    * `verification` opens the KYC screen (its id is the track); `business` opens a business in the vendor portal;
-   * `order` opens a customer's print order and `shop_order` the same order in the vendor portal.
+   * `order` opens a customer's print order and `shop_order` the same order in the vendor portal; `profile` opens a person (its id is theirs).
    */
-  link: { screen: "post" | "verification" | "business" | "order" | "shop_order"; id: string };
+  link: { screen: "post" | "verification" | "business" | "order" | "shop_order" | "profile"; id: string };
   readAt: Date | null;
   createdAt: Date;
 }
@@ -559,6 +594,15 @@ export class Database {
   }
   get notifications() {
     return this.db.collection<NotificationDoc>("notifications");
+  }
+  get follows() {
+    return this.db.collection<FollowDoc>("follows");
+  }
+  get blocks() {
+    return this.db.collection<BlockDoc>("blocks");
+  }
+  get userReports() {
+    return this.db.collection<UserReportDoc>("user_reports");
   }
   get kycCases() {
     return this.db.collection<KycCaseDoc>("kyc_cases");

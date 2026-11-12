@@ -59,6 +59,29 @@ export async function notifyPostEvent(db: Database, log: FastifyBaseLogger, even
   }
 }
 
+/** Tells someone they have a new follower. Once per follower, however often they unfollow and follow again. Logged, never thrown. */
+export async function notifyFollow(db: Database, log: FastifyBaseLogger, event: { to: ObjectId; follower: ObjectId }): Promise<void> {
+  try {
+    const follower = await db.users.findOne({ _id: event.follower }, { projection: { name: 1 } });
+    await db.notifications.updateOne(
+      { userId: event.to, type: "user.followed", actorId: event.follower },
+      {
+        $setOnInsert: {
+          _id: new ObjectId(),
+          title: "New follower",
+          body: `${follower?.name || "Someone"} started following you.`,
+          link: { screen: "profile", id: event.follower.toHexString() },
+          readAt: null,
+          createdAt: new Date(),
+        },
+      },
+      { upsert: true },
+    );
+  } catch (err) {
+    log.warn({ err: (err as Error).message, type: "user.followed" }, "Notification not saved");
+  }
+}
+
 /** Tells an author the Ruxstar team took their post down, and why. Logged, never thrown. */
 export async function notifyPostRemoved(
   db: Database,

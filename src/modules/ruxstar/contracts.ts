@@ -65,7 +65,7 @@ export const OverviewResult = Envelope(
   Strict(
     {
       kyc: Nullable(Strict({ waiting: Count })),
-      reports: Nullable(Strict({ posts: Count, reports: Count })),
+      reports: Nullable(Strict({ posts: Count, reports: Count, people: Type.Integer({ minimum: 0, description: "People with open reports" }) })),
       users: Nullable(Strict({ total: Count, newThisWeek: Count, suspended: Count })),
       businesses: Nullable(Strict({ total: Count, live: Count, suspended: Count })),
       modules: Nullable(Type.Array(Strict({ module: ModuleName, live: Type.Boolean() }))),
@@ -111,6 +111,25 @@ export const ReportList = ListEnvelope(ReportCase);
 export const ReportOne = Envelope(ReportCase);
 export const ReportParams = Strict({ postId: ObjectIdString });
 export const RemoveBody = Strict({ reason: Reason });
+
+// Reported people.
+
+export const PersonCase = Strict({
+  userId: ObjectIdString,
+  user: Nullable(Strict({ id: ObjectIdString, name: Type.String(), username: Type.String(), avatarUrl: Nullable(Type.String()), status: UserStatus })),
+  status: ReportStatus,
+  reports: Count,
+  reasons: Strict({ spam: Count, fake: Count, abuse: Count, scam: Count, other: Count }),
+  notes: Type.Array(Type.String(), { description: "What reporters wrote, newest first, up to 5" }),
+  firstAt: DateTime,
+  lastAt: DateTime,
+  outcome: Nullable(Type.Union([Type.Literal("dismissed"), Type.Literal("held")], { description: "`held` when their account was put on hold" })),
+  closedAt: Nullable(DateTime),
+});
+export type PersonCase = Static<typeof PersonCase>;
+export const PersonCaseList = ListEnvelope(PersonCase);
+export const PersonCaseOne = Envelope(PersonCase);
+export const PersonCaseParams = Strict({ userId: ObjectIdString });
 
 // People.
 

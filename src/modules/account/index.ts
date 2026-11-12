@@ -42,6 +42,8 @@ import {
   type PublicProfile,
   type User,
 } from "./contracts.js";
+import { blockBetween, blockedAround } from "../social/relations.js";
+import { signedInIfPossible } from "../social/shared.js";
 import { checkCode, countText, sendCode, useVerification } from "./otp.js";
 import { PHOTO_MAX_BYTES, toAvatar } from "./photos.js";
 import { firstFreeUsername, isAvailable, isReserved, suggestUsernames } from "./usernames.js";
@@ -99,6 +101,8 @@ const tidyBio = (bio: string | null | undefined) => {
 const statsOf = (user: UserDoc) => ({
   posts: Math.max(0, user.social?.posts ?? 0),
   engagements: Math.max(0, user.social?.engagements ?? 0),
+  followers: Math.max(0, user.social?.followers ?? 0),
+  following: Math.max(0, user.social?.following ?? 0),
 });
 
 const view = (user: UserDoc): User => ({
@@ -691,7 +695,9 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
     async (request) => {
       const { q, limit = 20 } = request.query;
       const db = requireDatabase(app.db);
-      const listed = { _id: { $ne: request.auth!.userId }, status: { $ne: "deleted" as const }, username: { $type: "string" as const } };
+      const hidden = await blockedAround(db, request.auth!.userId);
+      const notMe = { $nin: [request.auth!.userId, ...hidden] };
+      const listed = { _id: notMe, status: { $ne: "deleted" as const }, username: { $type: "string" as const } };
       if (q === undefined) {
         const newest = await db.users.find(listed).sort({ createdAt: -1, _id: -1 }).limit(limit).toArray();
         return page(request, newest.map(publicView), null);
@@ -701,7 +707,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const docs = await db
         .users.find({
-          _id: { $ne: request.auth!.userId },
+          _id: notMe,
           status: { $ne: "deleted" },
           username: { $type: "string" },
           $or: [{ username: { $regex: `^${escaped}` } }, { name: { $regex: `(^|\\s)${escaped}`, $options: "i" } }],
@@ -719,13 +725,14 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
     {
       // The website renders profiles on its server, so many visitors share its address.
       config: secured(1, 300),
+      preHandler: signedInIfPossible,
       schema: {
         tags: ["account"],
         summary: "Anyone's public profile, by username or id",
-        description: "No sign-in needed. Deleted accounts answer NOT_FOUND.",
+        description: "No sign-in needed. Deleted accounts, and people who blocked you, answer NOT_FOUND.",
         params: ProfileParams,
         response: { 200: ProfileResult, ...Errors },
-        security: [{}],
+        security: [{}, { bearer: [] }, { cookie: [] }],
       },
     },
     async (request, reply) => {
@@ -737,7 +744,9 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
         status: { $ne: "deleted" },
       });
       if (!user?.username) throw new AppError("NOT_FOUND", "No one has that username.");
-      reply.header("cache-control", "public, max-age=60");
+      if ((await blockBetween(db, request.auth?.userId ?? null, user._id)) === "theirs") throw new AppError("NOT_FOUND", "No one has that username.");
+      reply.header("vary", "Cookie, Authorization");
+      reply.header("cache-control", request.auth ? "private, no-store" : "public, max-age=60");
       return ok(request, publicView(user));
     },
   );

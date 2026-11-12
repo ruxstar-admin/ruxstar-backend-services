@@ -1095,7 +1095,9 @@
                               "type": "object",
                               "required": [
                                 "posts",
-                                "engagements"
+                                "engagements",
+                                "followers",
+                                "following"
                               ],
                               "properties": {
                                 "posts": {
@@ -1105,6 +1107,13 @@
                                 "engagements": {
                                   "type": "integer",
                                   "description": "Likes and comments the posts have received"
+                                },
+                                "followers": {
+                                  "type": "integer"
+                                },
+                                "following": {
+                                  "type": "integer",
+                                  "description": "How many people they follow"
                                 }
                               },
                               "additionalProperties": false
@@ -1441,7 +1450,9 @@
                               "type": "object",
                               "required": [
                                 "posts",
-                                "engagements"
+                                "engagements",
+                                "followers",
+                                "following"
                               ],
                               "properties": {
                                 "posts": {
@@ -1451,6 +1462,13 @@
                                 "engagements": {
                                   "type": "integer",
                                   "description": "Likes and comments the posts have received"
+                                },
+                                "followers": {
+                                  "type": "integer"
+                                },
+                                "following": {
+                                  "type": "integer",
+                                  "description": "How many people they follow"
                                 }
                               },
                               "additionalProperties": false
@@ -1787,7 +1805,9 @@
                               "type": "object",
                               "required": [
                                 "posts",
-                                "engagements"
+                                "engagements",
+                                "followers",
+                                "following"
                               ],
                               "properties": {
                                 "posts": {
@@ -1797,6 +1817,13 @@
                                 "engagements": {
                                   "type": "integer",
                                   "description": "Likes and comments the posts have received"
+                                },
+                                "followers": {
+                                  "type": "integer"
+                                },
+                                "following": {
+                                  "type": "integer",
+                                  "description": "How many people they follow"
                                 }
                               },
                               "additionalProperties": false
@@ -2509,7 +2536,9 @@
                           "type": "object",
                           "required": [
                             "posts",
-                            "engagements"
+                            "engagements",
+                            "followers",
+                            "following"
                           ],
                           "properties": {
                             "posts": {
@@ -2519,6 +2548,13 @@
                             "engagements": {
                               "type": "integer",
                               "description": "Likes and comments the posts have received"
+                            },
+                            "followers": {
+                              "type": "integer"
+                            },
+                            "following": {
+                              "type": "integer",
+                              "description": "How many people they follow"
                             }
                           },
                           "additionalProperties": false
@@ -2882,7 +2918,9 @@
                           "type": "object",
                           "required": [
                             "posts",
-                            "engagements"
+                            "engagements",
+                            "followers",
+                            "following"
                           ],
                           "properties": {
                             "posts": {
@@ -2892,6 +2930,13 @@
                             "engagements": {
                               "type": "integer",
                               "description": "Likes and comments the posts have received"
+                            },
+                            "followers": {
+                              "type": "integer"
+                            },
+                            "following": {
+                              "type": "integer",
+                              "description": "How many people they follow"
                             }
                           },
                           "additionalProperties": false
@@ -3261,7 +3306,9 @@
                           "type": "object",
                           "required": [
                             "posts",
-                            "engagements"
+                            "engagements",
+                            "followers",
+                            "following"
                           ],
                           "properties": {
                             "posts": {
@@ -3271,6 +3318,13 @@
                             "engagements": {
                               "type": "integer",
                               "description": "Likes and comments the posts have received"
+                            },
+                            "followers": {
+                              "type": "integer"
+                            },
+                            "following": {
+                              "type": "integer",
+                              "description": "How many people they follow"
                             }
                           },
                           "additionalProperties": false
@@ -3534,7 +3588,9 @@
                           "type": "object",
                           "required": [
                             "posts",
-                            "engagements"
+                            "engagements",
+                            "followers",
+                            "following"
                           ],
                           "properties": {
                             "posts": {
@@ -3544,6 +3600,13 @@
                             "engagements": {
                               "type": "integer",
                               "description": "Likes and comments the posts have received"
+                            },
+                            "followers": {
+                              "type": "integer"
+                            },
+                            "following": {
+                              "type": "integer",
+                              "description": "How many people they follow"
                             }
                           },
                           "additionalProperties": false
@@ -3729,7 +3792,9 @@
                             "type": "object",
                             "required": [
                               "posts",
-                              "engagements"
+                              "engagements",
+                              "followers",
+                              "following"
                             ],
                             "properties": {
                               "posts": {
@@ -3739,6 +3804,13 @@
                               "engagements": {
                                 "type": "integer",
                                 "description": "Likes and comments the posts have received"
+                              },
+                              "followers": {
+                                "type": "integer"
+                              },
+                              "following": {
+                                "type": "integer",
+                                "description": "How many people they follow"
                               }
                             },
                             "additionalProperties": false
@@ -3809,7 +3881,7 @@
         "tags": [
           "account"
         ],
-        "description": "No sign-in needed. Deleted accounts answer NOT_FOUND.",
+        "description": "No sign-in needed. Deleted accounts, and people who blocked you, answer NOT_FOUND.",
         "parameters": [
           {
             "schema": {
@@ -3824,7 +3896,13 @@
           }
         ],
         "security": [
-          {}
+          {},
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
         ],
         "responses": {
           "200": {
@@ -3918,7 +3996,9 @@
                           "type": "object",
                           "required": [
                             "posts",
-                            "engagements"
+                            "engagements",
+                            "followers",
+                            "following"
                           ],
                           "properties": {
                             "posts": {
@@ -3928,6 +4008,13 @@
                             "engagements": {
                               "type": "integer",
                               "description": "Likes and comments the posts have received"
+                            },
+                            "followers": {
+                              "type": "integer"
+                            },
+                            "following": {
+                              "type": "integer",
+                              "description": "How many people they follow"
                             }
                           },
                           "additionalProperties": false
@@ -4303,7 +4390,9 @@
                           "type": "object",
                           "required": [
                             "posts",
-                            "engagements"
+                            "engagements",
+                            "followers",
+                            "following"
                           ],
                           "properties": {
                             "posts": {
@@ -4313,6 +4402,13 @@
                             "engagements": {
                               "type": "integer",
                               "description": "Likes and comments the posts have received"
+                            },
+                            "followers": {
+                              "type": "integer"
+                            },
+                            "following": {
+                              "type": "integer",
+                              "description": "How many people they follow"
                             }
                           },
                           "additionalProperties": false
@@ -6960,9 +7056,933 @@
         }
       }
     },
-    "/v1/social/feed": {
+    "/v1/social/users/{ref}/relation": {
       "get": {
-        "summary": "Everyone's posts, newest first",
+        "summary": "You and someone else: following, follows you, blocked, and their counts",
+        "tags": [
+          "social"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 24
+            },
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "description": "A username, or a user id"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "following",
+                        "followsMe",
+                        "blockedByMe",
+                        "counts"
+                      ],
+                      "properties": {
+                        "following": {
+                          "type": "boolean",
+                          "description": "You follow them"
+                        },
+                        "followsMe": {
+                          "type": "boolean"
+                        },
+                        "blockedByMe": {
+                          "type": "boolean"
+                        },
+                        "counts": {
+                          "type": "object",
+                          "required": [
+                            "followers",
+                            "following"
+                          ],
+                          "properties": {
+                            "followers": {
+                              "type": "integer"
+                            },
+                            "following": {
+                              "type": "integer",
+                              "description": "How many people they follow"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/social/users/{ref}/followers": {
+      "get": {
+        "summary": "Who follows someone, newest first",
+        "tags": [
+          "social"
+        ],
+        "description": "No sign-in needed. Signed in, `followedByMe` says whether you follow each of them, and people you blocked or who blocked you are left out.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 24
+            },
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "description": "A username, or a user id"
+          }
+        ],
+        "security": [
+          {},
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "name",
+                          "username",
+                          "avatarUrl",
+                          "vendor",
+                          "verified",
+                          "followedByMe",
+                          "me"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "username": {
+                            "type": "string"
+                          },
+                          "avatarUrl": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "vendor": {
+                            "type": "boolean"
+                          },
+                          "verified": {
+                            "type": "boolean",
+                            "description": "Identity verified by Ruxstar"
+                          },
+                          "followedByMe": {
+                            "type": "boolean"
+                          },
+                          "me": {
+                            "type": "boolean",
+                            "description": "This is you"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/social/users/{ref}/following": {
+      "get": {
+        "summary": "Who someone follows, newest first",
+        "tags": [
+          "social"
+        ],
+        "description": "No sign-in needed. Signed in, `followedByMe` says whether you follow each of them, and people you blocked or who blocked you are left out.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 24
+            },
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "description": "A username, or a user id"
+          }
+        ],
+        "security": [
+          {},
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "name",
+                          "username",
+                          "avatarUrl",
+                          "vendor",
+                          "verified",
+                          "followedByMe",
+                          "me"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "username": {
+                            "type": "string"
+                          },
+                          "avatarUrl": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "vendor": {
+                            "type": "boolean"
+                          },
+                          "verified": {
+                            "type": "boolean",
+                            "description": "Identity verified by Ruxstar"
+                          },
+                          "followedByMe": {
+                            "type": "boolean"
+                          },
+                          "me": {
+                            "type": "boolean",
+                            "description": "This is you"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/social/users/{id}/follow": {
+      "put": {
+        "summary": "Follow someone",
+        "tags": [
+          "social"
+        ],
+        "description": "Open follows: no request. Following again changes nothing. They are told once.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "following",
+                        "followsMe",
+                        "blockedByMe",
+                        "counts"
+                      ],
+                      "properties": {
+                        "following": {
+                          "type": "boolean",
+                          "description": "You follow them"
+                        },
+                        "followsMe": {
+                          "type": "boolean"
+                        },
+                        "blockedByMe": {
+                          "type": "boolean"
+                        },
+                        "counts": {
+                          "type": "object",
+                          "required": [
+                            "followers",
+                            "following"
+                          ],
+                          "properties": {
+                            "followers": {
+                              "type": "integer"
+                            },
+                            "following": {
+                              "type": "integer",
+                              "description": "How many people they follow"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Stop following someone",
+        "tags": [
+          "social"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "following",
+                        "followsMe",
+                        "blockedByMe",
+                        "counts"
+                      ],
+                      "properties": {
+                        "following": {
+                          "type": "boolean",
+                          "description": "You follow them"
+                        },
+                        "followsMe": {
+                          "type": "boolean"
+                        },
+                        "blockedByMe": {
+                          "type": "boolean"
+                        },
+                        "counts": {
+                          "type": "object",
+                          "required": [
+                            "followers",
+                            "following"
+                          ],
+                          "properties": {
+                            "followers": {
+                              "type": "integer"
+                            },
+                            "following": {
+                              "type": "integer",
+                              "description": "How many people they follow"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/social/users/{id}/block": {
+      "put": {
+        "summary": "Block someone",
+        "tags": [
+          "social"
+        ],
+        "description": "You stop seeing each other's posts, comments and profile, follows both ways end, and neither of you can follow, comment on or message the other. They aren't told. Blocking again changes nothing.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "following",
+                        "followsMe",
+                        "blockedByMe",
+                        "counts"
+                      ],
+                      "properties": {
+                        "following": {
+                          "type": "boolean",
+                          "description": "You follow them"
+                        },
+                        "followsMe": {
+                          "type": "boolean"
+                        },
+                        "blockedByMe": {
+                          "type": "boolean"
+                        },
+                        "counts": {
+                          "type": "object",
+                          "required": [
+                            "followers",
+                            "following"
+                          ],
+                          "properties": {
+                            "followers": {
+                              "type": "integer"
+                            },
+                            "following": {
+                              "type": "integer",
+                              "description": "How many people they follow"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Unblock someone",
+        "tags": [
+          "social"
+        ],
+        "description": "Follows that ended when you blocked them don't come back.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "following",
+                        "followsMe",
+                        "blockedByMe",
+                        "counts"
+                      ],
+                      "properties": {
+                        "following": {
+                          "type": "boolean",
+                          "description": "You follow them"
+                        },
+                        "followsMe": {
+                          "type": "boolean"
+                        },
+                        "blockedByMe": {
+                          "type": "boolean"
+                        },
+                        "counts": {
+                          "type": "object",
+                          "required": [
+                            "followers",
+                            "following"
+                          ],
+                          "properties": {
+                            "followers": {
+                              "type": "integer"
+                            },
+                            "following": {
+                              "type": "integer",
+                              "description": "How many people they follow"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/social/blocks": {
+      "get": {
+        "summary": "People you blocked, most recent first",
         "tags": [
           "social"
         ],
@@ -7014,8 +8034,334 @@
                         "type": "object",
                         "required": [
                           "id",
+                          "name",
+                          "username",
+                          "avatarUrl",
+                          "vendor",
+                          "verified",
+                          "followedByMe",
+                          "me"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "username": {
+                            "type": "string"
+                          },
+                          "avatarUrl": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "vendor": {
+                            "type": "boolean"
+                          },
+                          "verified": {
+                            "type": "boolean",
+                            "description": "Identity verified by Ruxstar"
+                          },
+                          "followedByMe": {
+                            "type": "boolean"
+                          },
+                          "me": {
+                            "type": "boolean",
+                            "description": "This is you"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/social/users/{id}/report": {
+      "post": {
+        "summary": "Report someone to Ruxstar",
+        "tags": [
+          "social"
+        ],
+        "description": "One open report per person you report; reporting them again while it is open changes nothing. They aren't told.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "spam"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "fake"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "abuse"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "scam"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "other"
+                        ]
+                      }
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/social/feed": {
+      "get": {
+        "summary": "The feed: For you, or Following",
+        "tags": [
+          "social"
+        ],
+        "description": "`for_you` (the default) is the last week's posts ranked by likes and comments, newer first, with people you follow boosted; older posts follow, newest first. `following` is posts by people you follow, and yours, newest first. Both leave out anyone you blocked or who blocked you.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "for_you"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "following"
+                  ]
+                }
+              ]
+            },
+            "in": "query",
+            "name": "tab",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
                           "author",
                           "kind",
+                          "business",
                           "text",
                           "media",
                           "counts",
@@ -7088,6 +8434,66 @@
                                 ]
                               }
                             ]
+                          },
+                          "business": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "module",
+                                  "orderable"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "module": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "pod"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "events"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "coaching"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "stays"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "orderable": {
+                                    "type": "boolean",
+                                    "description": "A live print shop: show Order, which opens its order page"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The business a business post is for"
                           },
                           "text": {
                             "type": "string"
@@ -7326,6 +8732,7 @@
                           "id",
                           "author",
                           "kind",
+                          "business",
                           "text",
                           "media",
                           "counts",
@@ -7398,6 +8805,66 @@
                                 ]
                               }
                             ]
+                          },
+                          "business": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "module",
+                                  "orderable"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "module": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "pod"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "events"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "coaching"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "stays"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "orderable": {
+                                    "type": "boolean",
+                                    "description": "A live print shop: show Order, which opens its order page"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The business a business post is for"
                           },
                           "text": {
                             "type": "string"
@@ -7602,6 +9069,7 @@
                           "id",
                           "author",
                           "kind",
+                          "business",
                           "text",
                           "media",
                           "counts",
@@ -7674,6 +9142,66 @@
                                 ]
                               }
                             ]
+                          },
+                          "business": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "module",
+                                  "orderable"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "module": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "pod"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "events"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "coaching"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "stays"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "orderable": {
+                                    "type": "boolean",
+                                    "description": "A live print shop: show Order, which opens its order page"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The business a business post is for"
                           },
                           "text": {
                             "type": "string"
@@ -7868,6 +9396,7 @@
                         "id",
                         "author",
                         "kind",
+                        "business",
                         "text",
                         "media",
                         "counts",
@@ -7940,6 +9469,66 @@
                               ]
                             }
                           ]
+                        },
+                        "business": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name",
+                                "module",
+                                "orderable"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "module": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "pod"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "events"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "coaching"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "stays"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "orderable": {
+                                  "type": "boolean",
+                                  "description": "A live print shop: show Order, which opens its order page"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The business a business post is for"
                         },
                         "text": {
                           "type": "string"
@@ -8138,6 +9727,7 @@
                         "id",
                         "author",
                         "kind",
+                        "business",
                         "text",
                         "media",
                         "counts",
@@ -8210,6 +9800,66 @@
                               ]
                             }
                           ]
+                        },
+                        "business": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name",
+                                "module",
+                                "orderable"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "module": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "pod"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "events"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "coaching"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "stays"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "orderable": {
+                                  "type": "boolean",
+                                  "description": "A live print shop: show Order, which opens its order page"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The business a business post is for"
                         },
                         "text": {
                           "type": "string"
@@ -8603,6 +10253,19 @@
                         ]
                       }
                     ]
+                  },
+                  "businessId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{24}$",
+                        "description": "MongoDB ObjectId as hex"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Business posts only: which of your businesses it is for. Picked for you when you have just one."
                   }
                 },
                 "additionalProperties": false
@@ -8636,6 +10299,7 @@
                         "id",
                         "author",
                         "kind",
+                        "business",
                         "text",
                         "media",
                         "counts",
@@ -8708,6 +10372,66 @@
                               ]
                             }
                           ]
+                        },
+                        "business": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name",
+                                "module",
+                                "orderable"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "module": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "pod"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "events"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "coaching"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "stays"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "orderable": {
+                                  "type": "boolean",
+                                  "description": "A live print shop: show Order, which opens its order page"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The business a business post is for"
                         },
                         "text": {
                           "type": "string"
@@ -9944,6 +11668,12 @@
                                 "enum": [
                                   "order.updated"
                                 ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "user.followed"
+                                ]
                               }
                             ]
                           },
@@ -9991,9 +11721,15 @@
                                     "enum": [
                                       "shop_order"
                                     ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "profile"
+                                    ]
                                   }
                                 ],
-                                "description": "`verification` opens the KYC screen, `business` one of your businesses in the vendor portal, `order` one of your print orders and `shop_order` an order to your shop in the vendor portal; `id` says which"
+                                "description": "`verification` opens the KYC screen, `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal and `profile` someone's profile (by user id); `id` says which"
                               },
                               "id": {
                                 "type": "string"
@@ -24763,7 +26499,8 @@
                               "type": "object",
                               "required": [
                                 "posts",
-                                "reports"
+                                "reports",
+                                "people"
                               ],
                               "properties": {
                                 "posts": {
@@ -24773,6 +26510,11 @@
                                 "reports": {
                                   "type": "integer",
                                   "minimum": 0
+                                },
+                                "people": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "People with open reports"
                                 }
                               },
                               "additionalProperties": false
@@ -27530,6 +29272,590 @@
                                   ]
                                 }
                               ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "closedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/reports/people": {
+      "get": {
+        "summary": "Reported people, one row per person",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "`open` (the default) is waiting for a decision, newest report first. `closed` is decided, newest decision first.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "open"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "closed"
+                  ]
+                }
+              ],
+              "default": "open"
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "userId",
+                          "user",
+                          "status",
+                          "reports",
+                          "reasons",
+                          "notes",
+                          "firstAt",
+                          "lastAt",
+                          "outcome",
+                          "closedAt"
+                        ],
+                        "properties": {
+                          "userId": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "user": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "username",
+                                  "avatarUrl",
+                                  "status"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "username": {
+                                    "type": "string"
+                                  },
+                                  "avatarUrl": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "status": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "active"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "locked"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "deleted"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "open"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "closed"
+                                ]
+                              }
+                            ]
+                          },
+                          "reports": {
+                            "type": "integer",
+                            "minimum": 0
+                          },
+                          "reasons": {
+                            "type": "object",
+                            "required": [
+                              "spam",
+                              "fake",
+                              "abuse",
+                              "scam",
+                              "other"
+                            ],
+                            "properties": {
+                              "spam": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "fake": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "abuse": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "scam": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "other": {
+                                "type": "integer",
+                                "minimum": 0
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "notes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "What reporters wrote, newest first, up to 5"
+                          },
+                          "firstAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "lastAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "outcome": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "dismissed"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "held"
+                                    ]
+                                  }
+                                ],
+                                "description": "`held` when their account was put on hold"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "closedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/reports/people/{userId}/dismiss": {
+      "post": {
+        "summary": "Close the reports about someone without acting on their account",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "To act on the account, put it on hold from People; that closes these reports too.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "userId",
+                        "user",
+                        "status",
+                        "reports",
+                        "reasons",
+                        "notes",
+                        "firstAt",
+                        "lastAt",
+                        "outcome",
+                        "closedAt"
+                      ],
+                      "properties": {
+                        "userId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "user": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name",
+                                "username",
+                                "avatarUrl",
+                                "status"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "username": {
+                                  "type": "string"
+                                },
+                                "avatarUrl": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "status": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "active"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "locked"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "deleted"
+                                      ]
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "open"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "closed"
+                              ]
+                            }
+                          ]
+                        },
+                        "reports": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "reasons": {
+                          "type": "object",
+                          "required": [
+                            "spam",
+                            "fake",
+                            "abuse",
+                            "scam",
+                            "other"
+                          ],
+                          "properties": {
+                            "spam": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "fake": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "abuse": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "scam": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "other": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "notes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "What reporters wrote, newest first, up to 5"
+                        },
+                        "firstAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "lastAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "outcome": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "dismissed"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "held"
+                                  ]
+                                }
+                              ],
+                              "description": "`held` when their account was put on hold"
                             },
                             {
                               "type": "null"

@@ -93,14 +93,14 @@ const users: FastifyPluginAsyncTypebox = async (app) => {
     request: FastifyRequest,
     id: string,
     action: string,
-    change: (user: WithId<UserDoc>) => { update: object; diff: Record<string, { from: unknown; to: unknown }>; signOut: boolean },
+    change: (user: WithId<UserDoc>) => { update: object; diff: Record<string, { from: unknown; to: unknown }>; signOut: boolean; holdReports?: boolean },
   ) {
     const database = db();
     const actor = actorOf(request);
     const user = await target(id);
     if (user.status === "deleted") throw new AppError("CONFLICT", "This account was deleted.");
     assertCanManage(request, user);
-    const { update, diff, signOut } = change(user);
+    const { update, diff, signOut, holdReports } = change(user);
     await database.transaction(async (session) => {
       const now = new Date();
       await database.users.updateOne({ _id: user._id }, { ...update, $currentDate: { updatedAt: true } }, { session });
@@ -111,6 +111,14 @@ const users: FastifyPluginAsyncTypebox = async (app) => {
           { session },
         );
         if (ended.modifiedCount) diff.sessions = { from: ended.modifiedCount, to: 0 };
+      }
+      if (holdReports) {
+        const closed = await database.userReports.updateMany(
+          { userId: user._id, status: "open" },
+          { $set: { status: "closed", outcome: "held", closedBy: request.auth!.userId, closedAt: now } },
+          { session },
+        );
+        if (closed.modifiedCount) diff.openReports = { from: closed.modifiedCount, to: 0 };
       }
       await writeAudit(database, { actor, scope: { module: "account" }, action, target: { type: "user", id: user._id }, diff, ip: request.ip }, session);
     });
@@ -180,6 +188,7 @@ const users: FastifyPluginAsyncTypebox = async (app) => {
           update: { $set: { status: "locked", suspension: { by: request.auth!.userId, at: new Date(), reason } } },
           diff: { status: { from: user.status, to: "locked" }, reason: { from: null, to: reason } },
           signOut: true,
+          holdReports: true,
         };
       }),
   );

@@ -660,7 +660,7 @@ describe("profile photos and public profiles", () => {
     expect(byName.headers["cache-control"]).toBe("public, max-age=60");
     const profile = byName.json().data;
     expect(Object.keys(profile).sort()).toEqual(["avatarUrl", "badges", "bio", "city", "id", "memberSince", "name", "stats", "username"]);
-    expect(profile.stats).toEqual({ posts: 0, engagements: 0 });
+    expect(profile.stats).toEqual({ posts: 0, engagements: 0, followers: 0, following: 0 });
     expect(profile).toMatchObject({ id: user.id, name: "Asha Rao", bio: "Bakes on weekends", city: "Pune", badges: { vendor: false, delivery: false } });
     expect(profile.avatarUrl).toMatch(/\.webp$/);
 

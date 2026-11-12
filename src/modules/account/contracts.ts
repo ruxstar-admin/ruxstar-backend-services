@@ -22,6 +22,8 @@ const Device = {
 const Stats = Strict({
   posts: Type.Integer({ description: "Live posts, both tabs" }),
   engagements: Type.Integer({ description: "Likes and comments the posts have received" }),
+  followers: Type.Integer(),
+  following: Type.Integer({ description: "How many people they follow" }),
 });
 
 export const User = Strict({

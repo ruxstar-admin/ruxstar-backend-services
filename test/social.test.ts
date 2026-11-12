@@ -124,13 +124,13 @@ describe("posts", () => {
 
     await call("PUT", `/social/posts/${post.id}/like`, other);
     await call("POST", `/social/posts/${post.id}/comments`, other, { text: "Nice" });
-    expect((await call("GET", `/account/profiles/${owner.username}`)).json().data.stats).toEqual({ posts: 1, engagements: 2 });
+    expect((await call("GET", `/account/profiles/${owner.username}`)).json().data.stats).toMatchObject({ posts: 1, engagements: 2 });
 
     expect((await call("DELETE", `/social/posts/${post.id}`, other)).statusCode).toBe(403);
     expect((await call("DELETE", `/social/posts/${post.id}`, owner)).json().data.done).toBe(true);
     for (const { url } of [photo, ...photo.smaller]) expect(stack.media.has(url.replace("https://media.test/", ""))).toBe(false);
     expect((await call("GET", `/social/posts/${post.id}`)).json().error.code).toBe("NOT_FOUND");
-    expect((await call("GET", `/account/profiles/${owner.username}`)).json().data.stats).toEqual({ posts: 0, engagements: 0 });
+    expect((await call("GET", `/account/profiles/${owner.username}`)).json().data.stats).toMatchObject({ posts: 0, engagements: 0 });
   });
 
   it("hides the posts of a deleted account", async () => {

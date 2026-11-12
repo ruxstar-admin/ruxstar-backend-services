@@ -5,7 +5,7 @@ import { MongoServerError, ObjectId, type WithId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { requireAuth } from "../../platform/auth.js";
 import { requireDatabase } from "../../platform/context.js";
-import type { Database, PostCommentDoc, PostDoc, PostMediaDoc, PostPhoto, UserDoc } from "../../platform/db.js";
+import type { Database, PostCommentDoc, PostDoc, PostMediaDoc, PostPhoto } from "../../platform/db.js";
 import { stamp } from "../../platform/db.js";
 import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
@@ -16,6 +16,7 @@ import {
   CommentList,
   CommentResult,
   Done,
+  FeedQuery,
   IdParams,
   LikeState,
   Page,
@@ -31,7 +32,11 @@ import {
   type Comment,
   type Post,
 } from "./contracts.js";
+import { forYouPage } from "./feed.js";
+import people from "./people.js";
 import { POST_PHOTO_MAX_BYTES, toPostPhoto } from "./photos.js";
+import { assertNotBlocked, blockBetween, blockedAround } from "./relations.js";
+import { AUTHOR_PROJECTION, authorView, signedInIfPossible, type AuthorFields } from "./shared.js";
 import { clearPost, keysOf } from "./takedown.js";
 
 type Security = Record<string, string[]>[];
@@ -40,18 +45,6 @@ const signedInOrNot: Security = [{}, { bearer: [] }, { cookie: [] }];
 const limit = (perMinutes: number, max: number) => ({ rateLimit: { max, timeWindow: perMinutes * 60_000 } });
 /** Uploaded photos that never made it into a post are deleted after a day. */
 const STALE_UPLOAD_MS = 24 * 60 * 60_000;
-
-type AuthorFields = Pick<UserDoc, "_id" | "name" | "username" | "avatar" | "roles" | "kyc">;
-const AUTHOR_PROJECTION = { name: 1, username: 1, avatar: 1, "roles.vendor": 1, "kyc.base": 1 } as const;
-
-const authorView = (user: AuthorFields) => ({
-  id: user._id.toHexString(),
-  name: user.name ?? "",
-  username: user.username ?? "",
-  avatarUrl: user.avatar ?? null,
-  vendor: Boolean(user.roles?.vendor),
-  verified: user.kyc?.base === "approved",
-});
 
 const photoView = ({ url, width, height, smaller }: PostPhoto) => ({
   url,
@@ -67,16 +60,6 @@ const tidy = (text: string) =>
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-/** Public reads show likes and saves for whoever is signed in, and work for anyone who is not. */
-async function signedInIfPossible(request: FastifyRequest): Promise<void> {
-  try {
-    await requireAuth(request);
-  } catch (err) {
-    if (!(err instanceof AppError) || err.code !== "UNAUTHENTICATED") throw err;
-    request.auth = null;
-  }
-}
-
 async function authorsOf(db: Database, ids: ObjectId[]) {
   const unique = [...new Map(ids.map((id) => [id.toHexString(), id])).values()];
   const users = await db.users
@@ -85,14 +68,31 @@ async function authorsOf(db: Database, ids: ObjectId[]) {
   return new Map(users.map((u) => [u._id.toHexString(), authorView(u as AuthorFields)]));
 }
 
-/** Two reads for a whole page, whatever its size: the authors, and your likes and saves. Posts by deleted accounts drop out. */
+/** The businesses business posts are for, and whether each is a print shop customers can order from now. */
+async function businessesOf(db: Database, posts: WithId<PostDoc>[]) {
+  const ids = posts.flatMap((p) => (p.kind === "business" && p.businessId ? [p.businessId] : []));
+  if (ids.length === 0) return new Map<string, NonNullable<Post["business"]>>();
+  const [businesses, pod] = await Promise.all([
+    db.businesses.find({ _id: { $in: ids } }, { projection: { name: 1, module: 1, status: 1, suspension: 1 } }).toArray(),
+    db.moduleSettings.findOne({ module: "pod" }, { projection: { live: 1 } }),
+  ]);
+  return new Map(
+    businesses.map((b) => [
+      b._id.toHexString(),
+      { id: b._id.toHexString(), name: b.name, module: b.module, orderable: b.module === "pod" && b.status === "live" && !b.suspension && !!pod?.live },
+    ]),
+  );
+}
+
+/** Three reads for a whole page, whatever its size: the authors, your likes and saves, and linked businesses. Posts by deleted accounts drop out. */
 async function present(db: Database, posts: WithId<PostDoc>[], me: ObjectId | null): Promise<Post[]> {
   if (posts.length === 0) return [];
-  const [authors, reactions] = await Promise.all([
+  const [authors, reactions, businesses] = await Promise.all([
     authorsOf(db, posts.map((p) => p.authorId)),
     me
       ? db.postReactions.find({ userId: me, postId: { $in: posts.map((p) => p._id) } }, { projection: { postId: 1, kind: 1 } }).toArray()
       : Promise.resolve([]),
+    businessesOf(db, posts),
   ]);
   const mark = new Set(reactions.map((r) => `${r.postId.toHexString()}:${r.kind}`));
   return posts.flatMap((post) => {
@@ -104,6 +104,7 @@ async function present(db: Database, posts: WithId<PostDoc>[], me: ObjectId | nu
         id,
         author,
         kind: post.kind,
+        business: post.kind === "business" && post.businessId ? (businesses.get(post.businessId.toHexString()) ?? null) : null,
         text: post.text,
         media: post.media.map(photoView),
         counts: { likes: post.counts.likes, comments: post.counts.comments },
@@ -136,8 +137,21 @@ async function livePost(db: Database, id: string) {
 
 const isDuplicate = (err: unknown) => err instanceof MongoServerError && err.code === 11000;
 
+/** The vendor's business a business post is for: the one they picked, or their only one. */
+async function businessFor(db: Database, vendorId: ObjectId, picked: string | null | undefined): Promise<ObjectId | null> {
+  if (picked) {
+    const business = await db.businesses.findOne({ _id: new ObjectId(picked), ownerId: vendorId }, { projection: { _id: 1 } });
+    if (!business) throw new AppError("VALIDATION_FAILED", "Pick one of your businesses.", [{ path: "body/businessId", message: "Not your business" }]);
+    return business._id;
+  }
+  const mine = await db.businesses.find({ ownerId: vendorId }, { projection: { _id: 1 } }).limit(2).toArray();
+  if (mine.length > 1) throw new AppError("VALIDATION_FAILED", "Pick which business this post is for.", [{ path: "body/businessId", message: "Required" }]);
+  return mine[0]?._id ?? null;
+}
+
 const social: FastifyPluginAsyncTypebox = async (app) => {
   app.addContentTypeParser(/^image\//, { parseAs: "buffer", bodyLimit: POST_PHOTO_MAX_BYTES }, (_request, body, done) => done(null, body));
+  await app.register(people);
 
   const me = (request: FastifyRequest) => request.auth?.userId ?? null;
   // A cached anonymous answer must not be reused once someone signs in: it would show "not liked".
@@ -153,21 +167,29 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: requireAuth,
       schema: {
         tags: ["social"],
-        summary: "Everyone's posts, newest first",
-        querystring: Page,
+        summary: "The feed: For you, or Following",
+        description:
+          "`for_you` (the default) is the last week's posts ranked by likes and comments, newer first, with people you follow boosted; older posts follow, newest first. " +
+          "`following` is posts by people you follow, and yours, newest first. Both leave out anyone you blocked or who blocked you.",
+        querystring: FeedQuery,
         response: { 200: PostList, ...Errors },
         security,
       },
     },
     async (request) => {
       const db = requireDatabase(app.db);
-      const { items, nextCursor } = await findPage(db.posts, {
-        filter: { status: "live" },
-        sortField: "createdAt",
-        cursor: request.query.cursor,
-        limit: request.query.limit,
-      });
-      return page(request, await present(db, items, me(request)), nextCursor);
+      const userId = request.auth!.userId;
+      const { tab = "for_you", cursor, limit } = request.query;
+      const [hidden, follows] = await Promise.all([
+        blockedAround(db, userId),
+        db.follows.find({ followerId: userId }, { projection: { followeeId: 1 } }).toArray(),
+      ]);
+      const followed = follows.map((f) => f.followeeId);
+      const { items, nextCursor } =
+        tab === "following"
+          ? await findPage(db.posts, { filter: { status: "live", authorId: { $in: [userId, ...followed] } }, sortField: "createdAt", cursor, limit })
+          : await forYouPage(db, { hidden, followed: new Set(followed.map((id) => id.toHexString())), cursor, limit });
+      return page(request, await present(db, items, userId), nextCursor);
     },
   );
 
@@ -203,8 +225,11 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
       // By id, the posts are read alongside the profile; by username, they need its id first.
       const [user, early] = await Promise.all([findUser, byId ? postsOf(byId) : null]);
       if (!user?.username) throw new AppError("NOT_FOUND", "No one has that username.");
-      const { items, nextCursor } = early ?? (await postsOf(user._id));
+      const block = await blockBetween(db, me(request), user._id);
+      if (block === "theirs") throw new AppError("NOT_FOUND", "No one has that username.");
       publicCache(request, reply);
+      if (block === "mine") return page(request, [], null);
+      const { items, nextCursor } = early ?? (await postsOf(user._id));
       return page(request, await present(db, items, me(request)), nextCursor);
     },
   );
@@ -229,7 +254,10 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
         cursor: request.query.cursor,
         limit: request.query.limit,
       });
-      const posts = await db.posts.find({ _id: { $in: items.map((r) => r.postId) }, status: "live" }).toArray();
+      const hidden = await blockedAround(db, request.auth!.userId);
+      const posts = await db.posts
+        .find({ _id: { $in: items.map((r) => r.postId) }, status: "live", ...(hidden.length ? { authorId: { $nin: hidden } } : {}) })
+        .toArray();
       const byId = new Map(posts.map((p) => [p._id.toHexString(), p]));
       const ordered = items.flatMap((r) => byId.get(r.postId.toHexString()) ?? []);
       return page(request, await present(db, ordered, me(request)), nextCursor);
@@ -251,7 +279,9 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request, reply) => {
       const db = requireDatabase(app.db);
-      const [post] = await present(db, [await livePost(db, request.params.id)], me(request));
+      const found = await livePost(db, request.params.id);
+      if (await blockBetween(db, me(request), found.authorId)) throw new AppError("NOT_FOUND", "This post isn't available.");
+      const [post] = await present(db, [found], me(request));
       if (!post) throw removed();
       publicCache(request, reply);
       return ok(request, post);
@@ -331,6 +361,7 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
         throw new AppError("VALIDATION_FAILED", "Write something or add a photo.", [{ path: "body/text", message: "Empty post" }]);
       }
       if (kind === "business" && !auth.roles.vendor) throw new AppError("FORBIDDEN", "Only vendors can post as a business.");
+      const businessId = kind === "business" ? await businessFor(db, auth.userId, request.body.businessId) : null;
 
       const postId = new ObjectId();
       let media: WithId<PostMediaDoc>[] = [];
@@ -354,6 +385,7 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
         _id: postId,
         authorId: auth.userId,
         kind,
+        ...(businessId ? { businessId } : {}),
         text,
         media: mediaIds.map((id) => {
           const { key, url, width, height, smaller } = byId.get(id.toHexString())!;
@@ -441,6 +473,7 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
     const db = requireDatabase(app.db);
     const userId = request.auth!.userId;
     const post = await livePost(db, (request.params as { id: string }).id);
+    if (on) await assertNotBlocked(db, userId, post.authorId);
     let changed = false;
     if (on) {
       try {
@@ -490,8 +523,10 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
     async (request, reply) => {
       const db = requireDatabase(app.db);
       const post = await livePost(db, request.params.id);
+      if (await blockBetween(db, me(request), post.authorId)) throw new AppError("NOT_FOUND", "This post isn't available.");
+      const hidden = await blockedAround(db, me(request));
       const { items, nextCursor } = await findPage(db.postComments, {
-        filter: { postId: post._id, status: "live" },
+        filter: { postId: post._id, status: "live", ...(hidden.length ? { authorId: { $nin: hidden } } : {}) },
         sortField: "createdAt",
         cursor: request.query.cursor,
         limit: request.query.limit,
@@ -521,6 +556,7 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
       const text = tidy(request.body.text);
       if (!text) throw new AppError("VALIDATION_FAILED", "Write a comment first.", [{ path: "body/text", message: "Empty comment" }]);
       const post = await livePost(db, request.params.id);
+      await assertNotBlocked(db, userId, post.authorId);
       const doc: PostCommentDoc = { _id: new ObjectId(), postId: post._id, authorId: userId, text, status: "live", ...stamp() };
       const [, [comment]] = await Promise.all([
         db.postComments.insertOne(doc).then(() =>
