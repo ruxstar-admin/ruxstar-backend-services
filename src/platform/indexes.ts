@@ -61,6 +61,7 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.businesses.createIndex({ ownerId: 1, createdAt: -1 }),
     db.businesses.createIndex({ updatedAt: -1, _id: -1 }),
     db.businesses.createIndex({ module: 1, status: 1, updatedAt: -1, _id: -1 }),
+    db.businesses.createIndex({ module: 1, status: 1, publishedAt: -1, _id: -1 }),
     db.businesses.createIndex({ status: 1, updatedAt: -1, _id: -1 }),
     db.payoutMethods.createIndex({ userId: 1 }, { unique: true }),
     db.payouts.createIndex({ vendorId: 1, createdAt: -1, _id: -1 }),

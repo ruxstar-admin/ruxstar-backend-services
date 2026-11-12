@@ -18732,6 +18732,850 @@
         }
       }
     },
+    "/v1/pod/shops": {
+      "get": {
+        "summary": "Print shops customers can order from, newest first",
+        "tags": [
+          "pod"
+        ],
+        "description": "Live shops that are not on hold, open ones first in each page. Empty while Ruxstar has print on demand switched off.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 60
+            },
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "description": "Shops in or delivering to this city"
+          },
+          {
+            "schema": {
+              "enum": [
+                "tshirts",
+                "hoodies",
+                "jerseys",
+                "business_cards",
+                "posters",
+                "flex_banners",
+                "stickers",
+                "invitations",
+                "photo_prints",
+                "documents"
+              ]
+            },
+            "in": "query",
+            "name": "product",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "description": "Part of the shop name"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "name",
+                          "type",
+                          "typeLabel",
+                          "cover",
+                          "area",
+                          "city",
+                          "state",
+                          "open",
+                          "deliversEverywhere",
+                          "fromPrice",
+                          "fromUnit",
+                          "turnaroundDays",
+                          "products"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "enum": [
+                              "print_shop",
+                              "concert",
+                              "sports_event",
+                              "coaching",
+                              "pg",
+                              "hostel"
+                            ],
+                            "description": "Belongs to one module; GET /v1/vendor/catalog lists them"
+                          },
+                          "typeLabel": {
+                            "type": "string"
+                          },
+                          "cover": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "url",
+                                  "width",
+                                  "height",
+                                  "smaller"
+                                ],
+                                "properties": {
+                                  "url": {
+                                    "type": "string"
+                                  },
+                                  "width": {
+                                    "type": "integer"
+                                  },
+                                  "height": {
+                                    "type": "integer"
+                                  },
+                                  "smaller": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "url",
+                                        "width",
+                                        "height"
+                                      ],
+                                      "properties": {
+                                        "url": {
+                                          "type": "string"
+                                        },
+                                        "width": {
+                                          "type": "integer"
+                                        },
+                                        "height": {
+                                          "type": "integer"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    "description": "Narrower copies of the same photo, narrowest first, for grids and small screens. Empty for photos posted before they existed."
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "area": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "city": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          },
+                          "open": {
+                            "type": "boolean",
+                            "description": "Taking orders now"
+                          },
+                          "deliversEverywhere": {
+                            "type": "boolean"
+                          },
+                          "fromPrice": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "fromUnit": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "unit"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "page"
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "turnaroundDays": {
+                            "type": "integer",
+                            "description": "Usual days to get an order ready; 0 is the same day"
+                          },
+                          "products": {
+                            "type": "array",
+                            "items": {
+                              "enum": [
+                                "tshirts",
+                                "hoodies",
+                                "jerseys",
+                                "business_cards",
+                                "posters",
+                                "flex_banners",
+                                "stickers",
+                                "invitations",
+                                "photo_prints",
+                                "documents"
+                              ]
+                            }
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pod/shops/{id}": {
+      "get": {
+        "summary": "One print shop: photos, products and prices",
+        "tags": [
+          "pod"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name",
+                        "type",
+                        "typeLabel",
+                        "cover",
+                        "area",
+                        "city",
+                        "state",
+                        "open",
+                        "deliversEverywhere",
+                        "fromPrice",
+                        "fromUnit",
+                        "turnaroundDays",
+                        "products",
+                        "description",
+                        "photos",
+                        "pincode",
+                        "cities",
+                        "minOrder",
+                        "notes",
+                        "catalog"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "enum": [
+                            "print_shop",
+                            "concert",
+                            "sports_event",
+                            "coaching",
+                            "pg",
+                            "hostel"
+                          ],
+                          "description": "Belongs to one module; GET /v1/vendor/catalog lists them"
+                        },
+                        "typeLabel": {
+                          "type": "string"
+                        },
+                        "cover": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "url",
+                                "width",
+                                "height",
+                                "smaller"
+                              ],
+                              "properties": {
+                                "url": {
+                                  "type": "string"
+                                },
+                                "width": {
+                                  "type": "integer"
+                                },
+                                "height": {
+                                  "type": "integer"
+                                },
+                                "smaller": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "required": [
+                                      "url",
+                                      "width",
+                                      "height"
+                                    ],
+                                    "properties": {
+                                      "url": {
+                                        "type": "string"
+                                      },
+                                      "width": {
+                                        "type": "integer"
+                                      },
+                                      "height": {
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  "description": "Narrower copies of the same photo, narrowest first, for grids and small screens. Empty for photos posted before they existed."
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "area": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "city": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string"
+                        },
+                        "open": {
+                          "type": "boolean",
+                          "description": "Taking orders now"
+                        },
+                        "deliversEverywhere": {
+                          "type": "boolean"
+                        },
+                        "fromPrice": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "fromUnit": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "unit"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "page"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "turnaroundDays": {
+                          "type": "integer",
+                          "description": "Usual days to get an order ready; 0 is the same day"
+                        },
+                        "products": {
+                          "type": "array",
+                          "items": {
+                            "enum": [
+                              "tshirts",
+                              "hoodies",
+                              "jerseys",
+                              "business_cards",
+                              "posters",
+                              "flex_banners",
+                              "stickers",
+                              "invitations",
+                              "photo_prints",
+                              "documents"
+                            ]
+                          }
+                        },
+                        "description": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "photos": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "url",
+                              "width",
+                              "height",
+                              "smaller"
+                            ],
+                            "properties": {
+                              "url": {
+                                "type": "string"
+                              },
+                              "width": {
+                                "type": "integer"
+                              },
+                              "height": {
+                                "type": "integer"
+                              },
+                              "smaller": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "url",
+                                    "width",
+                                    "height"
+                                  ],
+                                  "properties": {
+                                    "url": {
+                                      "type": "string"
+                                    },
+                                    "width": {
+                                      "type": "integer"
+                                    },
+                                    "height": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                "description": "Narrower copies of the same photo, narrowest first, for grids and small screens. Empty for photos posted before they existed."
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "The first is the cover"
+                        },
+                        "pincode": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "cities": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Where it delivers, when not everywhere"
+                        },
+                        "minOrder": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise"
+                        },
+                        "notes": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "catalog": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "label",
+                              "description",
+                              "pricing",
+                              "minQuantity",
+                              "turnaroundDays",
+                              "basePrice",
+                              "bw",
+                              "color",
+                              "extras",
+                              "tiers",
+                              "options"
+                            ],
+                            "properties": {
+                              "id": {
+                                "enum": [
+                                  "tshirts",
+                                  "hoodies",
+                                  "jerseys",
+                                  "business_cards",
+                                  "posters",
+                                  "flex_banners",
+                                  "stickers",
+                                  "invitations",
+                                  "photo_prints",
+                                  "documents"
+                                ]
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "pricing": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "per_unit"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "per_page"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "minQuantity": {
+                                "type": "integer"
+                              },
+                              "turnaroundDays": {
+                                "type": "integer",
+                                "description": "This product's own time, or the shop's usual time"
+                              },
+                              "basePrice": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Amount in paise"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "bw": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Amount in paise"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "color": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Amount in paise"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "extras": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "option",
+                                    "value",
+                                    "price"
+                                  ],
+                                  "properties": {
+                                    "option": {
+                                      "type": "string"
+                                    },
+                                    "value": {
+                                      "type": "string"
+                                    },
+                                    "price": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "Amount in paise"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                }
+                              },
+                              "tiers": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "from",
+                                    "unitPrice"
+                                  ],
+                                  "properties": {
+                                    "from": {
+                                      "type": "integer"
+                                    },
+                                    "unitPrice": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "description": "Amount in paise"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                }
+                              },
+                              "options": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "option",
+                                    "values"
+                                  ],
+                                  "properties": {
+                                    "option": {
+                                      "type": "string"
+                                    },
+                                    "values": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                "description": "Every value a customer can choose, extra or not"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Products with a price, in catalog order"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/ruxstar/access": {
       "get": {
         "summary": "What you may do in the Ruxstar console",
