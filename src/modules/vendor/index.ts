@@ -4,37 +4,50 @@ import { ObjectId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { actorOf, writeAudit } from "../../platform/audit.js";
 import { requireDatabase } from "../../platform/context.js";
-import { stamp, type BusinessDoc, type BusinessModule, type BusinessPhoto } from "../../platform/db.js";
+import { requireAuth } from "../../platform/auth.js";
+import { stamp, type BusinessDoc, type BusinessPhoto } from "../../platform/db.js";
 import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { isModuleLive } from "../../platform/module-switch.js";
 import { Done } from "../social/contracts.js";
 import { POST_PHOTO_MAX_BYTES, toPostPhoto } from "../social/photos.js";
-import { businessView, liveModules, missingOf, ownedBy, photoKeys, requireVendor } from "./businesses.js";
+import { businessView, emptyPod, liveModules, missingOf, nextPod, ownedBy, photoKeys, requireVendor, toLocation } from "./businesses.js";
+import { CATEGORIES, MAX_POD_CITIES, MAX_PRICE_TIERS, MAX_TURNAROUND_DAYS, PRODUCTS, TYPES, typeOf } from "./catalog.js";
 import {
   BusinessList,
   BusinessOne,
   BusinessParams,
+  Catalog,
   CreateBusinessBody,
+  DESCRIPTION_MAX,
   MAX_BUSINESS_PHOTOS,
   MAX_BUSINESSES,
-  ModuleChoices,
   PhotoParams,
+  PodSetupBody,
   UpdateBusinessBody,
+  type Business,
 } from "./contracts.js";
+import { INDIA } from "./india.js";
 import payments from "./payments.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 const limit = (perMinutes: number, max: number) => ({ rateLimit: { max, timeWindow: perMinutes * 60_000 } });
-const MODULES: BusinessModule[] = ["pod", "events", "coaching", "stays"];
 
 const failed = (path: string, message: string) => new AppError("KYC_CHECK_FAILED", message, [{ path, message }]);
-const incomplete = (missing: string[]) =>
+const NEEDS: Record<Business["missing"][number], string> = {
+  photo: "Add a cover photo",
+  phone: "Add a phone number",
+  location: "Add the state and city",
+  products: "Select at least one print category you offer",
+  area: 'Add at least one service city or turn on "Serve everywhere"',
+  pricing: "Set a price for every product you offer",
+};
+const incomplete = (missing: Business["missing"]) =>
   new AppError(
     "BUSINESS_INCOMPLETE",
     undefined,
-    missing.map((field) => ({ path: `body/${field}`, message: field === "photo" ? "Add at least one photo" : `Add the ${field}` })),
+    missing.map((field) => ({ path: `body/${field}`, message: NEEDS[field] })),
   );
 
 /** The vendor portal: a verified person's businesses, one module each, and how they get paid. */
@@ -55,23 +68,43 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
   const reload = async (id: ObjectId) => answer((await db().businesses.findOne({ _id: id }))!);
 
   app.get(
-    "/modules",
+    "/catalog",
     {
-      preHandler: requireVendor,
+      preHandler: requireAuth,
       schema: {
         tags: ["vendor"],
-        summary: "The modules a business can be opened in, and which are taking new businesses",
-        response: { 200: ModuleChoices, ...Errors },
+        summary: "Categories, types, states and cities, and print products to choose from",
+        description: "Each category is one module, with whether it is live and taking new businesses. The Ruxstar console reads it for labels.",
+        response: { 200: Catalog, ...Errors },
         security,
       },
     },
     async (request) => {
-      const docs = await db().moduleSettings.find({ module: { $in: MODULES } }).toArray();
-      const choices = MODULES.map((module) => {
-        const doc = docs.find((d) => d.module === module);
-        return { module, live: doc?.live ?? false, signupsOpen: Boolean(doc?.live && doc.signupsOpen) };
+      const docs = await db().moduleSettings.find({ module: { $in: CATEGORIES.map((c) => c.module) } }).toArray();
+      return ok(request, {
+        categories: CATEGORIES.map((category) => {
+          const doc = docs.find((d) => d.module === category.module);
+          return {
+            ...category,
+            live: doc?.live ?? false,
+            signupsOpen: Boolean(doc?.live && doc.signupsOpen),
+            types: TYPES.filter((t) => t.module === category.module).map(({ module: _module, ...type }) => type),
+          };
+        }),
+        states: INDIA.map(([name, cities]) => ({ name, cities: [...cities] })),
+        podProducts: PRODUCTS.map(({ options, ...product }) => ({
+          ...product,
+          options: Object.entries(options).map(([option, values]) => ({ option, values: [...values] })),
+        })),
+        limits: {
+          businesses: MAX_BUSINESSES,
+          photos: MAX_BUSINESS_PHOTOS,
+          description: DESCRIPTION_MAX,
+          cities: MAX_POD_CITIES,
+          turnaroundDays: MAX_TURNAROUND_DAYS,
+          tiers: MAX_PRICE_TIERS,
+        },
       });
-      return page(request, choices, null);
     },
   );
 
@@ -102,10 +135,10 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
       config: limit(60, 20),
       schema: {
         tags: ["vendor"],
-        summary: "Start a business in one module",
+        summary: "Start a business: its category (module), type and profile",
         description:
-          `It starts as a draft. Fill in the details and photos, then publish it. The module must be live and taking new businesses; ` +
-          `up to ${MAX_BUSINESSES} businesses each.`,
+          `It starts as a draft. Add the cover photo next, then (for print on demand) the setup, then publish it. The type must belong to ` +
+          `the module, and the module must be live and taking new businesses; up to ${MAX_BUSINESSES} businesses each.`,
         body: CreateBusinessBody,
         response: { 201: BusinessOne, ...Errors },
         security,
@@ -114,7 +147,9 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
     async (request, reply) => {
       const database = db();
       const ownerId = request.auth!.userId;
-      const { module, name } = request.body;
+      const { module, type, name, phone, description } = request.body;
+      if (typeOf(type).module !== module) throw new AppError("VALIDATION_FAILED", undefined, [{ path: "body/type", message: "Pick a type in this category." }]);
+      const location = toLocation(request.body.location);
       const settings = await database.moduleSettings.findOne({ module });
       if (!settings?.live) throw new AppError("MODULE_OFF");
       if (!settings.signupsOpen) throw new AppError("SIGNUPS_CLOSED");
@@ -125,11 +160,12 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
         _id: new ObjectId(),
         ownerId,
         module,
+        type,
         name: name.trim(),
-        description: null,
-        phone: null,
-        email: null,
-        address: null,
+        description: description?.trim() || null,
+        phone,
+        location,
+        pod: module === "pod" ? emptyPod() : null,
         gstin: null,
         photos: [],
         status: "draft",
@@ -173,10 +209,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
       if (body.name !== undefined) set.name = body.name.trim();
       if (body.description !== undefined) set.description = body.description?.trim() || null;
       if (body.phone !== undefined) set.phone = body.phone;
-      if (body.email !== undefined) set.email = body.email?.trim().toLowerCase() || null;
-      if (body.address !== undefined) {
-        set.address = body.address ? { ...body.address, line1: body.address.line1.trim(), line2: body.address.line2?.trim() || null } : null;
-      }
+      if (body.location !== undefined) set.location = body.location ? toLocation(body.location) : null;
       if (body.gstin !== undefined && body.gstin !== doc.gstin?.number) {
         if (body.gstin === null) set.gstin = null;
         else {
@@ -191,6 +224,36 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
         if (missing.length) throw incomplete(missing);
       }
       await db().businesses.updateOne({ _id: doc._id }, { $set: { ...set, updatedAt: new Date() } });
+      return ok(request, await reload(doc._id));
+    },
+  );
+
+  app.patch(
+    "/businesses/:id/pod",
+    {
+      preHandler: requireVendor,
+      config: limit(60, 60),
+      schema: {
+        tags: ["vendor"],
+        summary: "Change a print on demand business's setup: products, area and prices",
+        description:
+          "Send only what changes. `prices` replaces the prices of the products it names, and a product must be offered before it is priced; " +
+          "dropping a product drops its price. A live business must keep at least one product, an area and a price for each product.",
+        params: BusinessParams,
+        body: PodSetupBody,
+        response: { 200: BusinessOne, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const doc = await owned(request, request.params.id);
+      if (doc.module !== "pod") throw new AppError("CONFLICT", "Only print on demand businesses have this setup.");
+      const pod = nextPod(doc.pod, request.body);
+      if (doc.status === "live") {
+        const missing = missingOf({ ...doc, pod });
+        if (missing.length) throw incomplete(missing);
+      }
+      await db().businesses.updateOne({ _id: doc._id }, { $set: { pod, updatedAt: new Date() } });
       return ok(request, await reload(doc._id));
     },
   );
@@ -269,7 +332,9 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["vendor"],
         summary: "Publish a draft so customers can find it",
-        description: "Needs a description of at least 20 characters, a phone number, an address and a photo. It opens straight away.",
+        description:
+          "Needs a cover photo, a phone number and the state and city; print on demand also needs products, an area and a price for each product. " +
+          "Everything still missing comes back at once. It opens straight away.",
         params: BusinessParams,
         response: { 200: BusinessOne, ...Errors },
         security,

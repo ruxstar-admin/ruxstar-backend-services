@@ -1,6 +1,7 @@
 import { MongoClient, type ClientSession, type Db, type ObjectId } from "mongodb";
 import type { Static } from "typebox";
 import type { ModuleName } from "../contracts/common.js";
+import type { BusinessType, PodProduct } from "../modules/vendor/catalog.js";
 
 export type SwitchableModule = Static<typeof ModuleName>;
 
@@ -130,16 +131,61 @@ export interface BusinessPhoto extends PostPhoto {
   id: string;
 }
 
+/** Where a business is, as in the v1 picker: state and city always, the rest when the vendor gives it. */
+export interface BusinessLocation {
+  state: string;
+  city: string;
+  doorNo: string | null;
+  building: string | null;
+  street: string | null;
+  area: string | null;
+  pincode: string | null;
+  /** From "Use current location". */
+  point: { lat: number; lng: number } | null;
+}
+
+/** One print product's prices, in paise. `per_unit` uses `basePrice`; `per_page` (documents) uses `bw` and `color`. */
+export interface PodPrice {
+  product: PodProduct;
+  model: "per_unit" | "per_page";
+  minQuantity: number;
+  /** Overrides the business's turnaround for this product. */
+  turnaroundDays: number | null;
+  basePrice: number | null;
+  bw: number | null;
+  color: number | null;
+  /** Extra charge per unit (or per page) for an option value, such as size XL or spiral binding. */
+  extras: { option: string; value: string; price: number }[];
+  /** From this many units (or pages) the unit price becomes `unitPrice`. */
+  tiers: { from: number; unitPrice: number }[];
+}
+
+/** A print on demand business's setup: what it prints, where, and for how much. */
+export interface PodSetup {
+  products: PodProduct[];
+  serveAll: boolean;
+  /** Lower case. */
+  cities: string[];
+  turnaroundDays: number;
+  /** Paise. */
+  minOrder: number;
+  notes: string | null;
+  prices: PodPrice[];
+}
+
 export interface BusinessDoc extends Stamped {
   _id: ObjectId;
   ownerId: ObjectId;
   module: BusinessModule;
+  type: BusinessType;
   name: string;
+  /** Up to 500 characters. */
   description: string | null;
   /** 10 digits. */
   phone: string | null;
-  email: string | null;
-  address: KycAddress | null;
+  location: BusinessLocation | null;
+  /** Print on demand businesses only. */
+  pod: PodSetup | null;
   gstin: { number: string; legalName: string | null; status: string | null } | null;
   photos: BusinessPhoto[];
   /** `draft` until the vendor publishes it. Only drafts can be deleted. */
