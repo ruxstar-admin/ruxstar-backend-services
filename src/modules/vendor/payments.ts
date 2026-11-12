@@ -28,22 +28,31 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["vendor"],
         summary: "Your balance, payout account and latest payouts",
-        description: "Balances fill in once your businesses take orders.",
+        description: "Pending is your share of paid orders not delivered yet; it becomes available on delivery.",
         response: { 200: Payments, ...Errors },
         security,
       },
     },
     async (request) => {
       const vendorId = request.auth!.userId;
-      const [method, payouts, paid] = await Promise.all([
+      const [method, payouts, paid, ledger] = await Promise.all([
         db().payoutMethods.findOne({ userId: vendorId }),
         db().payouts.find({ vendorId }).sort({ createdAt: -1, _id: -1 }).limit(20).toArray(),
         db()
           .payouts.aggregate<{ total: number }>([{ $match: { vendorId, status: "paid" } }, { $group: { _id: null, total: { $sum: "$amount" } } }])
           .toArray(),
+        db()
+          .ledgerEntries.aggregate<{ _id: "pending" | "withdrawable"; total: number }>([
+            { $match: { accountId: `vendor:${vendorId.toHexString()}` } },
+            { $group: { _id: "$bucket", total: { $sum: "$signedPaise" } } },
+          ])
+          .toArray(),
       ]);
+      const sum = (bucket: "pending" | "withdrawable") => ledger.find((row) => row._id === bucket)?.total ?? 0;
+      const paidOut = paid[0]?.total ?? 0;
       return ok(request, {
-        balance: { available: 0, pending: 0, paidOut: paid[0]?.total ?? 0 },
+        // Earned on delivered orders, less what was paid out; pending is paid orders not delivered yet.
+        balance: { available: Math.max(0, sum("withdrawable") - paidOut), pending: Math.max(0, sum("pending")), paidOut },
         payoutMethod: method ? payoutMethodView(method) : null,
         payouts: payouts.map((p) => ({
           id: p._id.toHexString(),

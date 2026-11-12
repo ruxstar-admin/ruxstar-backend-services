@@ -105,6 +105,32 @@ export async function notifyBusinessHold(
   }
 }
 
+/**
+ * Tells a shop about a new or cancelled order (`shop_order` opens it in the vendor portal), or a customer how
+ * theirs is moving (`order`). Logged, never thrown.
+ */
+export async function notifyOrder(
+  db: Database,
+  log: FastifyBaseLogger,
+  event: { to: ObjectId; actor: ObjectId; orderId: ObjectId; type: "order.placed" | "order.updated"; forShop: boolean; title: string; body: string },
+): Promise<void> {
+  try {
+    await db.notifications.insertOne({
+      _id: new ObjectId(),
+      userId: event.to,
+      type: event.type,
+      actorId: event.actor,
+      title: clip(event.title, 60),
+      body: clip(event.body, 140),
+      link: { screen: event.forShop ? "shop_order" : "order", id: event.orderId.toHexString() },
+      readAt: null,
+      createdAt: new Date(),
+    });
+  } catch (err) {
+    log.warn({ err: (err as Error).message, type: "order" }, "Notification not saved");
+  }
+}
+
 /** Tells a user their verification was decided. Logged, never thrown: the decision is already saved. */
 export async function notifyKycDecision(
   db: Database,

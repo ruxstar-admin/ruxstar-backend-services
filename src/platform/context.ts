@@ -1,7 +1,9 @@
 import type { ObjectId } from "mongodb";
 import type { Geocoder } from "../adapters/geocoder.js";
 import type { EmailSender } from "../adapters/email.js";
+import type { PaymentGateway } from "../adapters/payments.js";
 import type { PhotoStore } from "../adapters/photos.js";
+import type { PrintFileStore } from "../adapters/print-files.js";
 import type { SmsSender } from "../adapters/sms.js";
 import type { Verifier } from "../adapters/verification.js";
 import type { Config } from "../config.js";
@@ -42,6 +44,10 @@ declare module "fastify" {
     media: PhotoStore;
     /** Aadhaar, PAN, face and GSTIN checks. */
     verifier: Verifier;
+    /** Customer payments and refunds. */
+    payments: PaymentGateway;
+    /** Customers' print files, private. */
+    printFiles: PrintFileStore;
     authCache: SessionCache;
   }
 

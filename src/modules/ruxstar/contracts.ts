@@ -5,12 +5,15 @@ import { Business, BusinessModule, PayoutMethod } from "../vendor/contracts.js";
 const Nullable = <T extends TSchema>(schema: T) => Type.Union([schema, Type.Null()]);
 const Count = Type.Integer({ minimum: 0 });
 const Reason = Type.String({ minLength: 5, maxLength: 300, description: "Shown to the person, so be clear" });
+/** ₹500. */
+export const MAX_PLATFORM_FEE = 50_000;
 
 export const ModuleSettings = Strict({
   module: ModuleName,
   live: Type.Boolean(),
   signupsOpen: Type.Boolean(),
   commissionBps: Type.Integer({ minimum: 0, maximum: 10000, description: "Commission in basis points. 1000 = 10%" }),
+  platformFee: Type.Integer({ minimum: 0, maximum: MAX_PLATFORM_FEE, description: "Paise the customer pays Ruxstar on each order" }),
   deliveryEnabled: Type.Boolean(),
   permissionCatalog: Type.Array(Type.String()),
   updatedAt: DateTime,
@@ -24,6 +27,7 @@ export const ModuleSettingsPatch = Strict(
     live: Type.Optional(Type.Boolean()),
     signupsOpen: Type.Optional(Type.Boolean()),
     commissionBps: Type.Optional(Type.Integer({ minimum: 0, maximum: 10000 })),
+    platformFee: Type.Optional(Type.Integer({ minimum: 0, maximum: MAX_PLATFORM_FEE, description: "Paise, up to ₹500" })),
     deliveryEnabled: Type.Optional(Type.Boolean()),
   },
   { minProperties: 1 },

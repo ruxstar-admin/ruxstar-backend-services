@@ -49,6 +49,13 @@ export const ERROR_CODES = {
   BUSINESS_INCOMPLETE: { status: 422, message: "Finish the business details first." },
   BUSINESS_SUSPENDED: { status: 423, message: "This business is on hold. Contact support to continue." },
   PAYOUTS_UNAVAILABLE: { status: 503, message: "Payout accounts can't be added right now. Try again later." },
+  // Orders and payments
+  FILE_INVALID: { status: 422, message: "Choose a PDF, JPEG or PNG file." },
+  FILES_UNAVAILABLE: { status: 503, message: "We cannot take files right now. Try again shortly." },
+  ORDER_INVALID: { status: 422, message: "This order can't be placed as it is. Check it and try again." },
+  SHOP_CLOSED: { status: 409, message: "This shop is closed right now. Try again when it opens." },
+  ORDER_STATE: { status: 409, message: "This order has moved on. Refresh to see where it is." },
+  PAYMENTS_UNAVAILABLE: { status: 503, message: "Payments are not available right now. Try again shortly." },
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CODES;

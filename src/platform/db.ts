@@ -297,7 +297,9 @@ export type NotificationType =
   | "kyc.approved"
   | "kyc.rejected"
   | "business.suspended"
-  | "business.restored";
+  | "business.restored"
+  | "order.placed"
+  | "order.updated";
 
 export interface NotificationDoc {
   _id: ObjectId;
@@ -307,8 +309,11 @@ export interface NotificationDoc {
   actorId: ObjectId;
   title: string;
   body: string;
-  /** `verification` opens the KYC screen (its id is the track); `business` opens a business in the vendor portal. */
-  link: { screen: "post" | "verification" | "business"; id: string };
+  /**
+   * `verification` opens the KYC screen (its id is the track); `business` opens a business in the vendor portal;
+   * `order` opens a customer's print order and `shop_order` the same order in the vendor portal.
+   */
+  link: { screen: "post" | "verification" | "business" | "order" | "shop_order"; id: string };
   readAt: Date | null;
   createdAt: Date;
 }
@@ -355,9 +360,91 @@ export interface ModuleSettingsDoc extends Stamped {
   live: boolean;
   signupsOpen: boolean;
   commissionBps: number;
+  /** Paise the customer pays Ruxstar on each order, on top of the vendor's prices. Missing on older documents: 0. */
+  platformFee?: number;
   deliveryEnabled: boolean;
   permissionCatalog: string[];
   updatedBy: ObjectId | null;
+}
+
+/** A file a customer uploaded to print. Unused ones are deleted a day later, on the uploader's next upload. */
+export interface PrintFileDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  key: string;
+  /** As the customer named it, for the shop. */
+  name: string;
+  contentType: "application/pdf" | "image/jpeg" | "image/png";
+  bytes: number;
+  /** PDF pages; 1 for a photo. */
+  pages: number;
+  orderId: ObjectId | null;
+  createdAt: Date;
+}
+
+export type PodOrderStatus =
+  | "awaiting_payment"
+  | "placed"
+  | "accepted"
+  | "printing"
+  | "ready"
+  | "out_for_delivery"
+  | "delivered"
+  | "rejected"
+  | "cancelled";
+
+export interface PodOrderDoc extends Stamped {
+  _id: ObjectId;
+  /** Readable, for example 1042. */
+  orderNo: number;
+  customerId: ObjectId;
+  shopId: ObjectId;
+  vendorId: ObjectId;
+  shopName: string;
+  product: PodProduct;
+  productLabel: string;
+  pricing: "per_unit" | "per_page";
+  /** Option name to the value picked, for example size: "XL". */
+  options: Record<string, string>;
+  /** Documents only. */
+  colour: "bw" | "color" | null;
+  /** Units, or copies of the files for documents. */
+  quantity: number;
+  files: { id: ObjectId; key: string; name: string; contentType: PrintFileDoc["contentType"]; bytes: number; pages: number }[];
+  /** Paise. `units` is pieces, or pages times copies for documents. */
+  price: {
+    units: number;
+    unitPrice: number;
+    extrasPerUnit: number;
+    items: number;
+    platformFee: number;
+    total: number;
+    commissionBps: number;
+    commission: number;
+  };
+  address: { name: string; phone: string; line: string; city: string; pincode: string };
+  note: string | null;
+  status: PodOrderStatus;
+  timeline: { status: PodOrderStatus; at: Date; by: "customer" | "vendor" | "system" }[];
+  payment: { gatewayOrderId: string; sessionId: string; paymentId: string | null; paidAt: Date | null };
+  refund: { refundId: string; amount: number; status: "pending" | "done"; at: Date } | null;
+  /** Why the shop turned it down. */
+  reason: string | null;
+}
+
+/**
+ * One side of a money movement. Every `txnId`'s entries sum to zero. Accounts are `gateway` (money held at
+ * Cashfree), `ruxstar` (commission and fees) and `vendor:<userId>`. `pending` becomes `withdrawable` on delivery.
+ */
+export interface LedgerEntryDoc {
+  _id?: ObjectId;
+  txnId: string;
+  kind: "payment" | "refund" | "release";
+  accountId: string;
+  bucket: "pending" | "withdrawable";
+  signedPaise: number;
+  source: { type: "pod_order"; id: ObjectId };
+  at: Date;
 }
 
 export interface RuxstarStaffDoc extends Stamped {
@@ -484,6 +571,15 @@ export class Database {
   }
   get payouts() {
     return this.db.collection<PayoutDoc>("payouts");
+  }
+  get printFiles() {
+    return this.db.collection<PrintFileDoc>("print_files");
+  }
+  get podOrders() {
+    return this.db.collection<PodOrderDoc>("pod_orders");
+  }
+  get ledgerEntries() {
+    return this.db.collection<LedgerEntryDoc>("ledger_entries");
   }
 
   /** Runs `work` in a majority-committed transaction, retrying transient errors. */

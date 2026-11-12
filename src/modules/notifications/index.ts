@@ -18,13 +18,19 @@ const Notification = Strict({
     Type.Literal("kyc.rejected"),
     Type.Literal("business.suspended"),
     Type.Literal("business.restored"),
+    Type.Literal("order.placed"),
+    Type.Literal("order.updated"),
   ]),
   title: Type.String(),
   body: Type.String(),
   link: Strict({
-    screen: Type.Union([Type.Literal("post"), Type.Literal("verification"), Type.Literal("business")], {
-      description: "`verification` opens the KYC screen and `business` one of your businesses in the vendor portal; `id` says which",
-    }),
+    screen: Type.Union(
+      [Type.Literal("post"), Type.Literal("verification"), Type.Literal("business"), Type.Literal("order"), Type.Literal("shop_order")],
+      {
+        description:
+          "`verification` opens the KYC screen, `business` one of your businesses in the vendor portal, `order` one of your print orders and `shop_order` an order to your shop in the vendor portal; `id` says which",
+      },
+    ),
     id: Type.String(),
   }),
   read: Type.Boolean(),

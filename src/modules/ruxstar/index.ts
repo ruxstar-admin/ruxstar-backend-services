@@ -24,6 +24,7 @@ const view = (doc: ModuleSettingsDoc): ModuleSettings => ({
   live: doc.live,
   signupsOpen: doc.signupsOpen,
   commissionBps: doc.commissionBps,
+  platformFee: doc.platformFee ?? 0,
   deliveryEnabled: doc.deliveryEnabled,
   permissionCatalog: doc.permissionCatalog,
   updatedAt: doc.updatedAt.toISOString(),
@@ -61,7 +62,7 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: [requireRuxstar("modules.manage"), idempotent],
       schema: {
         tags: ["ruxstar"],
-        summary: "Switch a module on or off, or change its signups, commission or delivery",
+        summary: "Switch a module on or off, or change its signups, commission, platform fee or delivery",
         params: ModuleParams,
         body: ModuleSettingsPatch,
         response: { 200: ModuleSettingsOne, ...Errors },

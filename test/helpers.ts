@@ -3,6 +3,7 @@ import { MongoMemoryReplSet } from "mongodb-memory-server";
 import type { EmailSender } from "../src/adapters/email.js";
 import type { Geocoder } from "../src/adapters/geocoder.js";
 import type { PhotoStore } from "../src/adapters/photos.js";
+import type { PrintFileStore } from "../src/adapters/print-files.js";
 import type { SmsSender } from "../src/adapters/sms.js";
 import { FakeVerifier, type Verifier } from "../src/adapters/verification.js";
 import { ObjectId } from "mongodb";
@@ -26,6 +27,8 @@ export interface Stack {
   photos: Map<string, Buffer>;
   /** Saved post photos by object key, in their own bucket. */
   media: Map<string, Buffer>;
+  /** Customers' print files by key, and the keys whose 30-day countdown started. */
+  printFiles: { objects: Map<string, Buffer>; expiring: Set<string> };
   stop: () => Promise<void>;
 }
 
@@ -81,6 +84,17 @@ export async function startStack(
   };
   const profilePhotos = fakeBucket("photos.test");
   const postMedia = fakeBucket("media.test");
+  const printFiles = { objects: new Map<string, Buffer>(), expiring: new Set<string>() };
+  const printStore: PrintFileStore = {
+    save: async (key, data) => void printFiles.objects.set(key, data),
+    read: async (key) => {
+      const data = printFiles.objects.get(key);
+      if (!data) throw new AppError("FILES_UNAVAILABLE");
+      return data;
+    },
+    expire: async (key) => void printFiles.expiring.add(key),
+    remove: async (key) => void printFiles.objects.delete(key),
+  };
   const app = await buildApp({
     config,
     db,
@@ -90,6 +104,7 @@ export async function startStack(
     geocoder,
     photos: profilePhotos.store,
     media: postMedia.store,
+    printFiles: printStore,
     rateLimit,
     verifier: verifier ?? new FakeVerifier(),
   });
@@ -104,6 +119,7 @@ export async function startStack(
     emails,
     photos: profilePhotos.objects,
     media: postMedia.objects,
+    printFiles,
     stop: async () => {
       await app.close();
       await replSet.stop();

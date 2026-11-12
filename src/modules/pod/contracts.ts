@@ -1,5 +1,5 @@
 import { Type, type Static, type TSchema } from "typebox";
-import { Envelope, ListEnvelope, ObjectIdString, PageQuery, Paise, Strict } from "../../contracts/common.js";
+import { DateTime, Envelope, ListEnvelope, ObjectIdString, PageQuery, Paise, Strict } from "../../contracts/common.js";
 import { Photo } from "../social/contracts.js";
 import { BusinessTypeId, PodProductId } from "../vendor/contracts.js";
 
@@ -63,4 +63,160 @@ export const ShopsQuery = Strict({
   city: Type.Optional(Type.String({ minLength: 2, maxLength: 60, description: "Shops in or delivering to this city" })),
   product: Type.Optional(PodProductId),
   q: Type.Optional(Type.String({ minLength: 1, maxLength: 60, description: "Part of the shop name" })),
+});
+
+// Ordering.
+
+export const PRINT_FILE_MAX_BYTES = 25 * 1024 * 1024;
+export const MAX_ORDER_FILES = 10;
+export const MAX_QUANTITY = 10_000;
+
+export const PrintFile = Strict({
+  id: ObjectIdString,
+  name: Type.String(),
+  contentType: Type.Union([Type.Literal("application/pdf"), Type.Literal("image/jpeg"), Type.Literal("image/png")]),
+  bytes: Type.Integer(),
+  pages: Type.Integer({ description: "PDF pages; 1 for a photo" }),
+});
+export const PrintFileOne = Envelope(PrintFile);
+export const PrintFileHeaders = Type.Object({
+  "x-file-name": Type.Optional(Type.String({ maxLength: 300, description: "The file's name, URI-encoded" })),
+});
+
+export const OrderStatus = Type.Union(
+  [
+    Type.Literal("awaiting_payment"),
+    Type.Literal("placed"),
+    Type.Literal("accepted"),
+    Type.Literal("printing"),
+    Type.Literal("ready"),
+    Type.Literal("out_for_delivery"),
+    Type.Literal("delivered"),
+    Type.Literal("rejected"),
+    Type.Literal("cancelled"),
+  ],
+  { description: "`placed` is paid and waiting for the shop; `rejected` and `cancelled` after payment are refunded" },
+);
+
+const OrderChoice = {
+  shopId: ObjectIdString,
+  product: PodProductId,
+  options: Type.Record(Type.String({ maxLength: 40 }), Type.String({ maxLength: 60 }), {
+    description: "Option to value, from the shop's catalog. `size` (or `paperSize` for documents) is required.",
+  }),
+  colour: Type.Optional(Type.Union([Type.Literal("bw"), Type.Literal("color")], { description: "Documents only, and required for them" })),
+  quantity: Type.Integer({ minimum: 1, maximum: MAX_QUANTITY, description: "Pieces, or copies of the files for documents" }),
+};
+
+export const QuoteBody = Strict({
+  ...OrderChoice,
+  fileIds: Type.Array(ObjectIdString, { maxItems: MAX_ORDER_FILES, uniqueItems: true, description: "Documents are priced by their pages; none counts as 1 page" }),
+});
+
+const Pincode = Type.String({ pattern: "^[1-9][0-9]{5}$" });
+export const OrderAddress = Strict({
+  name: Type.String({ minLength: 2, maxLength: 80 }),
+  phone: Type.String({ pattern: "^[6-9][0-9]{9}$", description: "10 digits" }),
+  line: Type.String({ minLength: 5, maxLength: 300, description: "House, street and area" }),
+  city: Type.String({ minLength: 2, maxLength: 60 }),
+  pincode: Pincode,
+});
+
+const ReturnTo = Type.String({
+  maxLength: 500,
+  description: "Where the checkout page sends the customer afterwards: this site, or the app's own link. `order=<id>` is added.",
+});
+
+export const CreateOrderBody = Strict({
+  ...OrderChoice,
+  fileIds: Type.Array(ObjectIdString, { minItems: 1, maxItems: MAX_ORDER_FILES, uniqueItems: true }),
+  address: OrderAddress,
+  note: Type.Optional(Type.String({ maxLength: 500, description: "For the shop" })),
+  returnTo: ReturnTo,
+});
+export const PayBody = Strict({ returnTo: ReturnTo });
+
+const Price = Strict({
+  units: Type.Integer({ description: "Pieces, or pages times copies for documents" }),
+  unitPrice: Paise,
+  extrasPerUnit: Paise,
+  items: Paise,
+  platformFee: Paise,
+  total: Paise,
+});
+
+export const Quote = Strict({
+  ...Price.properties,
+  pages: Type.Integer({ description: "Pages in the files, for documents" }),
+  minOrder: Paise,
+  turnaroundDays: Type.Integer(),
+});
+export const QuoteOne = Envelope(Quote);
+
+const OrderCore = {
+  id: ObjectIdString,
+  orderNo: Type.Integer(),
+  shop: Strict({ id: ObjectIdString, name: Type.String() }),
+  product: PodProductId,
+  productLabel: Type.String(),
+  pricing: Type.Union([Type.Literal("per_unit"), Type.Literal("per_page")]),
+  options: Type.Record(Type.String(), Type.String()),
+  colour: Nullable(Type.Union([Type.Literal("bw"), Type.Literal("color")])),
+  quantity: Type.Integer(),
+  files: Type.Array(PrintFile),
+  address: OrderAddress,
+  note: Nullable(Type.String()),
+  status: OrderStatus,
+  timeline: Type.Array(Strict({ status: OrderStatus, at: DateTime })),
+  paidAt: Nullable(DateTime),
+  refund: Nullable(Strict({ amount: Paise, status: Type.Union([Type.Literal("pending"), Type.Literal("done")]) })),
+  reason: Nullable(Type.String({ description: "Why the shop turned it down" })),
+  createdAt: DateTime,
+  updatedAt: DateTime,
+};
+
+/** A print order as its customer sees it. */
+export const Order = Strict({ ...OrderCore, price: Price });
+export type Order = Static<typeof Order>;
+export const OrderOne = Envelope(Order);
+export const OrderList = ListEnvelope(Order);
+export const PlacedOrder = Envelope(Strict({ order: Order, checkoutUrl: Type.String({ description: "Open it to pay" }) }));
+export const CheckoutLink = Envelope(Strict({ checkoutUrl: Type.String() }));
+
+/** The same order as the shop sees it, with what Ruxstar keeps and what the shop is paid. */
+export const ShopOrder = Strict({
+  ...OrderCore,
+  price: Strict({ ...Price.properties, commissionBps: Type.Integer(), commission: Paise, payout: Paise }),
+});
+export type ShopOrder = Static<typeof ShopOrder>;
+export const ShopOrderOne = Envelope(ShopOrder);
+export const ShopOrderList = ListEnvelope(ShopOrder);
+
+export const FileLink = Envelope(
+  Strict({ url: Type.String({ description: "Opens the file without signing in; works for 10 minutes" }), expiresAt: DateTime }),
+);
+export const OrderParams = Strict({ id: ObjectIdString });
+export const OrderFileParams = Strict({ id: ObjectIdString, fileId: ObjectIdString });
+export const OrdersQuery = Strict({ ...PageQuery });
+export const ShopOrdersQuery = Strict({
+  ...PageQuery,
+  business: Type.Optional(ObjectIdString),
+  view: Type.Optional(
+    Type.Union([Type.Literal("new"), Type.Literal("active"), Type.Literal("past")], {
+      description: "`new` waits for you to accept, `active` is being made or delivered, `past` is delivered, turned down or cancelled",
+    }),
+  ),
+});
+
+export const ShopStatus = Type.Union([
+  Type.Literal("accepted"),
+  Type.Literal("printing"),
+  Type.Literal("ready"),
+  Type.Literal("out_for_delivery"),
+  Type.Literal("delivered"),
+  Type.Literal("rejected"),
+]);
+export const ShopStatusBody = Strict({
+  status: ShopStatus,
+  reason: Type.Optional(Type.String({ minLength: 5, maxLength: 300, description: "Required to turn an order down; the customer sees it" })),
 });

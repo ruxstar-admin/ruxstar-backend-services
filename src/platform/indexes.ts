@@ -65,6 +65,16 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.businesses.createIndex({ status: 1, updatedAt: -1, _id: -1 }),
     db.payoutMethods.createIndex({ userId: 1 }, { unique: true }),
     db.payouts.createIndex({ vendorId: 1, createdAt: -1, _id: -1 }),
+    db.printFiles.createIndex({ userId: 1, orderId: 1, createdAt: 1 }),
+    // A customer's orders, a shop's orders (all, or one status), and finding an order from Cashfree's id.
+    db.podOrders.createIndex({ orderNo: 1 }, { unique: true }),
+    db.podOrders.createIndex({ customerId: 1, createdAt: -1, _id: -1 }),
+    db.podOrders.createIndex({ vendorId: 1, status: 1, createdAt: -1, _id: -1 }),
+    db.podOrders.createIndex({ shopId: 1, status: 1, createdAt: -1, _id: -1 }),
+    db.podOrders.createIndex({ "payment.gatewayOrderId": 1 }, { unique: true }),
+    // One entry per account and bucket in a transaction, so a money move can't be written twice.
+    db.ledgerEntries.createIndex({ txnId: 1, accountId: 1, bucket: 1 }, { unique: true }),
+    db.ledgerEntries.createIndex({ accountId: 1, bucket: 1 }),
   ]);
 }
 
@@ -92,6 +102,7 @@ export async function seedModuleSettings(db: Database): Promise<void> {
         live: false,
         signupsOpen: false,
         commissionBps: 0,
+        platformFee: 0,
         deliveryEnabled: false,
         permissionCatalog: [],
         updatedBy: null,

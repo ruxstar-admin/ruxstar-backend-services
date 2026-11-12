@@ -9,12 +9,14 @@ import { AppError } from "../../platform/errors.js";
 import { isModuleLive } from "../../platform/module-switch.js";
 import { findPage } from "../../platform/pagination.js";
 import { ShopList, ShopOne, ShopParams, ShopsQuery } from "./contracts.js";
+import orders from "./order-routes.js";
 import { escapeRegex, openFirst, shopCard, shopView, visibleShops } from "./shops.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 
-/** Print on demand for customers. Shops are businesses in the pod module; orders come next. */
+/** Print on demand for customers: shops to order from, and their own orders. Shops are businesses in the pod module. */
 const pod: FastifyPluginAsyncTypebox = async (app) => {
+  await app.register(orders);
   const db = () => requireDatabase(app.db);
 
   app.get(

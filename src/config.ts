@@ -34,6 +34,15 @@ export interface Config {
   kyc: { provider: "fake" | "cashfree"; cashfree: CashfreeSettings | null; redirectUrl: string };
   /** AES-256 key that seals vendors' bank account numbers. Null leaves bank accounts off; UPI still works. */
   payoutKey: Buffer | null;
+  /** Customer payments. `fake` marks orders paid from a test button and is refused in prod; Cashfree without keys takes no payments. */
+  payments: { provider: "fake" | "cashfree"; cashfree: CashfreeSettings | null };
+  /**
+   * This API's public origin, for the links Cashfree calls back (payment webhooks and returns).
+   * Null on a laptop, where Cashfree cannot reach it; payments are then confirmed when the payer comes back.
+   */
+  apiUrl: string | null;
+  /** Customers' print files, in a private bucket. Null leaves print orders off. */
+  printFiles: { bucket: string } | null;
 }
 
 export interface CashfreeSettings {
@@ -152,6 +161,22 @@ export function loadConfig(env: Env = process.env): Config {
   const payoutKey = payoutKeyText ? Buffer.from(payoutKeyText, "base64") : null;
   if (payoutKey && payoutKey.length !== 32) problems.push("PAYOUT_ENCRYPTION_KEY must be 32 bytes, base64 encoded");
 
+  // Older .env files carry notes after these values ("sandbox   # or production"); none of them can contain a #.
+  const plain = (key: string) => read(env, key)?.replace(/\s+#.*$/, "") || undefined;
+  const pgId = read(env, "CASHFREE_PG_CLIENT_ID");
+  const pgSecret = read(env, "CASHFREE_PG_SECRET");
+  const pgEnv = plain("CASHFREE_PG_ENV") ?? "sandbox";
+  if (pgEnv !== "sandbox" && pgEnv !== "production") problems.push("CASHFREE_PG_ENV must be sandbox or production");
+  const paymentsProvider = plain("PAYMENTS_PROVIDER") ?? (pgId && pgSecret ? "cashfree" : ruxstarEnv === "prod" ? "cashfree" : "fake");
+  if (paymentsProvider !== "fake" && paymentsProvider !== "cashfree") problems.push("PAYMENTS_PROVIDER must be fake or cashfree");
+  if (paymentsProvider === "fake" && ruxstarEnv === "prod") problems.push("PAYMENTS_PROVIDER=fake is not allowed in prod");
+
+  const apiUrl = read(env, "API_URL")?.replace(/\/+$/, "") ?? null;
+  if (apiUrl && !/^https:\/\/[^/\s]+$/.test(apiUrl)) problems.push("API_URL must be an https origin like https://api.ruxstar.com");
+
+  const printBucket = read(env, "GCS_PRINT_BUCKET");
+  if (printBucket && !/^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$/.test(printBucket)) problems.push("GCS_PRINT_BUCKET must be a bucket name like ruxstar-print-files");
+
   if (problems.length) throw new ConfigError(problems);
 
   return {
@@ -198,5 +223,14 @@ export function loadConfig(env: Env = process.env): Config {
       redirectUrl: kycRedirect,
     },
     payoutKey,
+    payments: {
+      provider: paymentsProvider as "fake" | "cashfree",
+      cashfree:
+        pgId && pgSecret
+          ? { clientId: pgId, clientSecret: pgSecret, env: pgEnv as "sandbox" | "production", apiVersion: plain("CASHFREE_PG_API_VERSION") ?? "2023-08-01", publicKey: null }
+          : null,
+    },
+    apiUrl,
+    printFiles: printBucket ? { bucket: printBucket } : null,
   };
 }
