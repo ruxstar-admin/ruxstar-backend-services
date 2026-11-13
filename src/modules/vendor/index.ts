@@ -28,6 +28,7 @@ import {
   UpdateBusinessBody,
   type Business,
 } from "./contracts.js";
+import coupons from "./coupons.js";
 import { INDIA } from "./india.js";
 import orders from "./orders.js";
 import payments from "./payments.js";
@@ -56,6 +57,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
   app.addContentTypeParser(/^image\//, { parseAs: "buffer", bodyLimit: POST_PHOTO_MAX_BYTES }, (_request, body, done) => done(null, body));
   await app.register(payments);
   await app.register(orders);
+  await app.register(coupons);
 
   const db = () => requireDatabase(app.db);
 

@@ -4,11 +4,12 @@ import { Errors } from "../../contracts/common.js";
 import { actorOf } from "../../platform/audit.js";
 import { requireAuth } from "../../platform/auth.js";
 import { requireDatabase } from "../../platform/context.js";
-import { stamp, type PodOrderDoc, type PrintFileDoc } from "../../platform/db.js";
+import { stamp, type BusinessDoc, type PodOrderDoc, type PrintFileDoc } from "../../platform/db.js";
 import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { findPage } from "../../platform/pagination.js";
+import { appliedView, checkCode, offersFor, withCoupon, type CouponContext } from "../coupons/coupons.js";
 import {
   CheckoutLink,
   CreateOrderBody,
@@ -48,6 +49,12 @@ import {
 import { applyDue, dueApplied } from "./order-rules.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
+const couponContext = (shop: BusinessDoc, customerId: ObjectId, items: number): CouponContext => ({
+  module: "pod",
+  shop: { id: shop._id, name: shop.name },
+  customerId,
+  items,
+});
 const FILE_TYPES = ["application/pdf", "image/jpeg", "image/png", "application/octet-stream"];
 const DAY_MS = 24 * 60 * 60_000;
 
@@ -121,8 +128,10 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: requireAuth,
       schema: {
         tags: ["pod"],
-        summary: "What an order would cost",
-        description: "The same checks and prices as placing it, so a quote that passes can be ordered.",
+        summary: "What an order would cost, and the coupons that work on it",
+        description:
+          "The same checks and prices as placing it, so a quote that passes can be ordered. With `couponCode` the price has it taken off, " +
+          "or `couponProblem` says why it can't be used.",
         body: QuoteBody,
         response: { 200: QuoteOne, ...Errors },
         security,
@@ -135,8 +144,24 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
       const files = await filesFor(db(), userId, body.fileIds);
       const pages = files.reduce((sum, f) => sum + f.pages, 0);
       const priced = priceOf(shop, body, pages, await chargesOf(db()));
-      const { units, unitPrice, extrasPerUnit, items, platformFee, total } = priced.price;
-      return ok(request, { units, unitPrice, extrasPerUnit, items, platformFee, total, pages, minOrder: priced.minOrder, turnaroundDays: priced.turnaroundDays });
+      const ctx = couponContext(shop, userId, priced.price.items);
+      const [check, offers] = await Promise.all([body.couponCode ? checkCode(db(), body.couponCode, ctx) : null, offersFor(db(), ctx)]);
+      const { units, unitPrice, extrasPerUnit, items, discount, coupon, platformFee, total } = withCoupon(priced.price, check?.coupon ?? null);
+      return ok(request, {
+        units,
+        unitPrice,
+        extrasPerUnit,
+        items,
+        discount: discount ?? 0,
+        coupon: appliedView(coupon),
+        platformFee,
+        total,
+        pages,
+        minOrder: priced.minOrder,
+        turnaroundDays: priced.turnaroundDays,
+        couponProblem: check?.problem ?? null,
+        offers,
+      });
     },
   );
 
@@ -170,6 +195,9 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
       }
       const files = await filesFor(database, userId, body.fileIds);
       const priced = priceOf(shop, body, files.reduce((sum, f) => sum + f.pages, 0), await chargesOf(database));
+      const check = body.couponCode ? await checkCode(database, body.couponCode, couponContext(shop, userId, priced.price.items)) : null;
+      if (check?.problem) throw new AppError("COUPON_INVALID", check.problem, [{ path: "body/couponCode", message: check.problem }]);
+      const price = withCoupon(priced.price, check?.coupon ?? null);
       const user = await database.users.findOne({ _id: userId }, { projection: { phone: 1, name: 1 } });
 
       const id = new ObjectId();
@@ -177,7 +205,7 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
       const origin = app.config.apiUrl;
       const { sessionId } = await app.payments.createOrder({
         orderId: gatewayOrderId,
-        amount: priced.price.total,
+        amount: price.total,
         customer: { id: userId.toHexString(), phone: (user?.phone ?? `+91${body.address.phone}`).slice(-10), name: user?.name ?? body.address.name },
         note: `${priced.label} from ${shop.name}`,
         returnUrl: origin ? `${origin}/pay/${id.toHexString()}/done` : null,
@@ -206,7 +234,7 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
           colour: priced.colour,
           quantity: body.quantity,
           files: files.map((f) => ({ id: f._id, key: f.key, name: f.name, contentType: f.contentType, bytes: f.bytes, pages: f.pages })),
-          price: priced.price,
+          price,
           address: { ...body.address, name: body.address.name.trim(), line: body.address.line.trim(), city: body.address.city.trim() },
           note: body.note?.trim() || null,
           status: "awaiting_payment",

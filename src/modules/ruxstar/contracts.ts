@@ -65,6 +65,8 @@ export const PermissionKey = Type.Union([
   Type.Literal("orders.manage"),
   Type.Literal("payouts.view"),
   Type.Literal("payouts.manage"),
+  Type.Literal("coupons.view"),
+  Type.Literal("coupons.manage"),
   Type.Literal("audit.view"),
 ]);
 

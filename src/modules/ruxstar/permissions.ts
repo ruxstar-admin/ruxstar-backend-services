@@ -22,6 +22,8 @@ export const PERMISSIONS = [
   { key: "orders.manage", label: "Refund and settle orders" },
   { key: "payouts.view", label: "See payouts and held money" },
   { key: "payouts.manage", label: "Release held money and check payouts" },
+  { key: "coupons.view", label: "See coupons" },
+  { key: "coupons.manage", label: "Create and change coupons" },
   { key: "audit.view", label: "Read the audit log" },
 ] as const;
 

@@ -13,6 +13,7 @@ import { ModuleParams, ModuleSettingsList, ModuleSettingsOne, ModuleSettingsPatc
 import auditLog from "./audit-log.js";
 import businesses from "./businesses.js";
 import consoleHome from "./console.js";
+import coupons from "./coupons.js";
 import kycReview from "./kyc.js";
 import orderProblems from "./order-problems.js";
 import payouts from "./payouts.js";
@@ -42,6 +43,7 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(peopleReports);
   await app.register(orderProblems);
   await app.register(payouts);
+  await app.register(coupons);
   await app.register(users);
   await app.register(staff);
   await app.register(businesses);

@@ -1,5 +1,6 @@
 import { Type, type Static, type TSchema } from "typebox";
 import { DateTime, Envelope, ListEnvelope, ObjectIdString, PageQuery, Paise, Strict } from "../../contracts/common.js";
+import { AppliedCoupon, Offer } from "../coupons/contracts.js";
 import { Photo } from "../social/contracts.js";
 import { BusinessTypeId, PodProductId } from "../vendor/contracts.js";
 
@@ -112,6 +113,7 @@ const OrderChoice = {
   }),
   colour: Type.Optional(Type.Union([Type.Literal("bw"), Type.Literal("color")], { description: "Documents only, and required for them" })),
   quantity: Type.Integer({ minimum: 1, maximum: MAX_QUANTITY, description: "Pieces, or copies of the files for documents" }),
+  couponCode: Type.Optional(Type.String({ minLength: 1, maxLength: 20, description: "A coupon to take off the items; any case" })),
 };
 
 export const QuoteBody = Strict({
@@ -147,8 +149,10 @@ const Price = Strict({
   unitPrice: Paise,
   extrasPerUnit: Paise,
   items: Paise,
+  discount: PaiseNote("Taken off the items by the coupon."),
+  coupon: Nullable(AppliedCoupon),
   platformFee: Paise,
-  total: Paise,
+  total: PaiseNote("The items less the discount, plus the platform fee."),
 });
 
 const Refund = Strict({
@@ -193,6 +197,8 @@ export const Quote = Strict({
   pages: Type.Integer({ description: "Pages in the files, for documents" }),
   minOrder: Paise,
   turnaroundDays: Type.Integer(),
+  couponProblem: Nullable(Type.String({ description: "Why `couponCode` can't be used; the price is then without it" })),
+  offers: Type.Array(Offer, { description: "Coupons the customer can pick, best first" }),
 });
 export const QuoteOne = Envelope(Quote);
 
@@ -239,8 +245,8 @@ export const ShopOrder = Strict({
   price: Strict({
     ...Price.properties,
     commissionBps: Type.Integer(),
-    commission: Paise,
-    payout: Paise,
+    commission: PaiseNote("On the items, or on the items less the discount when the coupon is yours."),
+    payout: PaiseNote("Items less commission, and less the discount when the coupon is yours."),
     payoutLeft: PaiseNote("The payout less partial refunds; 0 once the order is refunded, turned down or cancelled."),
   }),
   releaseAt: Nullable(DateTime, { description: "When your share becomes available: 48 hours after delivery, later while a problem is open" }),

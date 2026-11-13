@@ -15,6 +15,7 @@ import type {
 } from "../../platform/db.js";
 import { AppError } from "../../platform/errors.js";
 import { isModuleLive } from "../../platform/module-switch.js";
+import { appliedView, giveBack, redeem } from "../coupons/coupons.js";
 import { notifyOrder } from "../notifications/notify.js";
 import { unpricedOf } from "../vendor/businesses.js";
 import { productOf, type PodProduct } from "../vendor/catalog.js";
@@ -198,8 +199,10 @@ export function refundsOf(order: PodOrderDoc): PodRefundDoc[] {
 }
 
 const sum = (refunds: PodRefundDoc[]) => refunds.reduce((total, r) => total + r.amount, 0);
-export const shopShare = (order: PodOrderDoc) => order.price.items - order.price.commission;
-export const ruxstarShare = (order: PodOrderDoc) => order.price.commission + order.price.platformFee;
+/** Whoever funded the coupon gives up the discount: the shop out of its share, or Ruxstar out of its own (below zero if it must). */
+const discountFrom = (order: PodOrderDoc, funder: "ruxstar" | "vendor") => (order.price.coupon?.fundedBy === funder ? (order.price.discount ?? 0) : 0);
+export const shopShare = (order: PodOrderDoc) => order.price.items - order.price.commission - discountFrom(order, "vendor");
+export const ruxstarShare = (order: PodOrderDoc) => order.price.commission + order.price.platformFee - discountFrom(order, "ruxstar");
 /** Partial refunds come out of the shop's share, so this is what the shop is still owed. */
 export const shopShareLeft = (order: PodOrderDoc) => shopShare(order) - sum(refundsOf(order).filter((r) => r.kind === "partial"));
 
@@ -336,6 +339,8 @@ export async function moveOrder(
     const kind = to === "placed" ? "payment" : refunding ? "refund" : null;
     // One at a time: the driver refuses insertMany inside a transaction with a timeout.
     if (kind) for (const entry of ledgerFor(kind, after, now)) await db.ledgerEntries.insertOne(entry, { session });
+    if (to === "placed") await redeem(db, after, session);
+    if (refunding) await giveBack(db, after, session);
     if (by.kind !== "system") {
       await writeAudit(
         db,
@@ -374,7 +379,7 @@ export async function moveOrder(
       type: "order.placed",
       forShop: true,
       title: `New order ${no}`,
-      body: `${moved.productLabel} × ${moved.quantity} for ${moved.address.city}. ${rupees(moved.price.items - moved.price.commission)} to you.`,
+      body: `${moved.productLabel} × ${moved.quantity} for ${moved.address.city}. ${rupees(shopShare(moved))} to you.`,
     });
   } else if (to === "cancelled" && refunding) {
     const late = by.kind === "system";
@@ -617,11 +622,13 @@ const core = (doc: PodOrderDoc, links: PhotoLinks) => ({
   updatedAt: doc.updatedAt.toISOString(),
 });
 
-const customerPrice = ({ units, unitPrice, extrasPerUnit, items, platformFee, total }: PodOrderDoc["price"]) => ({
+const customerPrice = ({ units, unitPrice, extrasPerUnit, items, discount, coupon, platformFee, total }: PodOrderDoc["price"]) => ({
   units,
   unitPrice,
   extrasPerUnit,
   items,
+  discount: discount ?? 0,
+  coupon: appliedView(coupon),
   platformFee,
   total,
 });

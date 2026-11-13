@@ -582,8 +582,13 @@ export interface PodOrderDoc extends Stamped {
     extrasPerUnit: number;
     items: number;
     platformFee: number;
+    /** Taken off `items` by the coupon. Missing on older orders: 0. */
+    discount?: number;
+    coupon?: { id: ObjectId; code: string; fundedBy: CouponDoc["fundedBy"] } | null;
+    /** `items` less the discount, plus the platform fee. */
     total: number;
     commissionBps: number;
+    /** On `items`, or on `items` less the discount when the vendor pays for the coupon. */
     commission: number;
   };
   address: { name: string; phone: string; line: string; city: string; pincode: string };
@@ -627,6 +632,51 @@ export interface LedgerEntryDoc {
   bucket: "pending" | "withdrawable";
   signedPaise: number;
   source: { type: "pod_order" | "payout"; id: ObjectId };
+  at: Date;
+}
+
+/**
+ * A discount code. Ruxstar's work at every shop and Ruxstar pays for them; a vendor's work at the shops
+ * they pick and come out of their share. The code and the discount never change once made.
+ */
+export interface CouponDoc extends Stamped {
+  _id: ObjectId;
+  /** Upper case letters and digits, unique across Ruxstar. */
+  code: string;
+  fundedBy: "ruxstar" | "vendor";
+  vendorId: ObjectId | null;
+  /** The vendor's shops it works at; empty for Ruxstar's, which work everywhere. */
+  businessIds: ObjectId[];
+  modules: SwitchableModule[];
+  /** `percent`: `value` is 1 to 100, up to `cap` paise when set. `flat`: `value` is paise off. */
+  kind: "percent" | "flat";
+  value: number;
+  cap: number | null;
+  /** Paise of items before the discount; 0 for none. */
+  minOrder: number;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  /** Uses across everyone, and per customer; null for no limit. */
+  limit: number | null;
+  perCustomer: number | null;
+  firstOrderOnly: boolean;
+  /** Shown in the offers at checkout; otherwise only someone who knows the code can use it. */
+  listed: boolean;
+  active: boolean;
+  /** Ruxstar switched a vendor's coupon off; only Ruxstar can switch it back on. */
+  stoppedByRuxstar?: boolean;
+  /** Paid orders that used it and weren't refunded in full. */
+  used: number;
+  createdBy: ObjectId;
+}
+
+/** One paid order's use of a coupon. Removed when the order is refunded in full, which gives the use back. */
+export interface CouponRedemptionDoc {
+  _id?: ObjectId;
+  couponId: ObjectId;
+  customerId: ObjectId;
+  orderId: ObjectId;
+  discount: number;
   at: Date;
 }
 
@@ -778,6 +828,12 @@ export class Database {
   }
   get podOrders() {
     return this.db.collection<PodOrderDoc>("pod_orders");
+  }
+  get coupons() {
+    return this.db.collection<CouponDoc>("coupons");
+  }
+  get couponRedemptions() {
+    return this.db.collection<CouponRedemptionDoc>("coupon_redemptions");
   }
   get ledgerEntries() {
     return this.db.collection<LedgerEntryDoc>("ledger_entries");

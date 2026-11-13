@@ -327,6 +327,12 @@
                   {
                     "type": "string",
                     "enum": [
+                      "COUPON_INVALID"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
                       "ORDER_STATE"
                     ]
                   },
@@ -22037,6 +22043,8 @@
                               "unitPrice",
                               "extrasPerUnit",
                               "items",
+                              "discount",
+                              "coupon",
                               "platformFee",
                               "total",
                               "commissionBps",
@@ -22064,6 +22072,53 @@
                                 "minimum": 0,
                                 "description": "Amount in paise"
                               },
+                              "discount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise. Taken off the items by the coupon."
+                              },
+                              "coupon": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "code",
+                                      "fundedBy",
+                                      "label"
+                                    ],
+                                    "properties": {
+                                      "code": {
+                                        "type": "string"
+                                      },
+                                      "fundedBy": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "ruxstar"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "vendor"
+                                            ]
+                                          }
+                                        ],
+                                        "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                      },
+                                      "label": {
+                                        "type": "string",
+                                        "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "platformFee": {
                                 "type": "integer",
                                 "minimum": 0,
@@ -22072,7 +22127,7 @@
                               "total": {
                                 "type": "integer",
                                 "minimum": 0,
-                                "description": "Amount in paise"
+                                "description": "Amount in paise. The items less the discount, plus the platform fee."
                               },
                               "commissionBps": {
                                 "type": "integer"
@@ -22080,12 +22135,12 @@
                               "commission": {
                                 "type": "integer",
                                 "minimum": 0,
-                                "description": "Amount in paise"
+                                "description": "Amount in paise. On the items, or on the items less the discount when the coupon is yours."
                               },
                               "payout": {
                                 "type": "integer",
                                 "minimum": 0,
-                                "description": "Amount in paise"
+                                "description": "Amount in paise. Items less commission, and less the discount when the coupon is yours."
                               },
                               "payoutLeft": {
                                 "type": "integer",
@@ -22907,6 +22962,8 @@
                             "unitPrice",
                             "extrasPerUnit",
                             "items",
+                            "discount",
+                            "coupon",
                             "platformFee",
                             "total",
                             "commissionBps",
@@ -22934,6 +22991,53 @@
                               "minimum": 0,
                               "description": "Amount in paise"
                             },
+                            "discount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise. Taken off the items by the coupon."
+                            },
+                            "coupon": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "code",
+                                    "fundedBy",
+                                    "label"
+                                  ],
+                                  "properties": {
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "fundedBy": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "ruxstar"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "vendor"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "platformFee": {
                               "type": "integer",
                               "minimum": 0,
@@ -22942,7 +23046,7 @@
                             "total": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. The items less the discount, plus the platform fee."
                             },
                             "commissionBps": {
                               "type": "integer"
@@ -22950,12 +23054,12 @@
                             "commission": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. On the items, or on the items less the discount when the coupon is yours."
                             },
                             "payout": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. Items less commission, and less the discount when the coupon is yours."
                             },
                             "payoutLeft": {
                               "type": "integer",
@@ -23828,6 +23932,8 @@
                             "unitPrice",
                             "extrasPerUnit",
                             "items",
+                            "discount",
+                            "coupon",
                             "platformFee",
                             "total",
                             "commissionBps",
@@ -23855,6 +23961,53 @@
                               "minimum": 0,
                               "description": "Amount in paise"
                             },
+                            "discount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise. Taken off the items by the coupon."
+                            },
+                            "coupon": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "code",
+                                    "fundedBy",
+                                    "label"
+                                  ],
+                                  "properties": {
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "fundedBy": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "ruxstar"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "vendor"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "platformFee": {
                               "type": "integer",
                               "minimum": 0,
@@ -23863,7 +24016,7 @@
                             "total": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. The items less the discount, plus the platform fee."
                             },
                             "commissionBps": {
                               "type": "integer"
@@ -23871,12 +24024,12 @@
                             "commission": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. On the items, or on the items less the discount when the coupon is yours."
                             },
                             "payout": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. Items less commission, and less the discount when the coupon is yours."
                             },
                             "payoutLeft": {
                               "type": "integer",
@@ -24715,6 +24868,8 @@
                             "unitPrice",
                             "extrasPerUnit",
                             "items",
+                            "discount",
+                            "coupon",
                             "platformFee",
                             "total",
                             "commissionBps",
@@ -24742,6 +24897,53 @@
                               "minimum": 0,
                               "description": "Amount in paise"
                             },
+                            "discount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise. Taken off the items by the coupon."
+                            },
+                            "coupon": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "code",
+                                    "fundedBy",
+                                    "label"
+                                  ],
+                                  "properties": {
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "fundedBy": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "ruxstar"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "vendor"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "platformFee": {
                               "type": "integer",
                               "minimum": 0,
@@ -24750,7 +24952,7 @@
                             "total": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. The items less the discount, plus the platform fee."
                             },
                             "commissionBps": {
                               "type": "integer"
@@ -24758,12 +24960,12 @@
                             "commission": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. On the items, or on the items less the discount when the coupon is yours."
                             },
                             "payout": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. Items less commission, and less the discount when the coupon is yours."
                             },
                             "payoutLeft": {
                               "type": "integer",
@@ -24905,6 +25107,1349 @@
                           "description": "Opens the file without signing in; works for 10 minutes"
                         },
                         "expiresAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/vendor/coupons": {
+      "get": {
+        "summary": "Your coupons, newest first",
+        "tags": [
+          "vendor"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "code",
+                          "fundedBy",
+                          "vendor",
+                          "businesses",
+                          "modules",
+                          "kind",
+                          "value",
+                          "cap",
+                          "label",
+                          "minOrder",
+                          "startsAt",
+                          "endsAt",
+                          "limit",
+                          "perCustomer",
+                          "firstOrderOnly",
+                          "listed",
+                          "active",
+                          "stoppedByRuxstar",
+                          "used",
+                          "state",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "fundedBy": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ruxstar"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "vendor"
+                                ]
+                              }
+                            ],
+                            "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                          },
+                          "vendor": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "businesses": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "description": "The vendor's shops it works at; empty for Ruxstar's"
+                          },
+                          "modules": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "pod"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "events"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "coaching"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "stays"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "delivery"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "ledger"
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "kind": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "percent"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "flat"
+                                ]
+                              }
+                            ],
+                            "description": "`percent` takes `value` percent off the items, up to `cap`; `flat` takes `value` paise off"
+                          },
+                          "value": {
+                            "type": "integer"
+                          },
+                          "cap": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "label": {
+                            "type": "string",
+                            "description": "For example \"20% off up to ₹100\" or \"₹50 off\""
+                          },
+                          "minOrder": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Amount in paise"
+                          },
+                          "startsAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "endsAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "limit": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "perCustomer": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "firstOrderOnly": {
+                            "type": "boolean"
+                          },
+                          "listed": {
+                            "type": "boolean",
+                            "description": "Shown in the offers at checkout"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "stoppedByRuxstar": {
+                            "type": "boolean",
+                            "description": "Ruxstar switched this vendor coupon off; only Ruxstar can switch it back on"
+                          },
+                          "used": {
+                            "type": "integer",
+                            "description": "Paid orders that used it, less ones refunded in full"
+                          },
+                          "state": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "active"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "scheduled"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ended"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "used_up"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "off"
+                                ]
+                              }
+                            ],
+                            "description": "`scheduled` hasn't started, `ended` is past its end date, `used_up` reached its limit, `off` is switched off"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Make a coupon for your print shops",
+        "tags": [
+          "vendor"
+        ],
+        "description": "You pay for the discount: it comes out of your share, and commission is charged on the price after it. The code and the discount can't change afterwards. Each customer can use it once unless `perCustomer` says otherwise.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "kind",
+                  "value",
+                  "businessIds"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9]{4,16}$",
+                    "description": "4 to 16 letters and digits; stored in capitals"
+                  },
+                  "kind": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "percent"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "flat"
+                        ]
+                      }
+                    ],
+                    "description": "`percent` takes `value` percent off the items, up to `cap`; `flat` takes `value` paise off"
+                  },
+                  "value": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000,
+                    "description": "Percent (1 to 100), or paise off (at least ₹1)"
+                  },
+                  "cap": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 100,
+                        "maximum": 1000000,
+                        "description": "Percent only: the most it takes off, in paise"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "minOrder": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 50000000,
+                    "description": "Paise of items before the discount; 0 for none"
+                  },
+                  "startsAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "endsAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "limit": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000000,
+                        "description": "Uses across everyone; null for no limit"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "perCustomer": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "description": "Uses per customer; null for no limit"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "firstOrderOnly": {
+                    "type": "boolean",
+                    "description": "Only a customer's first paid order: on Ruxstar for Ruxstar's, with this vendor for a vendor's"
+                  },
+                  "listed": {
+                    "type": "boolean",
+                    "description": "Show it in the offers at checkout (the default)"
+                  },
+                  "businessIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{24}$",
+                      "description": "MongoDB ObjectId as hex"
+                    },
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "uniqueItems": true,
+                    "description": "Your print shops it works at"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "code",
+                        "fundedBy",
+                        "vendor",
+                        "businesses",
+                        "modules",
+                        "kind",
+                        "value",
+                        "cap",
+                        "label",
+                        "minOrder",
+                        "startsAt",
+                        "endsAt",
+                        "limit",
+                        "perCustomer",
+                        "firstOrderOnly",
+                        "listed",
+                        "active",
+                        "stoppedByRuxstar",
+                        "used",
+                        "state",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "fundedBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ruxstar"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "vendor"
+                              ]
+                            }
+                          ],
+                          "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                        },
+                        "vendor": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "businesses": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "The vendor's shops it works at; empty for Ruxstar's"
+                        },
+                        "modules": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "pod"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "events"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coaching"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "stays"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "delivery"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ledger"
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        "kind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "percent"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "flat"
+                              ]
+                            }
+                          ],
+                          "description": "`percent` takes `value` percent off the items, up to `cap`; `flat` takes `value` paise off"
+                        },
+                        "value": {
+                          "type": "integer"
+                        },
+                        "cap": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "For example \"20% off up to ₹100\" or \"₹50 off\""
+                        },
+                        "minOrder": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise"
+                        },
+                        "startsAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "endsAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "limit": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "perCustomer": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "firstOrderOnly": {
+                          "type": "boolean"
+                        },
+                        "listed": {
+                          "type": "boolean",
+                          "description": "Shown in the offers at checkout"
+                        },
+                        "active": {
+                          "type": "boolean"
+                        },
+                        "stoppedByRuxstar": {
+                          "type": "boolean",
+                          "description": "Ruxstar switched this vendor coupon off; only Ruxstar can switch it back on"
+                        },
+                        "used": {
+                          "type": "integer",
+                          "description": "Paid orders that used it, less ones refunded in full"
+                        },
+                        "state": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "active"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "scheduled"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ended"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "used_up"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "off"
+                              ]
+                            }
+                          ],
+                          "description": "`scheduled` hasn't started, `ended` is past its end date, `used_up` reached its limit, `off` is switched off"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/vendor/coupons/{id}": {
+      "patch": {
+        "summary": "Change your coupon's shops, dates and limits, or switch it off or on",
+        "tags": [
+          "vendor"
+        ],
+        "description": "Send only what changes. A coupon Ruxstar switched off stays off until Ruxstar switches it back on.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "minOrder": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 50000000,
+                    "description": "Paise of items before the discount; 0 for none"
+                  },
+                  "startsAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "endsAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "limit": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000000,
+                        "description": "Uses across everyone; null for no limit"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "perCustomer": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "description": "Uses per customer; null for no limit"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "firstOrderOnly": {
+                    "type": "boolean",
+                    "description": "Only a customer's first paid order: on Ruxstar for Ruxstar's, with this vendor for a vendor's"
+                  },
+                  "listed": {
+                    "type": "boolean",
+                    "description": "Show it in the offers at checkout (the default)"
+                  },
+                  "active": {
+                    "type": "boolean"
+                  },
+                  "businessIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{24}$",
+                      "description": "MongoDB ObjectId as hex"
+                    },
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "uniqueItems": true,
+                    "description": "Your print shops it works at"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "code",
+                        "fundedBy",
+                        "vendor",
+                        "businesses",
+                        "modules",
+                        "kind",
+                        "value",
+                        "cap",
+                        "label",
+                        "minOrder",
+                        "startsAt",
+                        "endsAt",
+                        "limit",
+                        "perCustomer",
+                        "firstOrderOnly",
+                        "listed",
+                        "active",
+                        "stoppedByRuxstar",
+                        "used",
+                        "state",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "fundedBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ruxstar"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "vendor"
+                              ]
+                            }
+                          ],
+                          "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                        },
+                        "vendor": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "businesses": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "The vendor's shops it works at; empty for Ruxstar's"
+                        },
+                        "modules": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "pod"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "events"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coaching"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "stays"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "delivery"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ledger"
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        "kind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "percent"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "flat"
+                              ]
+                            }
+                          ],
+                          "description": "`percent` takes `value` percent off the items, up to `cap`; `flat` takes `value` paise off"
+                        },
+                        "value": {
+                          "type": "integer"
+                        },
+                        "cap": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "For example \"20% off up to ₹100\" or \"₹50 off\""
+                        },
+                        "minOrder": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise"
+                        },
+                        "startsAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "endsAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "limit": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "perCustomer": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "firstOrderOnly": {
+                          "type": "boolean"
+                        },
+                        "listed": {
+                          "type": "boolean",
+                          "description": "Shown in the offers at checkout"
+                        },
+                        "active": {
+                          "type": "boolean"
+                        },
+                        "stoppedByRuxstar": {
+                          "type": "boolean",
+                          "description": "Ruxstar switched this vendor coupon off; only Ruxstar can switch it back on"
+                        },
+                        "used": {
+                          "type": "integer",
+                          "description": "Paid orders that used it, less ones refunded in full"
+                        },
+                        "state": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "active"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "scheduled"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ended"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "used_up"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "off"
+                              ]
+                            }
+                          ],
+                          "description": "`scheduled` hasn't started, `ended` is past its end date, `used_up` reached its limit, `off` is switched off"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
                           "type": "string",
                           "format": "date-time"
                         }
@@ -33062,11 +34607,11 @@
     },
     "/v1/pod/quote": {
       "post": {
-        "summary": "What an order would cost",
+        "summary": "What an order would cost, and the coupons that work on it",
         "tags": [
           "pod"
         ],
-        "description": "The same checks and prices as placing it, so a quote that passes can be ordered.",
+        "description": "The same checks and prices as placing it, so a quote that passes can be ordered. With `couponCode` the price has it taken off, or `couponProblem` says why it can't be used.",
         "requestBody": {
           "required": true,
           "content": {
@@ -33131,6 +34676,12 @@
                     "maximum": 10000,
                     "description": "Pieces, or copies of the files for documents"
                   },
+                  "couponCode": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20,
+                    "description": "A coupon to take off the items; any case"
+                  },
                   "fileIds": {
                     "type": "array",
                     "items": {
@@ -33175,11 +34726,15 @@
                         "unitPrice",
                         "extrasPerUnit",
                         "items",
+                        "discount",
+                        "coupon",
                         "platformFee",
                         "total",
                         "pages",
                         "minOrder",
-                        "turnaroundDays"
+                        "turnaroundDays",
+                        "couponProblem",
+                        "offers"
                       ],
                       "properties": {
                         "units": {
@@ -33201,6 +34756,53 @@
                           "minimum": 0,
                           "description": "Amount in paise"
                         },
+                        "discount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise. Taken off the items by the coupon."
+                        },
+                        "coupon": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "code",
+                                "fundedBy",
+                                "label"
+                              ],
+                              "properties": {
+                                "code": {
+                                  "type": "string"
+                                },
+                                "fundedBy": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "ruxstar"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "vendor"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                },
+                                "label": {
+                                  "type": "string",
+                                  "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "platformFee": {
                           "type": "integer",
                           "minimum": 0,
@@ -33209,7 +34811,7 @@
                         "total": {
                           "type": "integer",
                           "minimum": 0,
-                          "description": "Amount in paise"
+                          "description": "Amount in paise. The items less the discount, plus the platform fee."
                         },
                         "pages": {
                           "type": "integer",
@@ -33222,6 +34824,85 @@
                         },
                         "turnaroundDays": {
                           "type": "integer"
+                        },
+                        "couponProblem": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "Why `couponCode` can't be used; the price is then without it"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "offers": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "code",
+                              "fundedBy",
+                              "label",
+                              "terms",
+                              "discount",
+                              "problem"
+                            ],
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "fundedBy": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "ruxstar"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "vendor"
+                                    ]
+                                  }
+                                ],
+                                "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "terms": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "description": "For example \"On items over ₹200 · First order only · Ends 30 Nov\""
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "discount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Paise it takes off this order; 0 when it doesn't apply yet"
+                              },
+                              "problem": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "description": "Why it doesn't apply yet, for example \"Add ₹50 more to use this\""
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Coupons the customer can pick, best first"
                         }
                       },
                       "additionalProperties": false
@@ -33339,6 +35020,12 @@
                     "minimum": 1,
                     "maximum": 10000,
                     "description": "Pieces, or copies of the files for documents"
+                  },
+                  "couponCode": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 20,
+                    "description": "A coupon to take off the items; any case"
                   },
                   "fileIds": {
                     "type": "array",
@@ -34119,6 +35806,8 @@
                                 "unitPrice",
                                 "extrasPerUnit",
                                 "items",
+                                "discount",
+                                "coupon",
                                 "platformFee",
                                 "total"
                               ],
@@ -34142,6 +35831,53 @@
                                   "minimum": 0,
                                   "description": "Amount in paise"
                                 },
+                                "discount": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Amount in paise. Taken off the items by the coupon."
+                                },
+                                "coupon": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "code",
+                                        "fundedBy",
+                                        "label"
+                                      ],
+                                      "properties": {
+                                        "code": {
+                                          "type": "string"
+                                        },
+                                        "fundedBy": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "ruxstar"
+                                              ]
+                                            },
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "vendor"
+                                              ]
+                                            }
+                                          ],
+                                          "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                        },
+                                        "label": {
+                                          "type": "string",
+                                          "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
                                 "platformFee": {
                                   "type": "integer",
                                   "minimum": 0,
@@ -34150,7 +35886,7 @@
                                 "total": {
                                   "type": "integer",
                                   "minimum": 0,
-                                  "description": "Amount in paise"
+                                  "description": "Amount in paise. The items less the discount, plus the platform fee."
                                 }
                               },
                               "additionalProperties": false
@@ -34941,6 +36677,8 @@
                               "unitPrice",
                               "extrasPerUnit",
                               "items",
+                              "discount",
+                              "coupon",
                               "platformFee",
                               "total"
                             ],
@@ -34964,6 +36702,53 @@
                                 "minimum": 0,
                                 "description": "Amount in paise"
                               },
+                              "discount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise. Taken off the items by the coupon."
+                              },
+                              "coupon": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "code",
+                                      "fundedBy",
+                                      "label"
+                                    ],
+                                    "properties": {
+                                      "code": {
+                                        "type": "string"
+                                      },
+                                      "fundedBy": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "ruxstar"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "vendor"
+                                            ]
+                                          }
+                                        ],
+                                        "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                      },
+                                      "label": {
+                                        "type": "string",
+                                        "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "platformFee": {
                                 "type": "integer",
                                 "minimum": 0,
@@ -34972,7 +36757,7 @@
                               "total": {
                                 "type": "integer",
                                 "minimum": 0,
-                                "description": "Amount in paise"
+                                "description": "Amount in paise. The items less the discount, plus the platform fee."
                               }
                             },
                             "additionalProperties": false
@@ -35871,6 +37656,8 @@
                             "unitPrice",
                             "extrasPerUnit",
                             "items",
+                            "discount",
+                            "coupon",
                             "platformFee",
                             "total"
                           ],
@@ -35894,6 +37681,53 @@
                               "minimum": 0,
                               "description": "Amount in paise"
                             },
+                            "discount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise. Taken off the items by the coupon."
+                            },
+                            "coupon": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "code",
+                                    "fundedBy",
+                                    "label"
+                                  ],
+                                  "properties": {
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "fundedBy": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "ruxstar"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "vendor"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "platformFee": {
                               "type": "integer",
                               "minimum": 0,
@@ -35902,7 +37736,7 @@
                             "total": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. The items less the discount, plus the platform fee."
                             }
                           },
                           "additionalProperties": false
@@ -36677,6 +38511,8 @@
                             "unitPrice",
                             "extrasPerUnit",
                             "items",
+                            "discount",
+                            "coupon",
                             "platformFee",
                             "total"
                           ],
@@ -36700,6 +38536,53 @@
                               "minimum": 0,
                               "description": "Amount in paise"
                             },
+                            "discount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise. Taken off the items by the coupon."
+                            },
+                            "coupon": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "code",
+                                    "fundedBy",
+                                    "label"
+                                  ],
+                                  "properties": {
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "fundedBy": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "ruxstar"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "vendor"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "platformFee": {
                               "type": "integer",
                               "minimum": 0,
@@ -36708,7 +38591,7 @@
                             "total": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. The items less the discount, plus the platform fee."
                             }
                           },
                           "additionalProperties": false
@@ -37647,6 +39530,8 @@
                             "unitPrice",
                             "extrasPerUnit",
                             "items",
+                            "discount",
+                            "coupon",
                             "platformFee",
                             "total"
                           ],
@@ -37670,6 +39555,53 @@
                               "minimum": 0,
                               "description": "Amount in paise"
                             },
+                            "discount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise. Taken off the items by the coupon."
+                            },
+                            "coupon": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "code",
+                                    "fundedBy",
+                                    "label"
+                                  ],
+                                  "properties": {
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "fundedBy": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "ruxstar"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "vendor"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "platformFee": {
                               "type": "integer",
                               "minimum": 0,
@@ -37678,7 +39610,7 @@
                             "total": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. The items less the discount, plus the platform fee."
                             }
                           },
                           "additionalProperties": false
@@ -38453,6 +40385,8 @@
                             "unitPrice",
                             "extrasPerUnit",
                             "items",
+                            "discount",
+                            "coupon",
                             "platformFee",
                             "total"
                           ],
@@ -38476,6 +40410,53 @@
                               "minimum": 0,
                               "description": "Amount in paise"
                             },
+                            "discount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise. Taken off the items by the coupon."
+                            },
+                            "coupon": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "code",
+                                    "fundedBy",
+                                    "label"
+                                  ],
+                                  "properties": {
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "fundedBy": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "ruxstar"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "vendor"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "platformFee": {
                               "type": "integer",
                               "minimum": 0,
@@ -38484,7 +40465,7 @@
                             "total": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. The items less the discount, plus the platform fee."
                             }
                           },
                           "additionalProperties": false
@@ -39518,6 +41499,18 @@
                               {
                                 "type": "string",
                                 "enum": [
+                                  "coupons.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coupons.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
                                   "audit.view"
                                 ]
                               }
@@ -39617,6 +41610,18 @@
                                     "type": "string",
                                     "enum": [
                                       "payouts.manage"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "coupons.view"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "coupons.manage"
                                     ]
                                   },
                                   {
@@ -43948,6 +45953,8 @@
                               "unitPrice",
                               "extrasPerUnit",
                               "items",
+                              "discount",
+                              "coupon",
                               "platformFee",
                               "total",
                               "commissionBps",
@@ -43975,6 +45982,53 @@
                                 "minimum": 0,
                                 "description": "Amount in paise"
                               },
+                              "discount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise. Taken off the items by the coupon."
+                              },
+                              "coupon": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "code",
+                                      "fundedBy",
+                                      "label"
+                                    ],
+                                    "properties": {
+                                      "code": {
+                                        "type": "string"
+                                      },
+                                      "fundedBy": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "ruxstar"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "vendor"
+                                            ]
+                                          }
+                                        ],
+                                        "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                      },
+                                      "label": {
+                                        "type": "string",
+                                        "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "platformFee": {
                                 "type": "integer",
                                 "minimum": 0,
@@ -43983,7 +46037,7 @@
                               "total": {
                                 "type": "integer",
                                 "minimum": 0,
-                                "description": "Amount in paise"
+                                "description": "Amount in paise. The items less the discount, plus the platform fee."
                               },
                               "commissionBps": {
                                 "type": "integer"
@@ -43991,12 +46045,12 @@
                               "commission": {
                                 "type": "integer",
                                 "minimum": 0,
-                                "description": "Amount in paise"
+                                "description": "Amount in paise. On the items, or on the items less the discount when the coupon is yours."
                               },
                               "payout": {
                                 "type": "integer",
                                 "minimum": 0,
-                                "description": "Amount in paise"
+                                "description": "Amount in paise. Items less commission, and less the discount when the coupon is yours."
                               },
                               "payoutLeft": {
                                 "type": "integer",
@@ -44867,6 +46921,8 @@
                             "unitPrice",
                             "extrasPerUnit",
                             "items",
+                            "discount",
+                            "coupon",
                             "platformFee",
                             "total",
                             "commissionBps",
@@ -44894,6 +46950,53 @@
                               "minimum": 0,
                               "description": "Amount in paise"
                             },
+                            "discount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise. Taken off the items by the coupon."
+                            },
+                            "coupon": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "code",
+                                    "fundedBy",
+                                    "label"
+                                  ],
+                                  "properties": {
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "fundedBy": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "ruxstar"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "vendor"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "platformFee": {
                               "type": "integer",
                               "minimum": 0,
@@ -44902,7 +47005,7 @@
                             "total": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. The items less the discount, plus the platform fee."
                             },
                             "commissionBps": {
                               "type": "integer"
@@ -44910,12 +47013,12 @@
                             "commission": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. On the items, or on the items less the discount when the coupon is yours."
                             },
                             "payout": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. Items less commission, and less the discount when the coupon is yours."
                             },
                             "payoutLeft": {
                               "type": "integer",
@@ -45826,6 +47929,8 @@
                             "unitPrice",
                             "extrasPerUnit",
                             "items",
+                            "discount",
+                            "coupon",
                             "platformFee",
                             "total",
                             "commissionBps",
@@ -45853,6 +47958,53 @@
                               "minimum": 0,
                               "description": "Amount in paise"
                             },
+                            "discount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise. Taken off the items by the coupon."
+                            },
+                            "coupon": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "code",
+                                    "fundedBy",
+                                    "label"
+                                  ],
+                                  "properties": {
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "fundedBy": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "ruxstar"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "vendor"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
                             "platformFee": {
                               "type": "integer",
                               "minimum": 0,
@@ -45861,7 +48013,7 @@
                             "total": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. The items less the discount, plus the platform fee."
                             },
                             "commissionBps": {
                               "type": "integer"
@@ -45869,12 +48021,12 @@
                             "commission": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. On the items, or on the items less the discount when the coupon is yours."
                             },
                             "payout": {
                               "type": "integer",
                               "minimum": 0,
-                              "description": "Amount in paise"
+                              "description": "Amount in paise. Items less commission, and less the discount when the coupon is yours."
                             },
                             "payoutLeft": {
                               "type": "integer",
@@ -46887,6 +49039,1356 @@
         }
       }
     },
+    "/v1/ruxstar/coupons": {
+      "get": {
+        "summary": "Coupons, newest first",
+        "tags": [
+          "ruxstar"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "ruxstar"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "vendor"
+                  ]
+                }
+              ]
+            },
+            "in": "query",
+            "name": "funder",
+            "required": false,
+            "description": "Ruxstar's coupons (the default) or vendors'"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9]{1,16}$"
+            },
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "description": "Find one code"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "code",
+                          "fundedBy",
+                          "vendor",
+                          "businesses",
+                          "modules",
+                          "kind",
+                          "value",
+                          "cap",
+                          "label",
+                          "minOrder",
+                          "startsAt",
+                          "endsAt",
+                          "limit",
+                          "perCustomer",
+                          "firstOrderOnly",
+                          "listed",
+                          "active",
+                          "stoppedByRuxstar",
+                          "used",
+                          "state",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "fundedBy": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ruxstar"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "vendor"
+                                ]
+                              }
+                            ],
+                            "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                          },
+                          "vendor": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "businesses": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "description": "The vendor's shops it works at; empty for Ruxstar's"
+                          },
+                          "modules": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "pod"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "events"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "coaching"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "stays"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "delivery"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "ledger"
+                                  ]
+                                }
+                              ]
+                            }
+                          },
+                          "kind": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "percent"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "flat"
+                                ]
+                              }
+                            ],
+                            "description": "`percent` takes `value` percent off the items, up to `cap`; `flat` takes `value` paise off"
+                          },
+                          "value": {
+                            "type": "integer"
+                          },
+                          "cap": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "label": {
+                            "type": "string",
+                            "description": "For example \"20% off up to ₹100\" or \"₹50 off\""
+                          },
+                          "minOrder": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Amount in paise"
+                          },
+                          "startsAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "endsAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "limit": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "perCustomer": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "firstOrderOnly": {
+                            "type": "boolean"
+                          },
+                          "listed": {
+                            "type": "boolean",
+                            "description": "Shown in the offers at checkout"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "stoppedByRuxstar": {
+                            "type": "boolean",
+                            "description": "Ruxstar switched this vendor coupon off; only Ruxstar can switch it back on"
+                          },
+                          "used": {
+                            "type": "integer",
+                            "description": "Paid orders that used it, less ones refunded in full"
+                          },
+                          "state": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "active"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "scheduled"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ended"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "used_up"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "off"
+                                ]
+                              }
+                            ],
+                            "description": "`scheduled` hasn't started, `ended` is past its end date, `used_up` reached its limit, `off` is switched off"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Make a Ruxstar coupon",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "It works at every print shop and Ruxstar pays for the discount: the shop's share stays as if there were no coupon. The code and the discount can't change afterwards. Each customer can use it once unless `perCustomer` says otherwise.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "kind",
+                  "value"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9]{4,16}$",
+                    "description": "4 to 16 letters and digits; stored in capitals"
+                  },
+                  "kind": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "percent"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "flat"
+                        ]
+                      }
+                    ],
+                    "description": "`percent` takes `value` percent off the items, up to `cap`; `flat` takes `value` paise off"
+                  },
+                  "value": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000,
+                    "description": "Percent (1 to 100), or paise off (at least ₹1)"
+                  },
+                  "cap": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 100,
+                        "maximum": 1000000,
+                        "description": "Percent only: the most it takes off, in paise"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "minOrder": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 50000000,
+                    "description": "Paise of items before the discount; 0 for none"
+                  },
+                  "startsAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "endsAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "limit": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000000,
+                        "description": "Uses across everyone; null for no limit"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "perCustomer": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "description": "Uses per customer; null for no limit"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "firstOrderOnly": {
+                    "type": "boolean",
+                    "description": "Only a customer's first paid order: on Ruxstar for Ruxstar's, with this vendor for a vendor's"
+                  },
+                  "listed": {
+                    "type": "boolean",
+                    "description": "Show it in the offers at checkout (the default)"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "code",
+                        "fundedBy",
+                        "vendor",
+                        "businesses",
+                        "modules",
+                        "kind",
+                        "value",
+                        "cap",
+                        "label",
+                        "minOrder",
+                        "startsAt",
+                        "endsAt",
+                        "limit",
+                        "perCustomer",
+                        "firstOrderOnly",
+                        "listed",
+                        "active",
+                        "stoppedByRuxstar",
+                        "used",
+                        "state",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "fundedBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ruxstar"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "vendor"
+                              ]
+                            }
+                          ],
+                          "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                        },
+                        "vendor": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "businesses": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "The vendor's shops it works at; empty for Ruxstar's"
+                        },
+                        "modules": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "pod"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "events"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coaching"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "stays"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "delivery"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ledger"
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        "kind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "percent"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "flat"
+                              ]
+                            }
+                          ],
+                          "description": "`percent` takes `value` percent off the items, up to `cap`; `flat` takes `value` paise off"
+                        },
+                        "value": {
+                          "type": "integer"
+                        },
+                        "cap": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "For example \"20% off up to ₹100\" or \"₹50 off\""
+                        },
+                        "minOrder": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise"
+                        },
+                        "startsAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "endsAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "limit": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "perCustomer": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "firstOrderOnly": {
+                          "type": "boolean"
+                        },
+                        "listed": {
+                          "type": "boolean",
+                          "description": "Shown in the offers at checkout"
+                        },
+                        "active": {
+                          "type": "boolean"
+                        },
+                        "stoppedByRuxstar": {
+                          "type": "boolean",
+                          "description": "Ruxstar switched this vendor coupon off; only Ruxstar can switch it back on"
+                        },
+                        "used": {
+                          "type": "integer",
+                          "description": "Paid orders that used it, less ones refunded in full"
+                        },
+                        "state": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "active"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "scheduled"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ended"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "used_up"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "off"
+                              ]
+                            }
+                          ],
+                          "description": "`scheduled` hasn't started, `ended` is past its end date, `used_up` reached its limit, `off` is switched off"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/coupons/{id}": {
+      "patch": {
+        "summary": "Change a coupon's dates and limits, or switch it off or on",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "On a vendor's coupon only `active` can change, to stop one being misused. Send only what changes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "minOrder": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 50000000,
+                    "description": "Paise of items before the discount; 0 for none"
+                  },
+                  "startsAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "endsAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "limit": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000000,
+                        "description": "Uses across everyone; null for no limit"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "perCustomer": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "description": "Uses per customer; null for no limit"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "firstOrderOnly": {
+                    "type": "boolean",
+                    "description": "Only a customer's first paid order: on Ruxstar for Ruxstar's, with this vendor for a vendor's"
+                  },
+                  "listed": {
+                    "type": "boolean",
+                    "description": "Show it in the offers at checkout (the default)"
+                  },
+                  "active": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "code",
+                        "fundedBy",
+                        "vendor",
+                        "businesses",
+                        "modules",
+                        "kind",
+                        "value",
+                        "cap",
+                        "label",
+                        "minOrder",
+                        "startsAt",
+                        "endsAt",
+                        "limit",
+                        "perCustomer",
+                        "firstOrderOnly",
+                        "listed",
+                        "active",
+                        "stoppedByRuxstar",
+                        "used",
+                        "state",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "fundedBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ruxstar"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "vendor"
+                              ]
+                            }
+                          ],
+                          "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                        },
+                        "vendor": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "businesses": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "The vendor's shops it works at; empty for Ruxstar's"
+                        },
+                        "modules": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "pod"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "events"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coaching"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "stays"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "delivery"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ledger"
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        "kind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "percent"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "flat"
+                              ]
+                            }
+                          ],
+                          "description": "`percent` takes `value` percent off the items, up to `cap`; `flat` takes `value` paise off"
+                        },
+                        "value": {
+                          "type": "integer"
+                        },
+                        "cap": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "label": {
+                          "type": "string",
+                          "description": "For example \"20% off up to ₹100\" or \"₹50 off\""
+                        },
+                        "minOrder": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise"
+                        },
+                        "startsAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "endsAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "limit": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "perCustomer": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "firstOrderOnly": {
+                          "type": "boolean"
+                        },
+                        "listed": {
+                          "type": "boolean",
+                          "description": "Shown in the offers at checkout"
+                        },
+                        "active": {
+                          "type": "boolean"
+                        },
+                        "stoppedByRuxstar": {
+                          "type": "boolean",
+                          "description": "Ruxstar switched this vendor coupon off; only Ruxstar can switch it back on"
+                        },
+                        "used": {
+                          "type": "integer",
+                          "description": "Paid orders that used it, less ones refunded in full"
+                        },
+                        "state": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "active"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "scheduled"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ended"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "used_up"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "off"
+                              ]
+                            }
+                          ],
+                          "description": "`scheduled` hasn't started, `ended` is past its end date, `used_up` reached its limit, `off` is switched off"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/ruxstar/users": {
       "get": {
         "summary": "Find people",
@@ -47517,6 +51019,18 @@
                                       {
                                         "type": "string",
                                         "enum": [
+                                          "coupons.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "coupons.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
                                           "audit.view"
                                         ]
                                       }
@@ -48000,6 +51514,18 @@
                                       {
                                         "type": "string",
                                         "enum": [
+                                          "coupons.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "coupons.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
                                           "audit.view"
                                         ]
                                       }
@@ -48455,6 +51981,18 @@
                                         "type": "string",
                                         "enum": [
                                           "payouts.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "coupons.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "coupons.manage"
                                         ]
                                       },
                                       {
@@ -48920,6 +52458,18 @@
                                       {
                                         "type": "string",
                                         "enum": [
+                                          "coupons.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "coupons.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
                                           "audit.view"
                                         ]
                                       }
@@ -49164,6 +52714,18 @@
                                 {
                                   "type": "string",
                                   "enum": [
+                                    "coupons.view"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "coupons.manage"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
                                     "audit.view"
                                   ]
                                 }
@@ -49365,6 +52927,18 @@
                         {
                           "type": "string",
                           "enum": [
+                            "coupons.view"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "coupons.manage"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
                             "audit.view"
                           ]
                         }
@@ -49548,6 +53122,18 @@
                                 "type": "string",
                                 "enum": [
                                   "payouts.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coupons.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coupons.manage"
                                 ]
                               },
                               {
@@ -49801,6 +53387,18 @@
                                 "type": "string",
                                 "enum": [
                                   "payouts.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coupons.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coupons.manage"
                                 ]
                               },
                               {
