@@ -159,6 +159,43 @@ describe("vendor withdrawals", () => {
     expect((await payments(other)).balance.available).toBe(30_000);
   });
 
+  it("shows the Ruxstar team every withdrawal and lets them ask Cashfree about one on the way", async () => {
+    const owner = await vendor(50_000);
+    fake().next = "pending";
+    const payout = (await withdraw(owner)).json().data;
+    const failing = await vendor(30_000, "upi");
+    fake().next = "failed";
+    await withdraw(failing);
+
+    const viewer = await signIn(stack, { ruxstarStaff: true });
+    await stack.db.ruxstarStaff.insertOne({
+      _id: new ObjectId(),
+      userId: viewer.userId,
+      title: "Payments",
+      modules: [],
+      permissions: ["payouts.view"],
+      grantedBy: viewer.userId,
+      status: "active",
+      ...stamp(),
+    });
+    expect((await call("GET", "/ruxstar/payouts", owner.token)).statusCode).toBe(403);
+    const queue = (await call("GET", "/ruxstar/payouts", viewer.token)).json().data;
+    expect(queue).toEqual([
+      expect.objectContaining({ id: payout.id, vendor: { id: owner.userId.toHexString(), name: "Asha Rao" }, amount: 50_000, fee: 590, status: "pending", attempts: 1, failure: null }),
+    ]);
+    const failed = (await call("GET", "/ruxstar/payouts?status=failed", viewer.token)).json().data;
+    expect(failed[0]).toMatchObject({ to: "asha@okhdfc", failure: { code: "BENE_BANK_DECLINED", text: "The bank couldn't complete it. Try again in a while." } });
+
+    const check = (token: string) => call("POST", `/ruxstar/payouts/${payout.id}/check`, token);
+    expect((await check(viewer.token)).statusCode).toBe(403);
+    const admin = await signIn(stack, { admin: true });
+    expect((await check(admin.token)).json().data).toMatchObject({ status: "pending" });
+    fake().settle(queue[0].transferId, "paid");
+    expect((await check(admin.token)).json().data).toMatchObject({ status: "paid", utr: expect.any(String), paidAt: expect.any(String) });
+    expect((await check(admin.token)).json().error.code).toBe("CONFLICT");
+    expect((await call("GET", "/ruxstar/payouts?status=paid", admin.token)).json().data.map((p: { id: string }) => p.id)).toEqual([payout.id]);
+  });
+
   it("takes the fee and minimum Ruxstar sets on the ledger module", async () => {
     const admin = await signIn(stack, { admin: true });
     const patch = (module: string, body: object) => call("PATCH", `/ruxstar/modules/${module}`, admin.token, body);

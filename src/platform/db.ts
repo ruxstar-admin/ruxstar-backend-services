@@ -607,6 +607,8 @@ export interface PodOrderDoc extends Stamped {
   /** The shop's share becomes available then, unless a problem is open. */
   releaseAt?: Date | null;
   releasedAt?: Date | null;
+  /** Ruxstar released the share before its hold was over. */
+  earlyRelease?: { by: ObjectId; reason: string; at: Date } | null;
   problem?: PodProblemDoc | null;
   /** When the problem was reported; top level so the console can page by it. */
   problemAt?: Date | null;

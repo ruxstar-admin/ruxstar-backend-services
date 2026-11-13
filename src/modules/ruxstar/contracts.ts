@@ -63,6 +63,8 @@ export const PermissionKey = Type.Union([
   Type.Literal("businesses.manage"),
   Type.Literal("orders.view"),
   Type.Literal("orders.manage"),
+  Type.Literal("payouts.view"),
+  Type.Literal("payouts.manage"),
   Type.Literal("audit.view"),
 ]);
 
@@ -238,6 +240,55 @@ export const BusinessCase = Strict({
 export type BusinessCase = Static<typeof BusinessCase>;
 export const BusinessRows = ListEnvelope(BusinessRow);
 export const BusinessCaseOne = Envelope(BusinessCase);
+
+// Payouts and held money.
+
+const Paise = Type.Integer({ minimum: 0 });
+const Party = Strict({ id: ObjectIdString, name: Type.String() });
+
+export const PayoutsQuery = Strict({
+  ...PageQuery,
+  status: Type.Optional(Type.Union([Type.Literal("pending"), Type.Literal("failed"), Type.Literal("paid")], { default: "pending" })),
+});
+export const PayoutParams = Strict({ id: ObjectIdString });
+
+export const StaffPayout = Strict({
+  id: ObjectIdString,
+  vendor: Party,
+  amount: Type.Integer({ minimum: 0, description: "Paise taken from the vendor's balance" }),
+  fee: Type.Integer({ minimum: 0, description: "Paise kept by Ruxstar; the bank gets amount - fee" }),
+  status: Type.Union([Type.Literal("pending"), Type.Literal("paid"), Type.Literal("failed")]),
+  to: Type.String(),
+  transferId: Type.String({ description: "Cashfree's transfer_id" }),
+  utr: Nullable(Type.String()),
+  failure: Nullable(Strict({ code: Type.String(), text: Type.String({ description: "What the vendor was told" }) })),
+  attempts: Type.Integer({ minimum: 0, description: "Times it was sent to Cashfree" }),
+  checkedAt: Nullable(DateTime),
+  paidAt: Nullable(DateTime),
+  createdAt: DateTime,
+});
+export type StaffPayout = Static<typeof StaffPayout>;
+export const StaffPayoutList = ListEnvelope(StaffPayout);
+export const StaffPayoutOne = Envelope(StaffPayout);
+
+export const HeldQuery = Strict({ ...PageQuery, orderNo: Type.Optional(Type.Integer({ minimum: 1, description: "Find one order by its number" })) });
+export const HeldParams = Strict({ id: ObjectIdString });
+
+export const HeldOrder = Strict({
+  id: ObjectIdString,
+  orderNo: Type.Integer(),
+  module: ModuleName,
+  business: Nullable(Party),
+  vendor: Party,
+  amount: Type.Integer({ minimum: 0, description: "Paise: the shop's share left after partial refunds" }),
+  deliveredAt: Nullable(DateTime),
+  releaseAt: DateTime,
+  problemOpen: Type.Boolean({ description: "A customer's reported problem waits for a decision; it can't be released until then" }),
+});
+export type HeldOrder = Static<typeof HeldOrder>;
+export const HeldList = ListEnvelope(HeldOrder);
+export const ReleaseBody = Strict({ reason: Type.String({ minLength: 5, maxLength: 300, description: "Why it is released early; kept in the audit log" }) });
+export const ReleaseResult = Envelope(Strict({ id: ObjectIdString, orderNo: Type.Integer(), amount: Paise, releasedAt: DateTime }));
 
 // Audit log.
 

@@ -36,32 +36,68 @@ const longLate = (order: PodOrderDoc, now: Date) =>
 /** The problem's photos go with the order's files, 30 days after it is settled. */
 const expirePhotos = (app: FastifyInstance, order: PodOrderDoc) => Promise.all((order.problem?.photos ?? []).map((p) => app.printFiles.expire(p.key)));
 
-/** Moves the shop's share (less partial refunds) and Ruxstar's to available, once the hold is over and no problem is open. */
-export async function releaseShare(app: FastifyInstance, db: Database, order: PodOrderDoc, now = new Date()): Promise<PodOrderDoc> {
-  if (!releaseDue(order, now)) return order;
-  const released = await db.transaction(async (session) => {
+/** Moves the share to available in one transaction; null when the order changed since it was read. */
+async function release(db: Database, order: PodOrderDoc, now: Date, early?: { reason: string; staff: Staff }): Promise<PodOrderDoc | null> {
+  return db.transaction(async (session) => {
     const after = await db.podOrders.findOneAndUpdate(
       { _id: order._id, status: "delivered", releasedAt: null, "problem.status": { $ne: "open" } },
-      { $set: { releasedAt: now, updatedAt: now } },
+      { $set: { releasedAt: now, updatedAt: now, ...(early ? { earlyRelease: { by: early.staff.userId, reason: early.reason, at: now } } : {}) } },
       { session, returnDocument: "after" },
     );
     if (!after) return null;
     for (const entry of ledgerFor("release", after, now)) await db.ledgerEntries.insertOne(entry, { session });
+    if (early) {
+      await writeAudit(
+        db,
+        {
+          actor: early.staff.actor,
+          scope: { module: "pod", businessId: order.shopId },
+          action: "pod_order.release",
+          target: { type: "pod_order", id: order._id },
+          diff: { releasedAt: { from: null, to: now }, releaseAt: { from: order.releaseAt ?? null, to: now }, reason: { from: null, to: early.reason } },
+          ip: early.staff.ip,
+        },
+        session,
+      );
+    }
     return after;
   });
+}
+
+const announceRelease = async (app: FastifyInstance, db: Database, order: PodOrderDoc, early: boolean) => {
+  const amount = shopShareLeft(order);
+  if (amount <= 0) return;
+  await notifyOrder(db, app.log, {
+    to: order.vendorId,
+    actor: order.customerId,
+    orderId: order._id,
+    type: "order.updated",
+    forShop: true,
+    title: `${rupees(amount)} available`,
+    body: early
+      ? `Ruxstar released your share of order #${order.orderNo} early. It is in your available balance.`
+      : `Your share of order #${order.orderNo} is in your available balance.`,
+  });
+};
+
+/** Moves the shop's share (less partial refunds) and Ruxstar's to available, once the hold is over and no problem is open. */
+export async function releaseShare(app: FastifyInstance, db: Database, order: PodOrderDoc, now = new Date()): Promise<PodOrderDoc> {
+  if (!releaseDue(order, now)) return order;
+  const released = await release(db, order, now);
   if (!released) return (await db.podOrders.findOne({ _id: order._id })) ?? order;
-  const amount = shopShareLeft(released);
-  if (amount > 0) {
-    await notifyOrder(db, app.log, {
-      to: released.vendorId,
-      actor: released.customerId,
-      orderId: released._id,
-      type: "order.updated",
-      forShop: true,
-      title: `${rupees(amount)} available`,
-      body: `Your share of order #${released.orderNo} is in your available balance.`,
-    });
+  await announceRelease(app, db, released, false);
+  return released;
+}
+
+/** Ruxstar releases a delivered order's share before its hold is over. A reported problem has to be settled first. */
+export async function releaseEarly(app: FastifyInstance, db: Database, order: PodOrderDoc, input: { reason: string; staff: Staff }): Promise<PodOrderDoc> {
+  if (problemOpen(order)) throw new AppError("ORDER_STATE", "Settle the problem the customer reported first.");
+  if (order.status !== "delivered" || !order.releaseAt || order.releasedAt) {
+    throw new AppError("ORDER_STATE", "Only a delivered order whose share is still on hold can be released.");
   }
+  const released = await release(db, order, new Date(), input);
+  if (!released) throw new AppError("ORDER_STATE", "This order changed. Look at it again.");
+  await announceRelease(app, db, released, true);
   return released;
 }
 

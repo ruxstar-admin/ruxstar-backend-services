@@ -559,6 +559,51 @@ describe("print orders", () => {
     expect(closed.json().error.code).toBe("REPORT_CLOSED");
   });
 
+  it("lets the Ruxstar team release a delivered order's share early with a reason, once any problem is settled", async () => {
+    const { owner, order } = await inHand("delivered");
+    const viewer = await signIn(stack, { ruxstarStaff: true });
+    await stack.db.ruxstarStaff.insertOne({
+      _id: new ObjectId(),
+      userId: viewer.userId,
+      title: "Payments",
+      modules: [],
+      permissions: ["payouts.view"],
+      grantedBy: viewer.userId,
+      status: "active",
+      ...stamp(),
+    });
+    const held = (await call("GET", "/ruxstar/held-orders", viewer.token)).json().data;
+    expect(held).toEqual([
+      expect.objectContaining({ id: order.id, orderNo: order.orderNo, amount: 324_000, vendor: { id: owner.userId.toHexString(), name: "Asha Rao" }, problemOpen: false }),
+    ]);
+    expect(held[0].business).toMatchObject({ name: "Rao Prints" });
+    expect((await call("GET", `/ruxstar/held-orders?orderNo=${order.orderNo + 1}`, viewer.token)).json().data).toEqual([]);
+    const release = (token: string, reason = "The customer confirmed they got it") =>
+      call("POST", `/ruxstar/held-orders/${order.id}/release`, token, { reason });
+    expect((await release(viewer.token)).statusCode).toBe(403);
+    expect((await release(owner.token)).statusCode).toBe(403);
+
+    const admin = await signIn(stack, { admin: true });
+    expect((await release(admin.token, "ok")).statusCode).toBe(400);
+    const done = await release(admin.token);
+    expect(done.statusCode).toBe(200);
+    expect(done.json().data).toMatchObject({ id: order.id, amount: 324_000, releasedAt: expect.any(String) });
+    expect((await call("GET", "/vendor/payments", owner.token)).json().data.balance).toMatchObject({ available: 324_000, pending: 0 });
+    expect((await release(admin.token)).json().error.code).toBe("ORDER_STATE");
+    expect((await call("GET", "/ruxstar/held-orders", admin.token)).json().data).toEqual([]);
+    const audit = await stack.db.auditLogs.findOne({ action: "pod_order.release", "target.id": new ObjectId(order.id) });
+    expect(audit?.diff.reason).toEqual({ from: null, to: "The customer confirmed they got it" });
+    expect(await stack.db.notifications.findOne({ userId: owner.userId, title: "₹3,240 available", body: { $regex: "early" } })).not.toBeNull();
+    const entries = await stack.db.ledgerEntries.find({}).toArray();
+    expect(entries.reduce((s, e) => s + e.signedPaise, 0)).toBe(0);
+
+    const second = await inHand("delivered");
+    await call("POST", `/pod/orders/${second.order.id}/problem`, second.customer.token, { kind: "damaged", note: "The print is torn" });
+    expect((await call("GET", "/ruxstar/held-orders", admin.token)).json().data).toEqual([expect.objectContaining({ id: second.order.id, problemOpen: true })]);
+    const blocked = await call("POST", `/ruxstar/held-orders/${second.order.id}/release`, admin.token, { reason: "The vendor asked for it" });
+    expect(blocked.json().error).toMatchObject({ code: "ORDER_STATE", message: "Settle the problem the customer reported first." });
+  });
+
   it("lets the Ruxstar team set the platform fee", async () => {
     const admin = await signIn(stack, { admin: true });
     const res = await call("PATCH", "/ruxstar/modules/pod", admin.token, { platformFee: 1_000 });

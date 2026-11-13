@@ -39506,6 +39506,18 @@
                               {
                                 "type": "string",
                                 "enum": [
+                                  "payouts.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "payouts.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
                                   "audit.view"
                                 ]
                               }
@@ -39593,6 +39605,18 @@
                                     "type": "string",
                                     "enum": [
                                       "orders.manage"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "payouts.view"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "payouts.manage"
                                     ]
                                   },
                                   {
@@ -45979,6 +46003,890 @@
         }
       }
     },
+    "/v1/ruxstar/payouts": {
+      "get": {
+        "summary": "Vendors' withdrawals, newest first",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "`pending` is on the way, `failed` came back to the vendor's balance, `paid` reached their account.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "pending"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "failed"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "paid"
+                  ]
+                }
+              ],
+              "default": "pending"
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "vendor",
+                          "amount",
+                          "fee",
+                          "status",
+                          "to",
+                          "transferId",
+                          "utr",
+                          "failure",
+                          "attempts",
+                          "checkedAt",
+                          "paidAt",
+                          "createdAt"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "vendor": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "amount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Paise taken from the vendor's balance"
+                          },
+                          "fee": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Paise kept by Ruxstar; the bank gets amount - fee"
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "pending"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "paid"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "failed"
+                                ]
+                              }
+                            ]
+                          },
+                          "to": {
+                            "type": "string"
+                          },
+                          "transferId": {
+                            "type": "string",
+                            "description": "Cashfree's transfer_id"
+                          },
+                          "utr": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "failure": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "code",
+                                  "text"
+                                ],
+                                "properties": {
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "type": "string",
+                                    "description": "What the vendor was told"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "attempts": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Times it was sent to Cashfree"
+                          },
+                          "checkedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "paidAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/payouts/{id}/check": {
+      "post": {
+        "summary": "Ask Cashfree about a withdrawal on the way now",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "Settles it if Cashfree knows how it went, and sends it again only if Cashfree never got it. Safe to repeat.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "vendor",
+                        "amount",
+                        "fee",
+                        "status",
+                        "to",
+                        "transferId",
+                        "utr",
+                        "failure",
+                        "attempts",
+                        "checkedAt",
+                        "paidAt",
+                        "createdAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "vendor": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "amount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Paise taken from the vendor's balance"
+                        },
+                        "fee": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Paise kept by Ruxstar; the bank gets amount - fee"
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "pending"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "paid"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "failed"
+                              ]
+                            }
+                          ]
+                        },
+                        "to": {
+                          "type": "string"
+                        },
+                        "transferId": {
+                          "type": "string",
+                          "description": "Cashfree's transfer_id"
+                        },
+                        "utr": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "failure": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "code",
+                                "text"
+                              ],
+                              "properties": {
+                                "code": {
+                                  "type": "string"
+                                },
+                                "text": {
+                                  "type": "string",
+                                  "description": "What the vendor was told"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "attempts": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Times it was sent to Cashfree"
+                        },
+                        "checkedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "paidAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/held-orders": {
+      "get": {
+        "summary": "Delivered orders whose share is still on hold, latest release date first",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "Print orders wait 48 hours after delivery, and while a reported problem is open.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "in": "query",
+            "name": "orderNo",
+            "required": false,
+            "description": "Find one order by its number"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "orderNo",
+                          "module",
+                          "business",
+                          "vendor",
+                          "amount",
+                          "deliveredAt",
+                          "releaseAt",
+                          "problemOpen"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "orderNo": {
+                            "type": "integer"
+                          },
+                          "module": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "pod"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "events"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coaching"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "stays"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "delivery"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ledger"
+                                ]
+                              }
+                            ]
+                          },
+                          "business": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "vendor": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "amount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Paise: the shop's share left after partial refunds"
+                          },
+                          "deliveredAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "releaseAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "problemOpen": {
+                            "type": "boolean",
+                            "description": "A customer's reported problem waits for a decision; it can't be released until then"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/held-orders/{id}/release": {
+      "post": {
+        "summary": "Release one order's share before its hold is over",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "The vendor can withdraw it at once and is told. The reason goes to the audit log. A reported problem has to be settled first.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 300,
+                    "description": "Why it is released early; kept in the audit log"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "orderNo",
+                        "amount",
+                        "releasedAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "orderNo": {
+                          "type": "integer"
+                        },
+                        "amount": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "releasedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/ruxstar/users": {
       "get": {
         "summary": "Find people",
@@ -46597,6 +47505,18 @@
                                       {
                                         "type": "string",
                                         "enum": [
+                                          "payouts.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "payouts.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
                                           "audit.view"
                                         ]
                                       }
@@ -47068,6 +47988,18 @@
                                       {
                                         "type": "string",
                                         "enum": [
+                                          "payouts.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "payouts.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
                                           "audit.view"
                                         ]
                                       }
@@ -47511,6 +48443,18 @@
                                         "type": "string",
                                         "enum": [
                                           "orders.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "payouts.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "payouts.manage"
                                         ]
                                       },
                                       {
@@ -47964,6 +48908,18 @@
                                       {
                                         "type": "string",
                                         "enum": [
+                                          "payouts.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "payouts.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
                                           "audit.view"
                                         ]
                                       }
@@ -48196,6 +49152,18 @@
                                 {
                                   "type": "string",
                                   "enum": [
+                                    "payouts.view"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "payouts.manage"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
                                     "audit.view"
                                   ]
                                 }
@@ -48385,6 +49353,18 @@
                         {
                           "type": "string",
                           "enum": [
+                            "payouts.view"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "payouts.manage"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
                             "audit.view"
                           ]
                         }
@@ -48556,6 +49536,18 @@
                                 "type": "string",
                                 "enum": [
                                   "orders.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "payouts.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "payouts.manage"
                                 ]
                               },
                               {
@@ -48797,6 +49789,18 @@
                                 "type": "string",
                                 "enum": [
                                   "orders.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "payouts.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "payouts.manage"
                                 ]
                               },
                               {

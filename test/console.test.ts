@@ -64,7 +64,7 @@ describe("ruxstar console", () => {
       const all = (await call("GET", "/ruxstar/access", admin.token)).json().data;
       expect(all.admin).toBe(true);
       expect(all.permissions).toContain("users.manage");
-      expect(all.catalog).toHaveLength(13);
+      expect(all.catalog).toHaveLength(15);
 
       const support = await staffWith("kyc.view", "made.up");
       const mine = (await call("GET", "/ruxstar/access", support.token)).json().data;
