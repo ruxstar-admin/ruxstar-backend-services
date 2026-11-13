@@ -19946,9 +19946,15 @@
                                     "enum": [
                                       "team"
                                     ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "work_order"
+                                    ]
                                   }
                                 ],
-                                "description": "`verification` opens the KYC screen, `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team) and `team` a business's Team in the vendor portal (`id` is the business); `id` says which"
+                                "description": "`verification` opens the KYC screen, `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team), `team` a business's Team in the vendor portal (`id` is the business) and `work_order` an order to a shop you work at, in the Work area; `id` says which"
                               },
                               "id": {
                                 "type": "string"
@@ -42593,6 +42599,4308 @@
                             "additionalProperties": false
                           },
                           "description": "Products with a price, in catalog order"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/employment/{id}/orders": {
+      "get": {
+        "summary": "Orders to a shop you work at, newest first",
+        "tags": [
+          "employment"
+        ],
+        "description": "Needs \"See orders\". The shop's share and commission are null without \"See the shop's earnings\".",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "new"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "active"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "past"
+                  ]
+                }
+              ]
+            },
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "description": "`new` waits for you to accept, `active` is being made or delivered, `past` is delivered, turned down or cancelled"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "orderNo",
+                          "shop",
+                          "product",
+                          "productLabel",
+                          "pricing",
+                          "options",
+                          "colour",
+                          "quantity",
+                          "files",
+                          "address",
+                          "note",
+                          "status",
+                          "timeline",
+                          "paidAt",
+                          "refunds",
+                          "refunded",
+                          "reason",
+                          "acceptBy",
+                          "readyBy",
+                          "deliveredAt",
+                          "canReport",
+                          "reportUntil",
+                          "problem",
+                          "createdAt",
+                          "updatedAt",
+                          "price",
+                          "releaseAt",
+                          "releasedAt",
+                          "refundable",
+                          "placeId",
+                          "permissions"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "orderNo": {
+                            "type": "integer"
+                          },
+                          "shop": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "product": {
+                            "enum": [
+                              "tshirts",
+                              "hoodies",
+                              "jerseys",
+                              "business_cards",
+                              "posters",
+                              "flex_banners",
+                              "stickers",
+                              "invitations",
+                              "photo_prints",
+                              "documents"
+                            ]
+                          },
+                          "productLabel": {
+                            "type": "string"
+                          },
+                          "pricing": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "per_unit"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "per_page"
+                                ]
+                              }
+                            ]
+                          },
+                          "options": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          },
+                          "colour": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "bw"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "color"
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "quantity": {
+                            "type": "integer"
+                          },
+                          "files": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name",
+                                "contentType",
+                                "bytes",
+                                "pages"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "contentType": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "application/pdf"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "image/jpeg"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "image/png"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "bytes": {
+                                  "type": "integer"
+                                },
+                                "pages": {
+                                  "type": "integer",
+                                  "description": "PDF pages; 1 for a photo"
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "address": {
+                            "type": "object",
+                            "required": [
+                              "name",
+                              "phone",
+                              "line",
+                              "city",
+                              "pincode"
+                            ],
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "minLength": 2,
+                                "maxLength": 80
+                              },
+                              "phone": {
+                                "type": "string",
+                                "pattern": "^[6-9][0-9]{9}$",
+                                "description": "10 digits"
+                              },
+                              "line": {
+                                "type": "string",
+                                "minLength": 5,
+                                "maxLength": 300,
+                                "description": "House, street and area"
+                              },
+                              "city": {
+                                "type": "string",
+                                "minLength": 2,
+                                "maxLength": 60
+                              },
+                              "pincode": {
+                                "type": "string",
+                                "pattern": "^[1-9][0-9]{5}$"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "note": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "awaiting_payment"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "placed"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "accepted"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "printing"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "ready"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "out_for_delivery"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "delivered"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "rejected"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "cancelled"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "refunded"
+                                ]
+                              }
+                            ],
+                            "description": "`placed` is paid and waiting for the shop; `rejected` and `cancelled` after payment are refunded. `refunded` is an accepted order Ruxstar refunded in full."
+                          },
+                          "timeline": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "status",
+                                "at"
+                              ],
+                              "properties": {
+                                "status": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "awaiting_payment"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "placed"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "accepted"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "printing"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "ready"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "out_for_delivery"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "delivered"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "rejected"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "cancelled"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "refunded"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "`placed` is paid and waiting for the shop; `rejected` and `cancelled` after payment are refunded. `refunded` is an accepted order Ruxstar refunded in full."
+                                },
+                                "at": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "paidAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "refunds": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "amount",
+                                "kind",
+                                "reason",
+                                "status",
+                                "at"
+                              ],
+                              "properties": {
+                                "amount": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Amount in paise"
+                                },
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "full"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "partial"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "Partial refunds come out of the shop's share"
+                                },
+                                "reason": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "status": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "pending"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "done"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "at": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "description": "Oldest first"
+                          },
+                          "refunded": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Amount in paise"
+                          },
+                          "reason": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "description": "Why the shop turned it down, or why it was cancelled"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "acceptBy": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "While placed: cancelled and refunded if the shop hasn't accepted by then"
+                          },
+                          "readyBy": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "When the shop promised it ready: accepted plus the ready-in days"
+                          },
+                          "deliveredAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "canReport": {
+                            "type": "boolean",
+                            "description": "The customer can report a problem now"
+                          },
+                          "reportUntil": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The last moment to report a problem after delivery"
+                          },
+                          "problem": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "kind",
+                                  "note",
+                                  "photos",
+                                  "status",
+                                  "reportedAt",
+                                  "resolution"
+                                ],
+                                "properties": {
+                                  "kind": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "not_received"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "wrong_item"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "poor_quality"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "damaged"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "other"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "note": {
+                                    "type": "string"
+                                  },
+                                  "photos": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "required": [
+                                        "id",
+                                        "url"
+                                      ],
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{24}$",
+                                          "description": "MongoDB ObjectId as hex"
+                                        },
+                                        "url": {
+                                          "type": "string",
+                                          "description": "Opens the photo without signing in; works for 10 minutes"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "status": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "open"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "resolved"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "reportedAt": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  "resolution": {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "required": [
+                                          "outcome",
+                                          "amount",
+                                          "note",
+                                          "at"
+                                        ],
+                                        "properties": {
+                                          "outcome": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "enum": [
+                                                  "refunded"
+                                                ]
+                                              },
+                                              {
+                                                "type": "string",
+                                                "enum": [
+                                                  "partial"
+                                                ]
+                                              },
+                                              {
+                                                "type": "string",
+                                                "enum": [
+                                                  "dismissed"
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          "amount": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "description": "Amount in paise"
+                                          },
+                                          "note": {
+                                            "type": "string",
+                                            "description": "Ruxstar's answer, shown to the customer and the shop"
+                                          },
+                                          "at": {
+                                            "type": "string",
+                                            "format": "date-time"
+                                          }
+                                        },
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "price": {
+                            "type": "object",
+                            "required": [
+                              "units",
+                              "unitPrice",
+                              "extrasPerUnit",
+                              "items",
+                              "discount",
+                              "coupon",
+                              "platformFee",
+                              "total",
+                              "commissionBps",
+                              "commission",
+                              "payout",
+                              "payoutLeft"
+                            ],
+                            "properties": {
+                              "units": {
+                                "type": "integer",
+                                "description": "Pieces, or pages times copies for documents"
+                              },
+                              "unitPrice": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise"
+                              },
+                              "extrasPerUnit": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise"
+                              },
+                              "items": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise"
+                              },
+                              "discount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise. Taken off the items by the coupon."
+                              },
+                              "coupon": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "code",
+                                      "fundedBy",
+                                      "label"
+                                    ],
+                                    "properties": {
+                                      "code": {
+                                        "type": "string"
+                                      },
+                                      "fundedBy": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "ruxstar"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "vendor"
+                                            ]
+                                          }
+                                        ],
+                                        "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                      },
+                                      "label": {
+                                        "type": "string",
+                                        "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "platformFee": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise"
+                              },
+                              "total": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise. The items less the discount, plus the platform fee."
+                              },
+                              "commissionBps": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "commission": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Amount in paise"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "payout": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Amount in paise"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "payoutLeft": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Amount in paise"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "releaseAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "releasedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "refundable": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Amount in paise. The most you can refund now; 0 without permission to refund, or once the shop's share is released."
+                          },
+                          "placeId": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "permissions": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "orders.view"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "orders.move"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "orders.reject"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "orders.refund"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "earnings.view"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "shop.open"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "shop.catalog"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "shop.details"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "coupons.manage"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "posts.create"
+                                  ]
+                                }
+                              ],
+                              "description": "What the owner lets this person do at the business"
+                            },
+                            "description": "What you may do at this shop"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/employment/orders/{id}": {
+      "get": {
+        "summary": "One order to a shop you work at",
+        "tags": [
+          "employment"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "orderNo",
+                        "shop",
+                        "product",
+                        "productLabel",
+                        "pricing",
+                        "options",
+                        "colour",
+                        "quantity",
+                        "files",
+                        "address",
+                        "note",
+                        "status",
+                        "timeline",
+                        "paidAt",
+                        "refunds",
+                        "refunded",
+                        "reason",
+                        "acceptBy",
+                        "readyBy",
+                        "deliveredAt",
+                        "canReport",
+                        "reportUntil",
+                        "problem",
+                        "createdAt",
+                        "updatedAt",
+                        "price",
+                        "releaseAt",
+                        "releasedAt",
+                        "refundable",
+                        "placeId",
+                        "permissions"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "orderNo": {
+                          "type": "integer"
+                        },
+                        "shop": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "product": {
+                          "enum": [
+                            "tshirts",
+                            "hoodies",
+                            "jerseys",
+                            "business_cards",
+                            "posters",
+                            "flex_banners",
+                            "stickers",
+                            "invitations",
+                            "photo_prints",
+                            "documents"
+                          ]
+                        },
+                        "productLabel": {
+                          "type": "string"
+                        },
+                        "pricing": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "per_unit"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "per_page"
+                              ]
+                            }
+                          ]
+                        },
+                        "options": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "colour": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "bw"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "color"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "quantity": {
+                          "type": "integer"
+                        },
+                        "files": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name",
+                              "contentType",
+                              "bytes",
+                              "pages"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "contentType": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "application/pdf"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "image/jpeg"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "image/png"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "bytes": {
+                                "type": "integer"
+                              },
+                              "pages": {
+                                "type": "integer",
+                                "description": "PDF pages; 1 for a photo"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "address": {
+                          "type": "object",
+                          "required": [
+                            "name",
+                            "phone",
+                            "line",
+                            "city",
+                            "pincode"
+                          ],
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 80
+                            },
+                            "phone": {
+                              "type": "string",
+                              "pattern": "^[6-9][0-9]{9}$",
+                              "description": "10 digits"
+                            },
+                            "line": {
+                              "type": "string",
+                              "minLength": 5,
+                              "maxLength": 300,
+                              "description": "House, street and area"
+                            },
+                            "city": {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 60
+                            },
+                            "pincode": {
+                              "type": "string",
+                              "pattern": "^[1-9][0-9]{5}$"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "note": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "awaiting_payment"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "placed"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "accepted"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "printing"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ready"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "out_for_delivery"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "delivered"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "rejected"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "cancelled"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "refunded"
+                              ]
+                            }
+                          ],
+                          "description": "`placed` is paid and waiting for the shop; `rejected` and `cancelled` after payment are refunded. `refunded` is an accepted order Ruxstar refunded in full."
+                        },
+                        "timeline": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "status",
+                              "at"
+                            ],
+                            "properties": {
+                              "status": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "awaiting_payment"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "placed"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "accepted"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "printing"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "ready"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "out_for_delivery"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "delivered"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "rejected"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "cancelled"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "refunded"
+                                    ]
+                                  }
+                                ],
+                                "description": "`placed` is paid and waiting for the shop; `rejected` and `cancelled` after payment are refunded. `refunded` is an accepted order Ruxstar refunded in full."
+                              },
+                              "at": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "paidAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "refunds": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "amount",
+                              "kind",
+                              "reason",
+                              "status",
+                              "at"
+                            ],
+                            "properties": {
+                              "amount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise"
+                              },
+                              "kind": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "full"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "partial"
+                                    ]
+                                  }
+                                ],
+                                "description": "Partial refunds come out of the shop's share"
+                              },
+                              "reason": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "status": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "done"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "at": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Oldest first"
+                        },
+                        "refunded": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise"
+                        },
+                        "reason": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "Why the shop turned it down, or why it was cancelled"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "acceptBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "While placed: cancelled and refunded if the shop hasn't accepted by then"
+                        },
+                        "readyBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "When the shop promised it ready: accepted plus the ready-in days"
+                        },
+                        "deliveredAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "canReport": {
+                          "type": "boolean",
+                          "description": "The customer can report a problem now"
+                        },
+                        "reportUntil": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The last moment to report a problem after delivery"
+                        },
+                        "problem": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "kind",
+                                "note",
+                                "photos",
+                                "status",
+                                "reportedAt",
+                                "resolution"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "not_received"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "wrong_item"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "poor_quality"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "damaged"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "other"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "note": {
+                                  "type": "string"
+                                },
+                                "photos": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "required": [
+                                      "id",
+                                      "url"
+                                    ],
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "pattern": "^[a-f0-9]{24}$",
+                                        "description": "MongoDB ObjectId as hex"
+                                      },
+                                      "url": {
+                                        "type": "string",
+                                        "description": "Opens the photo without signing in; works for 10 minutes"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "status": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "open"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "resolved"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "reportedAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "resolution": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "outcome",
+                                        "amount",
+                                        "note",
+                                        "at"
+                                      ],
+                                      "properties": {
+                                        "outcome": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "refunded"
+                                              ]
+                                            },
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "partial"
+                                              ]
+                                            },
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "dismissed"
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        "amount": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "description": "Amount in paise"
+                                        },
+                                        "note": {
+                                          "type": "string",
+                                          "description": "Ruxstar's answer, shown to the customer and the shop"
+                                        },
+                                        "at": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "price": {
+                          "type": "object",
+                          "required": [
+                            "units",
+                            "unitPrice",
+                            "extrasPerUnit",
+                            "items",
+                            "discount",
+                            "coupon",
+                            "platformFee",
+                            "total",
+                            "commissionBps",
+                            "commission",
+                            "payout",
+                            "payoutLeft"
+                          ],
+                          "properties": {
+                            "units": {
+                              "type": "integer",
+                              "description": "Pieces, or pages times copies for documents"
+                            },
+                            "unitPrice": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            "extrasPerUnit": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            "discount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise. Taken off the items by the coupon."
+                            },
+                            "coupon": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "code",
+                                    "fundedBy",
+                                    "label"
+                                  ],
+                                  "properties": {
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "fundedBy": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "ruxstar"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "vendor"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "platformFee": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise. The items less the discount, plus the platform fee."
+                            },
+                            "commissionBps": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "commission": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Amount in paise"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "payout": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Amount in paise"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "payoutLeft": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Amount in paise"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "releaseAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "releasedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "refundable": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise. The most you can refund now; 0 without permission to refund, or once the shop's share is released."
+                        },
+                        "placeId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.move"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.reject"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.refund"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "earnings.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.open"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.catalog"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.details"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coupons.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "posts.create"
+                                ]
+                              }
+                            ],
+                            "description": "What the owner lets this person do at the business"
+                          },
+                          "description": "What you may do at this shop"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/employment/orders/{id}/status": {
+      "post": {
+        "summary": "Accept or turn down a new order, or move it on",
+        "tags": [
+          "employment"
+        ],
+        "description": "Turning one down needs \"Turn down orders\"; everything else needs \"Accept and move orders\". The same rules as the owner.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "accepted"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "printing"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "ready"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "out_for_delivery"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "delivered"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "rejected"
+                        ]
+                      }
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 300,
+                    "description": "Required to turn an order down; the customer sees it"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "orderNo",
+                        "shop",
+                        "product",
+                        "productLabel",
+                        "pricing",
+                        "options",
+                        "colour",
+                        "quantity",
+                        "files",
+                        "address",
+                        "note",
+                        "status",
+                        "timeline",
+                        "paidAt",
+                        "refunds",
+                        "refunded",
+                        "reason",
+                        "acceptBy",
+                        "readyBy",
+                        "deliveredAt",
+                        "canReport",
+                        "reportUntil",
+                        "problem",
+                        "createdAt",
+                        "updatedAt",
+                        "price",
+                        "releaseAt",
+                        "releasedAt",
+                        "refundable",
+                        "placeId",
+                        "permissions"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "orderNo": {
+                          "type": "integer"
+                        },
+                        "shop": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "product": {
+                          "enum": [
+                            "tshirts",
+                            "hoodies",
+                            "jerseys",
+                            "business_cards",
+                            "posters",
+                            "flex_banners",
+                            "stickers",
+                            "invitations",
+                            "photo_prints",
+                            "documents"
+                          ]
+                        },
+                        "productLabel": {
+                          "type": "string"
+                        },
+                        "pricing": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "per_unit"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "per_page"
+                              ]
+                            }
+                          ]
+                        },
+                        "options": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "colour": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "bw"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "color"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "quantity": {
+                          "type": "integer"
+                        },
+                        "files": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name",
+                              "contentType",
+                              "bytes",
+                              "pages"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "contentType": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "application/pdf"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "image/jpeg"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "image/png"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "bytes": {
+                                "type": "integer"
+                              },
+                              "pages": {
+                                "type": "integer",
+                                "description": "PDF pages; 1 for a photo"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "address": {
+                          "type": "object",
+                          "required": [
+                            "name",
+                            "phone",
+                            "line",
+                            "city",
+                            "pincode"
+                          ],
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 80
+                            },
+                            "phone": {
+                              "type": "string",
+                              "pattern": "^[6-9][0-9]{9}$",
+                              "description": "10 digits"
+                            },
+                            "line": {
+                              "type": "string",
+                              "minLength": 5,
+                              "maxLength": 300,
+                              "description": "House, street and area"
+                            },
+                            "city": {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 60
+                            },
+                            "pincode": {
+                              "type": "string",
+                              "pattern": "^[1-9][0-9]{5}$"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "note": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "awaiting_payment"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "placed"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "accepted"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "printing"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ready"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "out_for_delivery"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "delivered"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "rejected"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "cancelled"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "refunded"
+                              ]
+                            }
+                          ],
+                          "description": "`placed` is paid and waiting for the shop; `rejected` and `cancelled` after payment are refunded. `refunded` is an accepted order Ruxstar refunded in full."
+                        },
+                        "timeline": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "status",
+                              "at"
+                            ],
+                            "properties": {
+                              "status": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "awaiting_payment"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "placed"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "accepted"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "printing"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "ready"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "out_for_delivery"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "delivered"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "rejected"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "cancelled"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "refunded"
+                                    ]
+                                  }
+                                ],
+                                "description": "`placed` is paid and waiting for the shop; `rejected` and `cancelled` after payment are refunded. `refunded` is an accepted order Ruxstar refunded in full."
+                              },
+                              "at": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "paidAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "refunds": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "amount",
+                              "kind",
+                              "reason",
+                              "status",
+                              "at"
+                            ],
+                            "properties": {
+                              "amount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise"
+                              },
+                              "kind": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "full"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "partial"
+                                    ]
+                                  }
+                                ],
+                                "description": "Partial refunds come out of the shop's share"
+                              },
+                              "reason": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "status": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "done"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "at": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Oldest first"
+                        },
+                        "refunded": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise"
+                        },
+                        "reason": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "Why the shop turned it down, or why it was cancelled"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "acceptBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "While placed: cancelled and refunded if the shop hasn't accepted by then"
+                        },
+                        "readyBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "When the shop promised it ready: accepted plus the ready-in days"
+                        },
+                        "deliveredAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "canReport": {
+                          "type": "boolean",
+                          "description": "The customer can report a problem now"
+                        },
+                        "reportUntil": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The last moment to report a problem after delivery"
+                        },
+                        "problem": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "kind",
+                                "note",
+                                "photos",
+                                "status",
+                                "reportedAt",
+                                "resolution"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "not_received"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "wrong_item"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "poor_quality"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "damaged"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "other"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "note": {
+                                  "type": "string"
+                                },
+                                "photos": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "required": [
+                                      "id",
+                                      "url"
+                                    ],
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "pattern": "^[a-f0-9]{24}$",
+                                        "description": "MongoDB ObjectId as hex"
+                                      },
+                                      "url": {
+                                        "type": "string",
+                                        "description": "Opens the photo without signing in; works for 10 minutes"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "status": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "open"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "resolved"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "reportedAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "resolution": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "outcome",
+                                        "amount",
+                                        "note",
+                                        "at"
+                                      ],
+                                      "properties": {
+                                        "outcome": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "refunded"
+                                              ]
+                                            },
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "partial"
+                                              ]
+                                            },
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "dismissed"
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        "amount": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "description": "Amount in paise"
+                                        },
+                                        "note": {
+                                          "type": "string",
+                                          "description": "Ruxstar's answer, shown to the customer and the shop"
+                                        },
+                                        "at": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "price": {
+                          "type": "object",
+                          "required": [
+                            "units",
+                            "unitPrice",
+                            "extrasPerUnit",
+                            "items",
+                            "discount",
+                            "coupon",
+                            "platformFee",
+                            "total",
+                            "commissionBps",
+                            "commission",
+                            "payout",
+                            "payoutLeft"
+                          ],
+                          "properties": {
+                            "units": {
+                              "type": "integer",
+                              "description": "Pieces, or pages times copies for documents"
+                            },
+                            "unitPrice": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            "extrasPerUnit": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            "discount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise. Taken off the items by the coupon."
+                            },
+                            "coupon": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "code",
+                                    "fundedBy",
+                                    "label"
+                                  ],
+                                  "properties": {
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "fundedBy": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "ruxstar"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "vendor"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "platformFee": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise. The items less the discount, plus the platform fee."
+                            },
+                            "commissionBps": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "commission": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Amount in paise"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "payout": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Amount in paise"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "payoutLeft": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Amount in paise"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "releaseAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "releasedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "refundable": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise. The most you can refund now; 0 without permission to refund, or once the shop's share is released."
+                        },
+                        "placeId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.move"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.reject"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.refund"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "earnings.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.open"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.catalog"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.details"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coupons.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "posts.create"
+                                ]
+                              }
+                            ],
+                            "description": "What the owner lets this person do at the business"
+                          },
+                          "description": "What you may do at this shop"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/employment/orders/{id}/refund": {
+      "post": {
+        "summary": "Refund part of an order",
+        "tags": [
+          "employment"
+        ],
+        "description": "Needs \"Refund part of an order\". It comes out of the shop's share, up to `refundable`, and the order carries on.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "amount",
+                  "reason"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "integer",
+                    "minimum": 100,
+                    "description": "Amount in paise, at least ₹1"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 300,
+                    "description": "The customer sees it"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "orderNo",
+                        "shop",
+                        "product",
+                        "productLabel",
+                        "pricing",
+                        "options",
+                        "colour",
+                        "quantity",
+                        "files",
+                        "address",
+                        "note",
+                        "status",
+                        "timeline",
+                        "paidAt",
+                        "refunds",
+                        "refunded",
+                        "reason",
+                        "acceptBy",
+                        "readyBy",
+                        "deliveredAt",
+                        "canReport",
+                        "reportUntil",
+                        "problem",
+                        "createdAt",
+                        "updatedAt",
+                        "price",
+                        "releaseAt",
+                        "releasedAt",
+                        "refundable",
+                        "placeId",
+                        "permissions"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "orderNo": {
+                          "type": "integer"
+                        },
+                        "shop": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "product": {
+                          "enum": [
+                            "tshirts",
+                            "hoodies",
+                            "jerseys",
+                            "business_cards",
+                            "posters",
+                            "flex_banners",
+                            "stickers",
+                            "invitations",
+                            "photo_prints",
+                            "documents"
+                          ]
+                        },
+                        "productLabel": {
+                          "type": "string"
+                        },
+                        "pricing": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "per_unit"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "per_page"
+                              ]
+                            }
+                          ]
+                        },
+                        "options": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "colour": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "bw"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "color"
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "quantity": {
+                          "type": "integer"
+                        },
+                        "files": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name",
+                              "contentType",
+                              "bytes",
+                              "pages"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "contentType": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "application/pdf"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "image/jpeg"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "image/png"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "bytes": {
+                                "type": "integer"
+                              },
+                              "pages": {
+                                "type": "integer",
+                                "description": "PDF pages; 1 for a photo"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "address": {
+                          "type": "object",
+                          "required": [
+                            "name",
+                            "phone",
+                            "line",
+                            "city",
+                            "pincode"
+                          ],
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 80
+                            },
+                            "phone": {
+                              "type": "string",
+                              "pattern": "^[6-9][0-9]{9}$",
+                              "description": "10 digits"
+                            },
+                            "line": {
+                              "type": "string",
+                              "minLength": 5,
+                              "maxLength": 300,
+                              "description": "House, street and area"
+                            },
+                            "city": {
+                              "type": "string",
+                              "minLength": 2,
+                              "maxLength": 60
+                            },
+                            "pincode": {
+                              "type": "string",
+                              "pattern": "^[1-9][0-9]{5}$"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "note": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "awaiting_payment"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "placed"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "accepted"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "printing"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "ready"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "out_for_delivery"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "delivered"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "rejected"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "cancelled"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "refunded"
+                              ]
+                            }
+                          ],
+                          "description": "`placed` is paid and waiting for the shop; `rejected` and `cancelled` after payment are refunded. `refunded` is an accepted order Ruxstar refunded in full."
+                        },
+                        "timeline": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "status",
+                              "at"
+                            ],
+                            "properties": {
+                              "status": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "awaiting_payment"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "placed"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "accepted"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "printing"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "ready"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "out_for_delivery"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "delivered"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "rejected"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "cancelled"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "refunded"
+                                    ]
+                                  }
+                                ],
+                                "description": "`placed` is paid and waiting for the shop; `rejected` and `cancelled` after payment are refunded. `refunded` is an accepted order Ruxstar refunded in full."
+                              },
+                              "at": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "paidAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "refunds": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "amount",
+                              "kind",
+                              "reason",
+                              "status",
+                              "at"
+                            ],
+                            "properties": {
+                              "amount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise"
+                              },
+                              "kind": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "full"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "partial"
+                                    ]
+                                  }
+                                ],
+                                "description": "Partial refunds come out of the shop's share"
+                              },
+                              "reason": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "status": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "done"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "at": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Oldest first"
+                        },
+                        "refunded": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise"
+                        },
+                        "reason": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "Why the shop turned it down, or why it was cancelled"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "acceptBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "While placed: cancelled and refunded if the shop hasn't accepted by then"
+                        },
+                        "readyBy": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "When the shop promised it ready: accepted plus the ready-in days"
+                        },
+                        "deliveredAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "canReport": {
+                          "type": "boolean",
+                          "description": "The customer can report a problem now"
+                        },
+                        "reportUntil": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The last moment to report a problem after delivery"
+                        },
+                        "problem": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "kind",
+                                "note",
+                                "photos",
+                                "status",
+                                "reportedAt",
+                                "resolution"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "not_received"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "wrong_item"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "poor_quality"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "damaged"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "other"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "note": {
+                                  "type": "string"
+                                },
+                                "photos": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "required": [
+                                      "id",
+                                      "url"
+                                    ],
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "pattern": "^[a-f0-9]{24}$",
+                                        "description": "MongoDB ObjectId as hex"
+                                      },
+                                      "url": {
+                                        "type": "string",
+                                        "description": "Opens the photo without signing in; works for 10 minutes"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "status": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "open"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "resolved"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "reportedAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "resolution": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "outcome",
+                                        "amount",
+                                        "note",
+                                        "at"
+                                      ],
+                                      "properties": {
+                                        "outcome": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "refunded"
+                                              ]
+                                            },
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "partial"
+                                              ]
+                                            },
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "dismissed"
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        "amount": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "description": "Amount in paise"
+                                        },
+                                        "note": {
+                                          "type": "string",
+                                          "description": "Ruxstar's answer, shown to the customer and the shop"
+                                        },
+                                        "at": {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "price": {
+                          "type": "object",
+                          "required": [
+                            "units",
+                            "unitPrice",
+                            "extrasPerUnit",
+                            "items",
+                            "discount",
+                            "coupon",
+                            "platformFee",
+                            "total",
+                            "commissionBps",
+                            "commission",
+                            "payout",
+                            "payoutLeft"
+                          ],
+                          "properties": {
+                            "units": {
+                              "type": "integer",
+                              "description": "Pieces, or pages times copies for documents"
+                            },
+                            "unitPrice": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            "extrasPerUnit": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            "discount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise. Taken off the items by the coupon."
+                            },
+                            "coupon": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "code",
+                                    "fundedBy",
+                                    "label"
+                                  ],
+                                  "properties": {
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "fundedBy": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "ruxstar"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "vendor"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "platformFee": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise. The items less the discount, plus the platform fee."
+                            },
+                            "commissionBps": {
+                              "anyOf": [
+                                {
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "commission": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Amount in paise"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "payout": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Amount in paise"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "payoutLeft": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Amount in paise"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "releaseAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "releasedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "refundable": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise. The most you can refund now; 0 without permission to refund, or once the shop's share is released."
+                        },
+                        "placeId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.move"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.reject"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.refund"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "earnings.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.open"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.catalog"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.details"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coupons.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "posts.create"
+                                ]
+                              }
+                            ],
+                            "description": "What the owner lets this person do at the business"
+                          },
+                          "description": "What you may do at this shop"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/employment/orders/{id}/files/{fileId}": {
+      "get": {
+        "summary": "A link to a file to print",
+        "tags": [
+          "employment"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "fileId",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "url",
+                        "expiresAt"
+                      ],
+                      "properties": {
+                        "url": {
+                          "type": "string",
+                          "description": "Opens the file without signing in; works for 10 minutes"
+                        },
+                        "expiresAt": {
+                          "type": "string",
+                          "format": "date-time"
                         }
                       },
                       "additionalProperties": false

@@ -40,10 +40,11 @@ const Notification = Strict({
         Type.Literal("payments"),
         Type.Literal("work"),
         Type.Literal("team"),
+        Type.Literal("work_order"),
       ],
       {
         description:
-          "`verification` opens the KYC screen, `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team) and `team` a business's Team in the vendor portal (`id` is the business); `id` says which",
+          "`verification` opens the KYC screen, `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team), `team` a business's Team in the vendor portal (`id` is the business) and `work_order` an order to a shop you work at, in the Work area; `id` says which",
       },
     ),
     id: Type.String(),

@@ -142,7 +142,16 @@ export async function notifyBusinessHold(
 export async function notifyOrder(
   db: Database,
   log: FastifyBaseLogger,
-  event: { to: ObjectId; actor: ObjectId; orderId: ObjectId; type: "order.placed" | "order.updated"; forShop: boolean; title: string; body: string },
+  event: {
+    to: ObjectId;
+    actor: ObjectId;
+    orderId: ObjectId;
+    type: "order.placed" | "order.updated";
+    /** `team`: someone working at the shop, who opens it in the Work area. */
+    forShop: boolean | "team";
+    title: string;
+    body: string;
+  },
 ): Promise<void> {
   try {
     await save(db, {
@@ -152,7 +161,7 @@ export async function notifyOrder(
       actorId: event.actor,
       title: clip(event.title, 60),
       body: clip(event.body, 140),
-      link: { screen: event.forShop ? "shop_order" : "order", id: event.orderId.toHexString() },
+      link: { screen: event.forShop === "team" ? "work_order" : event.forShop ? "shop_order" : "order", id: event.orderId.toHexString() },
       readAt: null,
       createdAt: new Date(),
     });

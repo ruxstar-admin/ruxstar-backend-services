@@ -454,7 +454,7 @@ export interface NotificationDoc {
    * `payments` opens the vendor's Payments (its id is the payout); `work` opens the Work area (its id is the place on the team);
    * `team` opens a business's Team in the vendor portal (its id is the business).
    */
-  link: { screen: "post" | "verification" | "business" | "order" | "shop_order" | "profile" | "payments" | "work" | "team"; id: string };
+  link: { screen: "post" | "verification" | "business" | "order" | "shop_order" | "profile" | "payments" | "work" | "team" | "work_order"; id: string };
   readAt: Date | null;
   createdAt: Date;
 }

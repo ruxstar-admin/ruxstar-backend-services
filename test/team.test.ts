@@ -178,14 +178,16 @@ describe("vendor team", () => {
     expect((await call("GET", `/vendor/businesses/${id}/team`, owner.token)).json().data.members[0].status).toBe("waiting");
 
     const businessId = new ObjectId(id);
-    await expect(teamAccess(stack.db, { userId: waiting.userId, kyc: {} }, businessId, "orders.view")).rejects.toMatchObject({ code: "KYC_REQUIRED" });
+    const at = { businessId };
+    await expect(teamAccess(stack.db, { userId: waiting.userId, kyc: {} }, at, "orders.view")).rejects.toMatchObject({ code: "KYC_REQUIRED" });
     const verified = { userId: waiting.userId, kyc: { base: "approved" as const } };
-    await expect(teamAccess(stack.db, verified, businessId, "orders.view")).resolves.toMatchObject({ business: { name: "Rao Prints" } });
-    await expect(teamAccess(stack.db, verified, businessId, "orders.refund")).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(teamAccess(stack.db, { userId: owner.userId, kyc: { base: "approved" } }, businessId, "orders.view")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(teamAccess(stack.db, verified, at, "orders.view")).resolves.toMatchObject({ business: { name: "Rao Prints" } });
+    await expect(teamAccess(stack.db, verified, { placeId: member.id }, "orders.view")).resolves.toMatchObject({ business: { name: "Rao Prints" } });
+    await expect(teamAccess(stack.db, verified, at, "orders.refund")).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(teamAccess(stack.db, { userId: owner.userId, kyc: { base: "approved" } }, at, "orders.view")).rejects.toMatchObject({ code: "NOT_FOUND" });
 
     await stack.db.businesses.updateOne({ _id: businessId }, { $set: { suspension: { at: new Date(), reason: "Checks", by: owner.userId } } as never });
-    await expect(teamAccess(stack.db, verified, businessId, "orders.view")).rejects.toMatchObject({ code: "BUSINESS_SUSPENDED" });
+    await expect(teamAccess(stack.db, verified, at, "orders.view")).rejects.toMatchObject({ code: "BUSINESS_SUSPENDED" });
   });
 
   it("lets the person decline or leave, and the owner remove or cancel, telling the right people", async () => {

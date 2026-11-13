@@ -381,6 +381,17 @@ export async function moveOrder(
       title: `New order ${no}`,
       body: `${moved.productLabel} × ${moved.quantity} for ${moved.address.city}. ${rupees(shopShare(moved))} to you.`,
     });
+    for (const place of await teamToTell(db, moved.shopId)) {
+      await notifyOrder(db, app.log, {
+        to: place.userId,
+        actor,
+        orderId: moved._id,
+        type: "order.placed",
+        forShop: "team",
+        title: `New order ${no} at ${moved.shopName}`,
+        body: `${moved.productLabel} × ${moved.quantity} for ${moved.address.city}.${place.permissions.includes("earnings.view") ? ` ${rupees(shopShare(moved))} to the shop.` : ""}`,
+      });
+    }
   } else if (to === "cancelled" && refunding) {
     const late = by.kind === "system";
     await notifyOrder(db, app.log, {
@@ -437,6 +448,18 @@ export async function moveOrder(
     await notifyOrder(db, app.log, { to: moved.customerId, actor, orderId: moved._id, type: "order.updated", forShop: false, title: `${title}: ${no}`, body });
   }
   return result;
+}
+
+/** People working at the shop who can see orders and are verified, so the order works for them. */
+async function teamToTell(db: Database, shopId: ObjectId) {
+  const places = await db.employments
+    .find({ businessId: shopId, status: "active", current: true, permissions: "orders.view" }, { projection: { userId: 1, permissions: 1 } })
+    .toArray();
+  if (!places.length) return [];
+  const verified = await db.users
+    .find({ _id: { $in: places.map((p) => p.userId) }, status: "active", "kyc.base": "approved" }, { projection: { _id: 1 } })
+    .toArray();
+  return places.filter((p) => verified.some((u) => u._id.equals(p.userId)));
 }
 
 export const hasPendingRefund = (order: PodOrderDoc) => refundsOf(order).some((r) => r.status === "pending");

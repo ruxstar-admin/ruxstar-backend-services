@@ -2,6 +2,7 @@ import { Type, type Static, type TSchema } from "typebox";
 import { DateTime, Envelope, ListEnvelope, ObjectIdString, PageQuery, Paise, Strict } from "../../contracts/common.js";
 import { AppliedCoupon, Offer } from "../coupons/contracts.js";
 import { Photo } from "../social/contracts.js";
+import { TeamPermission } from "../team/contracts.js";
 import { BusinessTypeId, PodProductId } from "../vendor/contracts.js";
 
 const Nullable = <T extends TSchema>(schema: T, options?: { description: string }) => Type.Union([schema, Type.Null()], options);
@@ -257,21 +258,39 @@ export type ShopOrder = Static<typeof ShopOrder>;
 export const ShopOrderOne = Envelope(ShopOrder);
 export const ShopOrderList = ListEnvelope(ShopOrder);
 
+/** The same order as someone on the shop's team sees it. The shop's money is null without "See the shop's earnings". */
+export const TeamOrder = Strict({
+  ...OrderCore,
+  price: Strict({
+    ...Price.properties,
+    commissionBps: Nullable(Type.Integer()),
+    commission: Nullable(Paise),
+    payout: Nullable(Paise),
+    payoutLeft: Nullable(Paise),
+  }),
+  releaseAt: Nullable(DateTime),
+  releasedAt: Nullable(DateTime),
+  refundable: PaiseNote("The most you can refund now; 0 without permission to refund, or once the shop's share is released."),
+  placeId: ObjectIdString,
+  permissions: Type.Array(TeamPermission, { description: "What you may do at this shop" }),
+});
+export type TeamOrder = Static<typeof TeamOrder>;
+export const TeamOrderOne = Envelope(TeamOrder);
+export const TeamOrderList = ListEnvelope(TeamOrder);
+
 export const FileLink = Envelope(
   Strict({ url: Type.String({ description: "Opens the file without signing in; works for 10 minutes" }), expiresAt: DateTime }),
 );
 export const OrderParams = Strict({ id: ObjectIdString });
 export const OrderFileParams = Strict({ id: ObjectIdString, fileId: ObjectIdString });
 export const OrdersQuery = Strict({ ...PageQuery });
-export const ShopOrdersQuery = Strict({
-  ...PageQuery,
-  business: Type.Optional(ObjectIdString),
-  view: Type.Optional(
-    Type.Union([Type.Literal("new"), Type.Literal("active"), Type.Literal("past")], {
-      description: "`new` waits for you to accept, `active` is being made or delivered, `past` is delivered, turned down or cancelled",
-    }),
-  ),
-});
+const OrderView = Type.Optional(
+  Type.Union([Type.Literal("new"), Type.Literal("active"), Type.Literal("past")], {
+    description: "`new` waits for you to accept, `active` is being made or delivered, `past` is delivered, turned down or cancelled",
+  }),
+);
+export const ShopOrdersQuery = Strict({ ...PageQuery, business: Type.Optional(ObjectIdString), view: OrderView });
+export const TeamOrdersQuery = Strict({ ...PageQuery, view: OrderView });
 
 export const ShopStatus = Type.Union([
   Type.Literal("accepted"),
