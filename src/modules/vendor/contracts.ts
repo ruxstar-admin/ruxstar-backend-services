@@ -131,6 +131,30 @@ export type Business = Static<typeof Business>;
 export const BusinessList = ListEnvelope(Business);
 export const BusinessOne = Envelope(Business);
 export const BusinessParams = Strict({ id: ObjectIdString });
+
+export const ActivityQuery = Strict({
+  ...PageQuery,
+  by: Type.Optional(Type.String({ pattern: "^[a-f0-9]{24}$", description: "Only what this person did, by user id (someone on the team, or you)" })),
+});
+
+const ActivityEntry = Strict({
+  id: ObjectIdString,
+  at: DateTime,
+  who: Strict({
+    kind: Type.Union([Type.Literal("you"), Type.Literal("team"), Type.Literal("customer"), Type.Literal("ruxstar")], {
+      description: "`team` is someone who is or was on the team. Customers and the Ruxstar team stay unnamed.",
+    }),
+    id: Type.Union([ObjectIdString, Type.Null()], { description: "The user, for you and the team" }),
+    name: Type.String({ description: '"You", their name, "A customer" or "Ruxstar"' }),
+    username: Type.Union([Type.String(), Type.Null()]),
+    avatar: Type.Union([Type.String(), Type.Null()]),
+  }),
+  action: Type.String({ description: "Such as `pod_order.status` or `business.open`" }),
+  line: Type.String({ description: 'What happened, without who: "Accepted order #1042"' }),
+  orderId: Type.Union([ObjectIdString, Type.Null()], { description: "The order it was about, to open it" }),
+});
+export type ActivityEntry = Static<typeof ActivityEntry>;
+export const ActivityList = ListEnvelope(ActivityEntry);
 export const PhotoParams = Strict({ id: ObjectIdString, photoId: Type.String({ pattern: "^[a-f0-9-]{36}$" }) });
 
 export const CreateBusinessBody = Strict({

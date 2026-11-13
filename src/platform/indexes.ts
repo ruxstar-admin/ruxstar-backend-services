@@ -26,7 +26,9 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.sessions.createIndex({ pushToken: 1 }, { partialFilterExpression: { pushToken: { $type: "string" } } }),
     db.otps.createIndex({ target: 1, purpose: 1 }, { unique: true }),
     db.otps.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
-    db.auditLogs.createIndex({ "scope.businessId": 1, at: -1 }),
+    // A business's activity for its owner, everyone's or one person's.
+    db.auditLogs.createIndex({ "scope.businessId": 1, at: -1, _id: -1 }),
+    db.auditLogs.createIndex({ "scope.businessId": 1, "actor.id": 1, at: -1, _id: -1 }),
     db.auditLogs.createIndex({ "scope.module": 1, at: -1 }),
     db.auditLogs.createIndex({ "actor.id": 1, at: -1 }),
     db.auditLogs.createIndex({ "target.id": 1, at: -1 }),

@@ -29,6 +29,7 @@ import {
   UpdateBusinessBody,
   type Business,
 } from "./contracts.js";
+import activity from "./activity.js";
 import coupons from "./coupons.js";
 import { INDIA } from "./india.js";
 import orders from "./orders.js";
@@ -48,6 +49,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(orders);
   await app.register(coupons);
   await app.register(team);
+  await app.register(activity);
 
   const db = () => requireDatabase(app.db);
 
