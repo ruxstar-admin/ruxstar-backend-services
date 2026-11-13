@@ -1,3 +1,5 @@
+import type { OneSignalSettings } from "./adapters/push.js";
+
 export type RuxstarEnv = "dev" | "staging" | "prod";
 
 export interface Config {
@@ -50,6 +52,8 @@ export interface Config {
    * Google ID token carries (API_URL). Null leaves the route off; orders still catch up whenever they are opened.
    */
   jobs: { invoker: string; audience: string } | null;
+  /** Phone notifications. Null sends none; the notifications screen still fills up. */
+  push: OneSignalSettings | null;
 }
 
 export interface CashfreeSettings {
@@ -188,6 +192,12 @@ export function loadConfig(env: Env = process.env): Config {
   const jobsInvoker = read(env, "JOBS_INVOKER");
   if (jobsInvoker && !/^[^@\s]+@[^@\s]+\.iam\.gserviceaccount\.com$/.test(jobsInvoker)) problems.push("JOBS_INVOKER must be a service account email");
   if (jobsInvoker && !apiUrl) problems.push("JOBS_INVOKER needs API_URL, the audience of the scheduler's token");
+  const oneSignalApp = read(env, "ONESIGNAL_APP_ID");
+  const oneSignalKey = read(env, "ONESIGNAL_API_KEY");
+  if (oneSignalApp && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(oneSignalApp)) {
+    problems.push("ONESIGNAL_APP_ID must be the app's id, a UUID from OneSignal's Keys & IDs");
+  }
+  if (!oneSignalApp !== !oneSignalKey) problems.push("ONESIGNAL_APP_ID and ONESIGNAL_API_KEY go together");
 
   if (problems.length) throw new ConfigError(problems);
 
@@ -246,5 +256,6 @@ export function loadConfig(env: Env = process.env): Config {
     printFiles: printBucket ? { bucket: printBucket } : null,
     chatPhotos: chatBucket ? { bucket: chatBucket } : null,
     jobs: jobsInvoker && apiUrl ? { invoker: jobsInvoker, audience: apiUrl } : null,
+    push: oneSignalApp && oneSignalKey ? { appId: oneSignalApp, apiKey: oneSignalKey } : null,
   };
 }

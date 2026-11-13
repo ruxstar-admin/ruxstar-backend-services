@@ -486,7 +486,6 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
         title: conversation.kind === "group" ? (conversation.title ?? "Group") : senderName,
         body: conversation.kind === "group" ? `${senderName}: ${text}` : text,
         data: { chatId: conversation._id.toHexString() },
-        channelId: "messages",
       });
     } catch (err) {
       app.log.warn({ err: (err as Error).message }, "Message notification failed");

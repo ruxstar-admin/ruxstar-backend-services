@@ -444,7 +444,7 @@ describe("live chat", () => {
 describe("phone notifications", () => {
   /** Signs the person in on a phone with the app, registered for notifications. */
   async function onPhone(who: Person) {
-    const pushToken = `ExponentPushToken[${randomUUID()}]`;
+    const pushToken = randomUUID();
     await stack.db.sessions.insertOne({
       _id: new ObjectId(),
       userId: who.userId,
@@ -471,7 +471,7 @@ describe("phone notifications", () => {
     await say(ravi, chat.id, "Are you coming?");
     await vi.waitFor(() =>
       expect(sentTo(phone)).toContainEqual(
-        expect.objectContaining({ title: "Ravi Push", body: "Are you coming?", data: { chatId: chat.id }, channelId: "messages" }),
+        expect.objectContaining({ title: "Ravi Push", body: "Are you coming?", data: { chatId: chat.id } }),
       ),
     );
 
@@ -490,7 +490,7 @@ describe("phone notifications", () => {
     await follow(ravi, asha);
     await vi.waitFor(() =>
       expect(sentTo(phone)).toEqual([
-        expect.objectContaining({ title: "New follower", channelId: "activity", data: expect.objectContaining({ screen: "profile", id: ravi.id }) }),
+        expect.objectContaining({ title: "New follower", data: expect.objectContaining({ screen: "profile", id: ravi.id }) }),
       ]),
     );
     await call("DELETE", `/social/users/${asha.id}/follow`, ravi);

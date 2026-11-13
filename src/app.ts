@@ -122,7 +122,7 @@ export async function buildApp({
   app.decorate("payments", payments ?? createPaymentGateway(config, app.log));
   app.decorate("printFiles", printFiles ?? createPrintFileStore(config, app.log));
   app.decorate("chatPhotos", chatPhotos ?? createChatPhotoStore(config, app.log));
-  app.decorate("push", push ?? createPushSender(app.log));
+  app.decorate("push", push ?? createPushSender(config.push, app.log));
   if (db) usePush(db, app.push, app.log);
 
   app.addHook("onRequest", async (request, reply) => {

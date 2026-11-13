@@ -27,7 +27,6 @@ function announce(doc: Pick<NotificationDoc, "_id" | "userId" | "title" | "body"
     title: doc.title,
     body: doc.body,
     data: { notificationId: doc._id.toHexString(), screen: doc.link.screen, id: doc.link.id },
-    channelId: "activity",
   });
 }
 

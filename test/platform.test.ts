@@ -1,7 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { FastifyBaseLogger } from "fastify";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../src/app.js";
 import { ConfigError, loadConfig } from "../src/config.js";
 import { codeEmail } from "../src/adapters/email-template.js";
+import { createPushSender } from "../src/adapters/push.js";
 import { compareVersions } from "../src/platform/client.js";
 import { seedModuleSettings } from "../src/platform/indexes.js";
 import { requireModuleLive } from "../src/platform/module-switch.js";
@@ -36,6 +38,61 @@ describe("config", () => {
 
   it("treats NODE_ENV=production as prod", () => {
     expect(loadConfig({ NODE_ENV: "production" }).env).toBe("prod");
+  });
+
+  it("needs both OneSignal settings for phone notifications", () => {
+    expect(loadConfig({}).push).toBeNull();
+    expect(() => loadConfig({ ONESIGNAL_APP_ID: APP_ID })).toThrow(ConfigError);
+    expect(() => loadConfig({ ONESIGNAL_APP_ID: "not-an-id", ONESIGNAL_API_KEY: "key" })).toThrow(ConfigError);
+    expect(loadConfig({ ONESIGNAL_APP_ID: APP_ID, ONESIGNAL_API_KEY: "key" }).push).toEqual({ appId: APP_ID, apiKey: "key" });
+  });
+});
+
+const APP_ID = "00000000-0000-4000-8000-000000000000";
+
+describe("OneSignal", () => {
+  const log = { info: vi.fn(), warn: vi.fn(), debug: vi.fn() } as unknown as FastifyBaseLogger;
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("sends one notification per message to all its installs, and answers with installs that are gone", async () => {
+    const calls: { headers: Record<string, string>; body: Record<string, unknown> }[] = [];
+    vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string) as { include_subscription_ids: string[] };
+      calls.push({ headers: init.headers as Record<string, string>, body });
+      return Response.json(body.include_subscription_ids.includes("s2") ? { id: "n1", errors: { invalid_player_ids: ["s2"] } } : { id: "n2" });
+    });
+    const sender = createPushSender({ appId: APP_ID, apiKey: "secret" }, log);
+    const like = { title: "New like", body: "Asha liked your post.", data: { notificationId: "n", screen: "post", id: "p" } };
+
+    const gone = await sender.send([
+      { to: "s1", ...like },
+      { to: "s2", ...like },
+      { to: "s3", title: "Ravi", body: "Hi", data: { chatId: "c" } },
+    ]);
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0]!.headers.Authorization).toBe("Key secret");
+    expect(calls[0]!.body).toMatchObject({
+      app_id: APP_ID,
+      target_channel: "push",
+      include_subscription_ids: ["s1", "s2"],
+      headings: { en: "New like" },
+      contents: { en: "Asha liked your post." },
+      data: like.data,
+    });
+    expect(calls[1]!.body).toMatchObject({ include_subscription_ids: ["s3"], data: { chatId: "c" } });
+    expect(gone).toEqual(["s2"]);
+  });
+
+  it("never throws when OneSignal is down, and sends nothing without settings", async () => {
+    vi.stubGlobal("fetch", async () => {
+      throw new Error("offline");
+    });
+    const message = { to: "s1", title: "t", body: "b", data: {} };
+    await expect(createPushSender({ appId: APP_ID, apiKey: "secret" }, log).send([message])).resolves.toEqual([]);
+    await expect(createPushSender(null, log).send([message])).resolves.toEqual([]);
   });
 });
 
