@@ -44,6 +44,7 @@ import {
 } from "./contracts.js";
 import { blockBetween, blockedAround } from "../social/relations.js";
 import { eraseChats } from "../social/chats.js";
+import { endPlacesFor } from "../team/team.js";
 import { signedInIfPossible } from "../social/shared.js";
 import { checkCode, countText, sendCode, useVerification } from "./otp.js";
 import { PHOTO_MAX_BYTES, toAvatar } from "./photos.js";
@@ -879,6 +880,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       app.authCache.forget(userId);
       if (photoKey) await app.photos.remove(photoKey);
       await eraseChats(app, db, userId).catch((err: unknown) => request.log.error({ err: (err as Error).message }, "Chats not erased"));
+      await endPlacesFor(db, { userId }, "member").catch((err: unknown) => request.log.error({ err: (err as Error).message }, "Team places not ended"));
       clearTokens(request, reply);
       return ok(request, { done: true as const });
     },

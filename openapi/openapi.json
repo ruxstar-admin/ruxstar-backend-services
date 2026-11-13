@@ -19857,6 +19857,24 @@
                                 "enum": [
                                   "payout.updated"
                                 ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "team.invited"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "team.joined"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "team.ended"
+                                ]
                               }
                             ]
                           },
@@ -19916,9 +19934,21 @@
                                     "enum": [
                                       "payments"
                                     ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "work"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "team"
+                                    ]
                                   }
                                 ],
-                                "description": "`verification` opens the KYC screen, `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id) and `payments` Payments in the vendor portal (`id` is the payout); `id` says which"
+                                "description": "`verification` opens the KYC screen, `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team) and `team` a business's Team in the vendor portal (`id` is the business); `id` says which"
                               },
                               "id": {
                                 "type": "string"
@@ -26452,6 +26482,1256 @@
                         "updatedAt": {
                           "type": "string",
                           "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/vendor/businesses/{id}/team": {
+      "get": {
+        "summary": "A business's team and open invites, with what can be given",
+        "tags": [
+          "vendor"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "members",
+                        "permissions",
+                        "max"
+                      ],
+                      "properties": {
+                        "members": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "person",
+                              "status",
+                              "permissions",
+                              "invitedAt",
+                              "expiresAt",
+                              "joinedAt"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "person": {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "username",
+                                  "avatar"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "username": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "avatar": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "status": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "invited"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "waiting"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "active"
+                                    ]
+                                  }
+                                ],
+                                "description": "`invited` hasn't accepted yet; `waiting` accepted but isn't verified, so nothing works for them yet"
+                              },
+                              "permissions": {
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.view"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.move"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.reject"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.refund"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "earnings.view"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "shop.open"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "shop.catalog"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "shop.details"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "coupons.manage"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "posts.create"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "What the owner lets this person do at the business"
+                                }
+                              },
+                              "invitedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "expiresAt": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "When the invite runs out; null once accepted"
+                              },
+                              "joinedAt": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Active people first, then invites, oldest first"
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "label",
+                              "hint",
+                              "needs"
+                            ],
+                            "properties": {
+                              "key": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "orders.view"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "orders.move"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "orders.reject"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "orders.refund"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "earnings.view"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "shop.open"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "shop.catalog"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "shop.details"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "coupons.manage"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "posts.create"
+                                    ]
+                                  }
+                                ],
+                                "description": "What the owner lets this person do at the business"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "hint": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "needs": {
+                                "anyOf": [
+                                  {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "orders.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "orders.move"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "orders.reject"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "orders.refund"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "earnings.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "shop.open"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "shop.catalog"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "shop.details"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "coupons.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "posts.create"
+                                        ]
+                                      }
+                                    ],
+                                    "description": "What the owner lets this person do at the business"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Given with this one, since it can't work without it"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "max": {
+                          "type": "integer",
+                          "description": "People the team can hold, invites included"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Invite someone to the team by their username",
+        "tags": [
+          "vendor"
+        ],
+        "description": "They get a notification and have 7 days to accept. Nothing works for them until their identity verification is approved. A team holds up to 20 people, invites included. Permissions that need \"See orders\" bring it with them. Withdrawals, payment details, publishing, deleting and the team itself stay with the owner.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "permissions"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 20,
+                    "description": "Their Ruxstar username, without the @"
+                  },
+                  "permissions": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "orders.view"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "orders.move"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "orders.reject"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "orders.refund"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "earnings.view"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "shop.open"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "shop.catalog"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "shop.details"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "coupons.manage"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "posts.create"
+                          ]
+                        }
+                      ],
+                      "description": "What the owner lets this person do at the business"
+                    },
+                    "minItems": 1,
+                    "maxItems": 10,
+                    "uniqueItems": true
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "person",
+                        "status",
+                        "permissions",
+                        "invitedAt",
+                        "expiresAt",
+                        "joinedAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "person": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "name",
+                            "username",
+                            "avatar"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "username": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "avatar": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "invited"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "waiting"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "active"
+                              ]
+                            }
+                          ],
+                          "description": "`invited` hasn't accepted yet; `waiting` accepted but isn't verified, so nothing works for them yet"
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.move"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.reject"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.refund"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "earnings.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.open"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.catalog"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.details"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coupons.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "posts.create"
+                                ]
+                              }
+                            ],
+                            "description": "What the owner lets this person do at the business"
+                          }
+                        },
+                        "invitedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "expiresAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "When the invite runs out; null once accepted"
+                        },
+                        "joinedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/vendor/businesses/{id}/team/{memberId}": {
+      "patch": {
+        "summary": "Change what a team member, or someone invited, may do",
+        "tags": [
+          "vendor"
+        ],
+        "description": "Replaces their permissions. It applies on their next request.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "permissions"
+                ],
+                "properties": {
+                  "permissions": {
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "orders.view"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "orders.move"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "orders.reject"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "orders.refund"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "earnings.view"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "shop.open"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "shop.catalog"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "shop.details"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "coupons.manage"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "posts.create"
+                          ]
+                        }
+                      ],
+                      "description": "What the owner lets this person do at the business"
+                    },
+                    "minItems": 1,
+                    "maxItems": 10,
+                    "uniqueItems": true
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "memberId",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "person",
+                        "status",
+                        "permissions",
+                        "invitedAt",
+                        "expiresAt",
+                        "joinedAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "person": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "name",
+                            "username",
+                            "avatar"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "username": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "avatar": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "invited"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "waiting"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "active"
+                              ]
+                            }
+                          ],
+                          "description": "`invited` hasn't accepted yet; `waiting` accepted but isn't verified, so nothing works for them yet"
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.move"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.reject"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.refund"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "earnings.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.open"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.catalog"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.details"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coupons.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "posts.create"
+                                ]
+                              }
+                            ],
+                            "description": "What the owner lets this person do at the business"
+                          }
+                        },
+                        "invitedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "expiresAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "When the invite runs out; null once accepted"
+                        },
+                        "joinedAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove someone from the team, or cancel their invite",
+        "tags": [
+          "vendor"
+        ],
+        "description": "Their access ends at once. Someone who was working here is told.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "memberId",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
                         }
                       },
                       "additionalProperties": false
@@ -41313,6 +42593,1208 @@
                             "additionalProperties": false
                           },
                           "description": "Products with a price, in catalog order"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/employment/": {
+      "get": {
+        "summary": "Your team invites and the businesses you work at",
+        "tags": [
+          "employment"
+        ],
+        "description": "Invites that ran out are left out. A place's `access` says whether anything works there yet.",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "invites",
+                        "places",
+                        "permissions"
+                      ],
+                      "properties": {
+                        "invites": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "business",
+                              "owner",
+                              "permissions",
+                              "invitedAt",
+                              "expiresAt"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "business": {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "module",
+                                  "type",
+                                  "city",
+                                  "photo",
+                                  "status",
+                                  "open"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "module": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "pod"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "events"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "coaching"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "stays"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "delivery"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "ledger"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  },
+                                  "city": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "photo": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "description": "The cover photo's URL"
+                                  },
+                                  "status": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "draft"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "live"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "open": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "owner": {
+                                "type": "object",
+                                "required": [
+                                  "name"
+                                ],
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "permissions": {
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.view"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.move"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.reject"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.refund"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "earnings.view"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "shop.open"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "shop.catalog"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "shop.details"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "coupons.manage"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "posts.create"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "What the owner lets this person do at the business"
+                                }
+                              },
+                              "invitedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "expiresAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Newest first"
+                        },
+                        "places": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "business",
+                              "owner",
+                              "permissions",
+                              "joinedAt",
+                              "access"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "business": {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "module",
+                                  "type",
+                                  "city",
+                                  "photo",
+                                  "status",
+                                  "open"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "module": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "pod"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "events"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "coaching"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "stays"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "delivery"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "ledger"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  },
+                                  "city": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "photo": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "description": "The cover photo's URL"
+                                  },
+                                  "status": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "draft"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "live"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "open": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "owner": {
+                                "type": "object",
+                                "required": [
+                                  "name"
+                                ],
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "permissions": {
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.view"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.move"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.reject"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.refund"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "earnings.view"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "shop.open"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "shop.catalog"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "shop.details"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "coupons.manage"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "posts.create"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "What the owner lets this person do at the business"
+                                }
+                              },
+                              "joinedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "access": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "on"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "verify"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "on_hold"
+                                    ]
+                                  }
+                                ],
+                                "description": "`verify`: get verified before anything works; `on_hold`: Ruxstar put the business on hold"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Newest first"
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "label",
+                              "hint",
+                              "needs"
+                            ],
+                            "properties": {
+                              "key": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "orders.view"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "orders.move"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "orders.reject"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "orders.refund"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "earnings.view"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "shop.open"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "shop.catalog"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "shop.details"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "coupons.manage"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "posts.create"
+                                    ]
+                                  }
+                                ],
+                                "description": "What the owner lets this person do at the business"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "hint": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "needs": {
+                                "anyOf": [
+                                  {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "orders.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "orders.move"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "orders.reject"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "orders.refund"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "earnings.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "shop.open"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "shop.catalog"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "shop.details"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "coupons.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "posts.create"
+                                        ]
+                                      }
+                                    ],
+                                    "description": "What the owner lets this person do at the business"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Given with this one, since it can't work without it"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/employment/{id}/accept": {
+      "post": {
+        "summary": "Join a business's team",
+        "tags": [
+          "employment"
+        ],
+        "description": "The owner is told. Nothing works for you there until your identity verification is approved.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "business",
+                        "owner",
+                        "permissions",
+                        "joinedAt",
+                        "access"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "business": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "name",
+                            "module",
+                            "type",
+                            "city",
+                            "photo",
+                            "status",
+                            "open"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "module": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "pod"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "events"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "coaching"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "stays"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "delivery"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "ledger"
+                                  ]
+                                }
+                              ]
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "city": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "photo": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "The cover photo's URL"
+                            },
+                            "status": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "draft"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "live"
+                                  ]
+                                }
+                              ]
+                            },
+                            "open": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "owner": {
+                          "type": "object",
+                          "required": [
+                            "name"
+                          ],
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.move"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.reject"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "orders.refund"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "earnings.view"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.open"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.catalog"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop.details"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coupons.manage"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "posts.create"
+                                ]
+                              }
+                            ],
+                            "description": "What the owner lets this person do at the business"
+                          }
+                        },
+                        "joinedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "access": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "on"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "verify"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "on_hold"
+                              ]
+                            }
+                          ],
+                          "description": "`verify`: get verified before anything works; `on_hold`: Ruxstar put the business on hold"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/employment/{id}/decline": {
+      "post": {
+        "summary": "Turn down a team invite",
+        "tags": [
+          "employment"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/employment/{id}/leave": {
+      "post": {
+        "summary": "Leave a business's team",
+        "tags": [
+          "employment"
+        ],
+        "description": "Your access ends at once and the owner is told.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
                         }
                       },
                       "additionalProperties": false
@@ -56941,6 +59423,575 @@
                             {
                               "type": "null"
                             }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/businesses/{id}/team": {
+      "get": {
+        "summary": "A business's team and open invites",
+        "tags": [
+          "ruxstar"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "members",
+                        "permissions",
+                        "max"
+                      ],
+                      "properties": {
+                        "members": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "person",
+                              "status",
+                              "permissions",
+                              "invitedAt",
+                              "expiresAt",
+                              "joinedAt"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "person": {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "username",
+                                  "avatar"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "username": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "avatar": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              "status": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "invited"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "waiting"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "active"
+                                    ]
+                                  }
+                                ],
+                                "description": "`invited` hasn't accepted yet; `waiting` accepted but isn't verified, so nothing works for them yet"
+                              },
+                              "permissions": {
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.view"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.move"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.reject"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "orders.refund"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "earnings.view"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "shop.open"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "shop.catalog"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "shop.details"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "coupons.manage"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "posts.create"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "What the owner lets this person do at the business"
+                                }
+                              },
+                              "invitedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "expiresAt": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "When the invite runs out; null once accepted"
+                              },
+                              "joinedAt": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Active people first, then invites, oldest first"
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "key",
+                              "label",
+                              "hint",
+                              "needs"
+                            ],
+                            "properties": {
+                              "key": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "orders.view"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "orders.move"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "orders.reject"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "orders.refund"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "earnings.view"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "shop.open"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "shop.catalog"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "shop.details"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "coupons.manage"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "posts.create"
+                                    ]
+                                  }
+                                ],
+                                "description": "What the owner lets this person do at the business"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "hint": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "needs": {
+                                "anyOf": [
+                                  {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "orders.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "orders.move"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "orders.reject"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "orders.refund"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "earnings.view"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "shop.open"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "shop.catalog"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "shop.details"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "coupons.manage"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "posts.create"
+                                        ]
+                                      }
+                                    ],
+                                    "description": "What the owner lets this person do at the business"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Given with this one, since it can't work without it"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "max": {
+                          "type": "integer",
+                          "description": "People the team can hold, invites included"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ruxstar/businesses/{id}/team/{memberId}/remove": {
+      "post": {
+        "summary": "Remove someone from a business's team",
+        "tags": [
+          "ruxstar"
+        ],
+        "description": "The reason goes to the audit log, and the person and the owner both see it.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 5,
+                    "maxLength": 300,
+                    "description": "Kept in the audit log; the owner and the person see it"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "memberId",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
                           ]
                         }
                       },

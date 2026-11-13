@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import account from "./account/index.js";
+import employment from "./employment/index.js";
 import kyc from "./kyc/index.js";
 import notifications from "./notifications/index.js";
 import pod from "./pod/index.js";
@@ -34,6 +35,7 @@ const MODULES: Partial<Record<Resource, FastifyPluginAsync>> = {
   notifications,
   vendor,
   pod,
+  employment,
   ruxstar,
 };
 

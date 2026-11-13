@@ -184,6 +184,32 @@ export async function notifyPayout(
   }
 }
 
+/**
+ * Team news: an invite to the person invited (`work`), someone joining or leaving to the owner (`team`), or a removal to the person
+ * removed. Logged, never thrown: the change is already saved.
+ */
+export async function notifyTeam(
+  db: Database,
+  log: FastifyBaseLogger,
+  event: { to: ObjectId; actor: ObjectId; type: "team.invited" | "team.joined" | "team.ended"; title: string; body: string; link: NotificationDoc["link"] },
+): Promise<void> {
+  try {
+    await save(db, {
+      _id: new ObjectId(),
+      userId: event.to,
+      type: event.type,
+      actorId: event.actor,
+      title: clip(event.title, 60),
+      body: clip(event.body, 140),
+      link: event.link,
+      readAt: null,
+      createdAt: new Date(),
+    });
+  } catch (err) {
+    log.warn({ err: (err as Error).message, type: event.type }, "Notification not saved");
+  }
+}
+
 /** Tells a user their verification was decided. Logged, never thrown: the decision is already saved. */
 export async function notifyKycDecision(
   db: Database,

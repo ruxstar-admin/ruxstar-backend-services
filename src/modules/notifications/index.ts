@@ -22,6 +22,9 @@ const Notification = Strict({
     Type.Literal("order.updated"),
     Type.Literal("user.followed"),
     Type.Literal("payout.updated"),
+    Type.Literal("team.invited"),
+    Type.Literal("team.joined"),
+    Type.Literal("team.ended"),
   ]),
   title: Type.String(),
   body: Type.String(),
@@ -35,10 +38,12 @@ const Notification = Strict({
         Type.Literal("shop_order"),
         Type.Literal("profile"),
         Type.Literal("payments"),
+        Type.Literal("work"),
+        Type.Literal("team"),
       ],
       {
         description:
-          "`verification` opens the KYC screen, `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id) and `payments` Payments in the vendor portal (`id` is the payout); `id` says which",
+          "`verification` opens the KYC screen, `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team) and `team` a business's Team in the vendor portal (`id` is the business); `id` says which",
       },
     ),
     id: Type.String(),

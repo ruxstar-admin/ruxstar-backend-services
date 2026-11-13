@@ -32,6 +32,8 @@ import coupons from "./coupons.js";
 import { INDIA } from "./india.js";
 import orders from "./orders.js";
 import payments from "./payments.js";
+import team from "./team.js";
+import { endPlacesFor } from "../team/team.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 const limit = (perMinutes: number, max: number) => ({ rateLimit: { max, timeWindow: perMinutes * 60_000 } });
@@ -58,6 +60,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(payments);
   await app.register(orders);
   await app.register(coupons);
+  await app.register(team);
 
   const db = () => requireDatabase(app.db);
 
@@ -418,6 +421,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
       if (doc.status !== "draft") throw new AppError("CONFLICT", "Live businesses can't be deleted. Close it instead.");
       const res = await db().businesses.deleteOne({ _id: doc._id, status: "draft", suspension: { $exists: false } });
       if (res.deletedCount === 0) throw new AppError("CONFLICT");
+      await endPlacesFor(db(), { businessId: doc._id }, "owner");
       await Promise.all(doc.photos.flatMap(photoKeys).map((key) => app.media.remove(key)));
       return ok(request, { done: true as const });
     },

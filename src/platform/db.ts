@@ -435,7 +435,10 @@ export type NotificationType =
   | "business.restored"
   | "order.placed"
   | "order.updated"
-  | "payout.updated";
+  | "payout.updated"
+  | "team.invited"
+  | "team.joined"
+  | "team.ended";
 
 export interface NotificationDoc {
   _id: ObjectId;
@@ -448,9 +451,10 @@ export interface NotificationDoc {
   /**
    * `verification` opens the KYC screen (its id is the track); `business` opens a business in the vendor portal;
    * `order` opens a customer's print order and `shop_order` the same order in the vendor portal; `profile` opens a person (its id is theirs);
-   * `payments` opens the vendor's Payments (its id is the payout).
+   * `payments` opens the vendor's Payments (its id is the payout); `work` opens the Work area (its id is the place on the team);
+   * `team` opens a business's Team in the vendor portal (its id is the business).
    */
-  link: { screen: "post" | "verification" | "business" | "order" | "shop_order" | "profile" | "payments"; id: string };
+  link: { screen: "post" | "verification" | "business" | "order" | "shop_order" | "profile" | "payments" | "work" | "team"; id: string };
   readAt: Date | null;
   createdAt: Date;
 }
@@ -680,6 +684,42 @@ export interface CouponRedemptionDoc {
   at: Date;
 }
 
+/** What an owner can let a team member do at one business. Withdrawals, payment details, publishing, deleting and the team stay with the owner. */
+export type TeamPermission =
+  | "orders.view"
+  | "orders.move"
+  | "orders.reject"
+  | "orders.refund"
+  | "earnings.view"
+  | "shop.open"
+  | "shop.catalog"
+  | "shop.details"
+  | "coupons.manage"
+  | "posts.create";
+
+/**
+ * Someone on a business's team (decision 54). `invited` until they accept or the invite expires; `active` after, though nothing
+ * works for them until their identity verification is approved. `current` is set while invited or active, so one person has at
+ * most one open place per business.
+ */
+export interface EmploymentDoc extends Stamped {
+  _id: ObjectId;
+  businessId: ObjectId;
+  module: BusinessDoc["module"];
+  ownerId: ObjectId;
+  userId: ObjectId;
+  status: "invited" | "active" | "declined" | "expired" | "removed" | "left";
+  current?: true;
+  permissions: TeamPermission[];
+  invitedBy: ObjectId;
+  invitedAt: Date;
+  expiresAt: Date;
+  joinedAt: Date | null;
+  endedAt: Date | null;
+  /** Who ended it: the owner, the member leaving, or the Ruxstar team. */
+  endedBy: "owner" | "member" | "ruxstar" | null;
+}
+
 export interface RuxstarStaffDoc extends Stamped {
   _id: ObjectId;
   userId: ObjectId;
@@ -834,6 +874,9 @@ export class Database {
   }
   get couponRedemptions() {
     return this.db.collection<CouponRedemptionDoc>("coupon_redemptions");
+  }
+  get employments() {
+    return this.db.collection<EmploymentDoc>("employments");
   }
   get ledgerEntries() {
     return this.db.collection<LedgerEntryDoc>("ledger_entries");
