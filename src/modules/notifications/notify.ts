@@ -1,6 +1,7 @@
 import type { FastifyBaseLogger } from "fastify";
 import { ObjectId } from "mongodb";
 import type { Database, NotificationDoc } from "../../platform/db.js";
+import { pushTo } from "./push.js";
 
 interface PostEvent {
   type: NotificationDoc["type"];
@@ -13,6 +14,22 @@ interface PostEvent {
 }
 
 const clip = (text: string, max = 80) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
+
+/** Saves a notification for the notifications screen and sends it to the person's phones too. */
+async function save(db: Database, doc: NotificationDoc): Promise<void> {
+  await db.notifications.insertOne(doc);
+  announce(doc);
+}
+
+/** The phone notification for one on the notifications screen; tapping it opens what `link` points at. */
+function announce(doc: Pick<NotificationDoc, "_id" | "userId" | "title" | "body" | "link">): void {
+  void pushTo([doc.userId], {
+    title: doc.title,
+    body: doc.body,
+    data: { notificationId: doc._id.toHexString(), screen: doc.link.screen, id: doc.link.id },
+    channelId: "activity",
+  });
+}
 
 /**
  * Tells a post's author about a like or a comment. Never about their own actions, and one like
@@ -27,23 +44,18 @@ export async function notifyPostEvent(db: Database, log: FastifyBaseLogger, even
     const name =
       event.actor.name ?? (await db.users.findOne({ _id: event.actor.id }, { projection: { name: 1 } }))?.name ?? "Someone";
     if (event.type === "post.like") {
-      await db.notifications.updateOne(
+      const _id = new ObjectId();
+      const title = "New like";
+      const body = `${name} liked your post.`;
+      const res = await db.notifications.updateOne(
         { userId: event.to, type: "post.like", "link.id": link.id, actorId: event.actor.id },
-        {
-          $setOnInsert: {
-            _id: new ObjectId(),
-            title: "New like",
-            body: `${name} liked your post.`,
-            "link.screen": "post",
-            readAt: null,
-            createdAt: now,
-          },
-        },
+        { $setOnInsert: { _id, title, body, "link.screen": "post", readAt: null, createdAt: now } },
         { upsert: true },
       );
+      if (res.upsertedCount) announce({ _id, userId: event.to, title, body, link });
       return;
     }
-    await db.notifications.insertOne({
+    await save(db, {
       _id: new ObjectId(),
       userId: event.to,
       type: event.type,
@@ -63,20 +75,16 @@ export async function notifyPostEvent(db: Database, log: FastifyBaseLogger, even
 export async function notifyFollow(db: Database, log: FastifyBaseLogger, event: { to: ObjectId; follower: ObjectId }): Promise<void> {
   try {
     const follower = await db.users.findOne({ _id: event.follower }, { projection: { name: 1 } });
-    await db.notifications.updateOne(
+    const _id = new ObjectId();
+    const title = "New follower";
+    const body = `${follower?.name || "Someone"} started following you.`;
+    const link = { screen: "profile" as const, id: event.follower.toHexString() };
+    const res = await db.notifications.updateOne(
       { userId: event.to, type: "user.followed", actorId: event.follower },
-      {
-        $setOnInsert: {
-          _id: new ObjectId(),
-          title: "New follower",
-          body: `${follower?.name || "Someone"} started following you.`,
-          link: { screen: "profile", id: event.follower.toHexString() },
-          readAt: null,
-          createdAt: new Date(),
-        },
-      },
+      { $setOnInsert: { _id, title, body, link, readAt: null, createdAt: new Date() } },
       { upsert: true },
     );
+    if (res.upsertedCount) announce({ _id, userId: event.to, title, body, link });
   } catch (err) {
     log.warn({ err: (err as Error).message, type: "user.followed" }, "Notification not saved");
   }
@@ -89,7 +97,7 @@ export async function notifyPostRemoved(
   event: { to: ObjectId; moderator: ObjectId; postId: ObjectId; reason: string },
 ): Promise<void> {
   try {
-    await db.notifications.insertOne({
+    await save(db, {
       _id: new ObjectId(),
       userId: event.to,
       type: "post.removed",
@@ -112,7 +120,7 @@ export async function notifyBusinessHold(
   event: { to: ObjectId; moderator: ObjectId; businessId: ObjectId; name: string; held: boolean; reason: string | null },
 ): Promise<void> {
   try {
-    await db.notifications.insertOne({
+    await save(db, {
       _id: new ObjectId(),
       userId: event.to,
       type: event.held ? "business.suspended" : "business.restored",
@@ -138,7 +146,7 @@ export async function notifyOrder(
   event: { to: ObjectId; actor: ObjectId; orderId: ObjectId; type: "order.placed" | "order.updated"; forShop: boolean; title: string; body: string },
 ): Promise<void> {
   try {
-    await db.notifications.insertOne({
+    await save(db, {
       _id: new ObjectId(),
       userId: event.to,
       type: event.type,
@@ -167,7 +175,7 @@ export async function notifyKycDecision(
         ? ["Verification is on hold", "Contact support to continue."]
         : ["Verification needs a change", clip(event.reason ?? "Open verification to see what to fix.", 140)];
   try {
-    await db.notifications.insertOne({
+    await save(db, {
       _id: new ObjectId(),
       userId: event.to,
       type: event.decision === "approved" ? "kyc.approved" : "kyc.rejected",

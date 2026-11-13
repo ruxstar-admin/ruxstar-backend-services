@@ -5,6 +5,7 @@ import type { EmailSender } from "../src/adapters/email.js";
 import type { Geocoder } from "../src/adapters/geocoder.js";
 import type { PhotoStore } from "../src/adapters/photos.js";
 import type { PrintFileStore } from "../src/adapters/print-files.js";
+import type { PushMessage, PushSender } from "../src/adapters/push.js";
 import type { SmsSender } from "../src/adapters/sms.js";
 import { FakeVerifier, type Verifier } from "../src/adapters/verification.js";
 import { ObjectId } from "mongodb";
@@ -35,6 +36,8 @@ export interface Stack {
   printFiles: { objects: Map<string, Buffer>; expiring: Set<string> };
   /** Photos sent in chats by key, in their private bucket. */
   chatPhotos: Map<string, Buffer>;
+  /** Phone notifications sent, and tokens that answer as removed apps. */
+  pushes: { sent: PushMessage[]; uninstalled: Set<string> };
   stop: () => Promise<void>;
 }
 
@@ -111,6 +114,14 @@ export async function startStack(
     },
     remove: async (key) => void chatPhotos.delete(key),
   };
+  /** Phone notifications "sent"; tokens in `uninstalled` answer as removed apps. */
+  const pushes = { sent: [] as PushMessage[], uninstalled: new Set<string>() };
+  const push: PushSender = {
+    send: async (messages) => {
+      pushes.sent.push(...messages);
+      return messages.map((m) => m.to).filter((to) => pushes.uninstalled.has(to));
+    },
+  };
   const app = await buildApp({
     config,
     db,
@@ -122,6 +133,7 @@ export async function startStack(
     media: postMedia.store,
     printFiles: printStore,
     chatPhotos: chatStore,
+    push,
     jobAuth: async (token) => token === JOB_TOKEN,
     rateLimit,
     verifier: verifier ?? new FakeVerifier(),
@@ -139,6 +151,7 @@ export async function startStack(
     media: postMedia.objects,
     printFiles,
     chatPhotos,
+    pushes,
     stop: async () => {
       await app.close();
       await replSet.stop();

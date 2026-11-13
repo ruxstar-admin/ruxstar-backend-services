@@ -5,6 +5,7 @@ import type { EmailSender } from "../adapters/email.js";
 import type { PaymentGateway } from "../adapters/payments.js";
 import type { PhotoStore } from "../adapters/photos.js";
 import type { PrintFileStore } from "../adapters/print-files.js";
+import type { PushSender } from "../adapters/push.js";
 import type { SmsSender } from "../adapters/sms.js";
 import type { Verifier } from "../adapters/verification.js";
 import type { Config } from "../config.js";
@@ -51,6 +52,8 @@ declare module "fastify" {
     printFiles: PrintFileStore;
     /** Photos sent in chats, private. */
     chatPhotos: ChatPhotoStore;
+    /** Phone notifications to the apps. */
+    push: PushSender;
     authCache: SessionCache;
   }
 

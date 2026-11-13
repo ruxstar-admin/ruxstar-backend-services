@@ -11,6 +11,7 @@ import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { findPage } from "../../platform/pagination.js";
+import { pushTo } from "../notifications/push.js";
 import {
   AddPeople,
   ChatDetailResult,
@@ -462,7 +463,34 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
     await d.transaction((session) => writeMessage(d, session, conversation, message));
     wake(conversation._id);
     const [view] = await messageViews(request, [message]);
+    void notifyMembers(conversation, message, view!.sender?.name ?? "Someone");
     return view!;
+  }
+
+  /**
+   * A phone notification for the others in the chat: not for muted chats, requests they haven't accepted, or
+   * anyone the sender is blocked with. The app hides it when that chat is already open.
+   */
+  async function notifyMembers(conversation: Conversation, message: ChatMessageDoc, senderName: string): Promise<void> {
+    try {
+      const d = db();
+      const [members, blocked] = await Promise.all([
+        d.chatMembers
+          .find({ conversationId: conversation._id, userId: { $ne: message.senderId }, state: "active", muted: false }, { projection: { userId: 1 } })
+          .toArray(),
+        blockedAround(d, message.senderId),
+      ]);
+      const to = members.map((m) => m.userId).filter((id) => !blocked.some((b) => b.equals(id)));
+      const text = previewOf(message.kind, message.text);
+      await pushTo(to, {
+        title: conversation.kind === "group" ? (conversation.title ?? "Group") : senderName,
+        body: conversation.kind === "group" ? `${senderName}: ${text}` : text,
+        data: { chatId: conversation._id.toHexString() },
+        channelId: "messages",
+      });
+    } catch (err) {
+      app.log.warn({ err: (err as Error).message }, "Message notification failed");
+    }
   }
 
   /** Starts or reopens a 1:1 chat. Someone who doesn't follow `me` gets it as a request. */

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ObjectId } from "mongodb";
 import sharp from "sharp";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eraseChats } from "../src/modules/social/chats.js";
 import { signIn, startStack, web, type Stack } from "./helpers.js";
 
@@ -438,6 +438,70 @@ describe("live chat", () => {
     await call("GET", "/social/chats/unread", asha);
     expect((await call("GET", `/social/chats/${chat.id}`, asha)).json().data.activeAt).not.toBeNull();
     expect((await call("GET", `/social/chats/${chat.id}`, ravi)).json().data.activeAt).not.toBeNull();
+  });
+});
+
+describe("phone notifications", () => {
+  /** Signs the person in on a phone with the app, registered for notifications. */
+  async function onPhone(who: Person) {
+    const pushToken = `ExponentPushToken[${randomUUID()}]`;
+    await stack.db.sessions.insertOne({
+      _id: new ObjectId(),
+      userId: who.userId,
+      client: "app",
+      pushToken,
+      expiresAt: new Date(Date.now() + 86_400_000),
+      revokedAt: null,
+      schemaVersion: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    return pushToken;
+  }
+  const sentTo = (token: string) => stack.pushes.sent.filter((p) => p.to === token);
+
+  it("sends new messages, but not from a muted chat", async () => {
+    const asha = await person("Asha Push");
+    const ravi = await person("Ravi Push");
+    await follow(asha, ravi);
+    await follow(ravi, asha);
+    const phone = await onPhone(asha);
+    const chat = await dm(ravi, asha);
+
+    await say(ravi, chat.id, "Are you coming?");
+    await vi.waitFor(() =>
+      expect(sentTo(phone)).toContainEqual(
+        expect.objectContaining({ title: "Ravi Push", body: "Are you coming?", data: { chatId: chat.id }, channelId: "messages" }),
+      ),
+    );
+
+    await call("PUT", `/social/chats/${chat.id}/mute`, asha, { muted: true });
+    await say(ravi, chat.id, "Hello?");
+    await say(asha, chat.id, "Yes");
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(sentTo(phone).map((p) => p.body)).not.toContain("Hello?");
+  });
+
+  it("sends what the notifications screen shows, once per follower, and forgets removed apps", async () => {
+    const asha = await person("Asha Follow");
+    const ravi = await person("Ravi Follow");
+    const phone = await onPhone(asha);
+
+    await follow(ravi, asha);
+    await vi.waitFor(() =>
+      expect(sentTo(phone)).toEqual([
+        expect.objectContaining({ title: "New follower", channelId: "activity", data: expect.objectContaining({ screen: "profile", id: ravi.id }) }),
+      ]),
+    );
+    await call("DELETE", `/social/users/${asha.id}/follow`, ravi);
+    await follow(ravi, asha);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(sentTo(phone)).toHaveLength(1);
+
+    stack.pushes.uninstalled.add(phone);
+    const kiran = await person("Kiran Follow");
+    await follow(kiran, asha);
+    await vi.waitFor(async () => expect(await stack.db.sessions.countDocuments({ pushToken: phone })).toBe(0));
   });
 });
 

@@ -11,12 +11,14 @@ import { createGeocoder, type Geocoder } from "./adapters/geocoder.js";
 import { createPaymentGateway, type PaymentGateway } from "./adapters/payments.js";
 import { createMediaStore, createPhotoStore, type PhotoStore } from "./adapters/photos.js";
 import { createPrintFileStore, type PrintFileStore } from "./adapters/print-files.js";
+import { createPushSender, type PushSender } from "./adapters/push.js";
 import { createSmsSender, type SmsSender } from "./adapters/sms.js";
 import { createVerifier, type Verifier } from "./adapters/verification.js";
 import type { Config } from "./config.js";
 import { ErrorEnvelope } from "./contracts/common.js";
 import { registerModules } from "./modules/index.js";
 import health from "./modules/health.js";
+import { usePush } from "./modules/notifications/push.js";
 import { googleJobAuth, jobs, type JobAuth } from "./modules/jobs.js";
 import checkout from "./modules/pod/checkout.js";
 import chatPhotoLinks from "./modules/social/chat-photo-links.js";
@@ -70,6 +72,8 @@ export interface AppOptions {
   payments?: PaymentGateway;
   printFiles?: PrintFileStore;
   chatPhotos?: ChatPhotoStore;
+  /** Tests record phone notifications instead of sending them. */
+  push?: PushSender;
   /** Tests accept their own token for the scheduler's routes. */
   jobAuth?: JobAuth;
   /** Tests send every request from one address, so most of them switch per-IP limits off. */
@@ -89,6 +93,7 @@ export async function buildApp({
   payments,
   printFiles,
   chatPhotos,
+  push,
   jobAuth,
   rateLimit: limitByIp = true,
 }: AppOptions) {
@@ -117,6 +122,8 @@ export async function buildApp({
   app.decorate("payments", payments ?? createPaymentGateway(config, app.log));
   app.decorate("printFiles", printFiles ?? createPrintFileStore(config, app.log));
   app.decorate("chatPhotos", chatPhotos ?? createChatPhotoStore(config, app.log));
+  app.decorate("push", push ?? createPushSender(app.log));
+  if (db) usePush(db, app.push, app.log);
 
   app.addHook("onRequest", async (request, reply) => {
     reply.header("x-request-id", request.id);
