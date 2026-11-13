@@ -288,7 +288,12 @@ describe("vendor portal", () => {
       expect(await stack.db.auditLogs.findOne({ action: "payout_method.set", "actor.id": owner.userId })).not.toBeNull();
 
       const payments = (await call("GET", "/vendor/payments", owner.token)).json().data;
-      expect(payments).toEqual({ balance: { available: 0, pending: 0, paidOut: 0 }, payoutMethod: expect.objectContaining({ kind: "bank" }), payouts: [] });
+      expect(payments).toEqual({
+        balance: { available: 0, pending: 0, paidOut: 0 },
+        upcoming: [],
+        payoutMethod: expect.objectContaining({ kind: "bank" }),
+        payouts: [],
+      });
     });
 
     it("switches to UPI and refuses accounts in another name or that fail", async () => {

@@ -3,7 +3,8 @@ import { DateTime, Envelope, ListEnvelope, ObjectIdString, PageQuery, Paise, Str
 import { Photo } from "../social/contracts.js";
 import { BusinessTypeId, PodProductId } from "../vendor/contracts.js";
 
-const Nullable = <T extends TSchema>(schema: T) => Type.Union([schema, Type.Null()]);
+const Nullable = <T extends TSchema>(schema: T, options?: { description: string }) => Type.Union([schema, Type.Null()], options);
+const PaiseNote = (description: string) => Type.Integer({ minimum: 0, description: `Amount in paise. ${description}` });
 const Unit = Type.Union([Type.Literal("unit"), Type.Literal("page")]);
 
 /** A print shop as Discover shows it. */
@@ -94,8 +95,13 @@ export const OrderStatus = Type.Union(
     Type.Literal("delivered"),
     Type.Literal("rejected"),
     Type.Literal("cancelled"),
+    Type.Literal("refunded"),
   ],
-  { description: "`placed` is paid and waiting for the shop; `rejected` and `cancelled` after payment are refunded" },
+  {
+    description:
+      "`placed` is paid and waiting for the shop; `rejected` and `cancelled` after payment are refunded. " +
+      "`refunded` is an accepted order Ruxstar refunded in full.",
+  },
 );
 
 const OrderChoice = {
@@ -145,6 +151,43 @@ const Price = Strict({
   total: Paise,
 });
 
+const Refund = Strict({
+  amount: Paise,
+  kind: Type.Union([Type.Literal("full"), Type.Literal("partial")], { description: "Partial refunds come out of the shop's share" }),
+  reason: Nullable(Type.String()),
+  status: Type.Union([Type.Literal("pending"), Type.Literal("done")]),
+  at: DateTime,
+});
+
+export const PROBLEM_PHOTOS_MAX = 3;
+export const PROBLEM_PHOTO_MAX_BYTES = 8 * 1024 * 1024;
+export const ProblemKind = Type.Union([
+  Type.Literal("not_received"),
+  Type.Literal("wrong_item"),
+  Type.Literal("poor_quality"),
+  Type.Literal("damaged"),
+  Type.Literal("other"),
+]);
+const Problem = Strict({
+  kind: ProblemKind,
+  note: Type.String(),
+  photos: Type.Array(Strict({ id: ObjectIdString, url: Type.String({ description: "Opens the photo without signing in; works for 10 minutes" }) })),
+  status: Type.Union([Type.Literal("open"), Type.Literal("resolved")]),
+  reportedAt: DateTime,
+  resolution: Nullable(
+    Strict({
+      outcome: Type.Union([Type.Literal("refunded"), Type.Literal("partial"), Type.Literal("dismissed")]),
+      amount: Paise,
+      note: Type.String({ description: "Ruxstar's answer, shown to the customer and the shop" }),
+      at: DateTime,
+    }),
+  ),
+});
+export const ProblemBody = Strict({
+  kind: ProblemKind,
+  note: Type.String({ minLength: 3, maxLength: 1000, description: "What went wrong" }),
+});
+
 export const Quote = Strict({
   ...Price.properties,
   pages: Type.Integer({ description: "Pages in the files, for documents" }),
@@ -169,8 +212,15 @@ const OrderCore = {
   status: OrderStatus,
   timeline: Type.Array(Strict({ status: OrderStatus, at: DateTime })),
   paidAt: Nullable(DateTime),
-  refund: Nullable(Strict({ amount: Paise, status: Type.Union([Type.Literal("pending"), Type.Literal("done")]) })),
-  reason: Nullable(Type.String({ description: "Why the shop turned it down" })),
+  refunds: Type.Array(Refund, { description: "Oldest first" }),
+  refunded: Paise,
+  reason: Nullable(Type.String({ description: "Why the shop turned it down, or why it was cancelled" })),
+  acceptBy: Nullable(DateTime, { description: "While placed: cancelled and refunded if the shop hasn't accepted by then" }),
+  readyBy: Nullable(DateTime, { description: "When the shop promised it ready: accepted plus the ready-in days" }),
+  deliveredAt: Nullable(DateTime),
+  canReport: Type.Boolean({ description: "The customer can report a problem now" }),
+  reportUntil: Nullable(DateTime, { description: "The last moment to report a problem after delivery" }),
+  problem: Nullable(Problem),
   createdAt: DateTime,
   updatedAt: DateTime,
 };
@@ -186,7 +236,16 @@ export const CheckoutLink = Envelope(Strict({ checkoutUrl: Type.String() }));
 /** The same order as the shop sees it, with what Ruxstar keeps and what the shop is paid. */
 export const ShopOrder = Strict({
   ...OrderCore,
-  price: Strict({ ...Price.properties, commissionBps: Type.Integer(), commission: Paise, payout: Paise }),
+  price: Strict({
+    ...Price.properties,
+    commissionBps: Type.Integer(),
+    commission: Paise,
+    payout: Paise,
+    payoutLeft: PaiseNote("The payout less partial refunds; 0 once the order is refunded, turned down or cancelled."),
+  }),
+  releaseAt: Nullable(DateTime, { description: "When your share becomes available: 48 hours after delivery, later while a problem is open" }),
+  releasedAt: Nullable(DateTime),
+  refundable: PaiseNote("The most you can refund now; 0 once your share is released."),
 });
 export type ShopOrder = Static<typeof ShopOrder>;
 export const ShopOrderOne = Envelope(ShopOrder);
@@ -219,4 +278,35 @@ export const ShopStatus = Type.Union([
 export const ShopStatusBody = Strict({
   status: ShopStatus,
   reason: Type.Optional(Type.String({ minLength: 5, maxLength: 300, description: "Required to turn an order down; the customer sees it" })),
+});
+
+/** Cashfree's smallest refund is ₹1. */
+const RefundAmount = Type.Integer({ minimum: 100, description: "Amount in paise, at least ₹1" });
+export const ShopRefundBody = Strict({
+  amount: RefundAmount,
+  reason: Type.String({ minLength: 5, maxLength: 300, description: "The customer sees it" }),
+});
+
+// The console's order problems.
+
+export const StaffOrder = Strict({
+  ...ShopOrder.properties,
+  customer: Strict({ id: ObjectIdString, name: Type.String(), username: Nullable(Type.String()) }),
+  vendor: Strict({ id: ObjectIdString, name: Type.String() }),
+});
+export type StaffOrder = Static<typeof StaffOrder>;
+export const StaffOrderOne = Envelope(StaffOrder);
+export const StaffOrderList = ListEnvelope(StaffOrder);
+export const ProblemsQuery = Strict({
+  ...PageQuery,
+  status: Type.Optional(
+    Type.Union([Type.Literal("open"), Type.Literal("resolved")], { description: "`open` (the default) waits for Ruxstar, newest report first" }),
+  ),
+});
+export const SettleBody = Strict({
+  outcome: Type.Union([Type.Literal("refund_full"), Type.Literal("refund_partial"), Type.Literal("dismiss")], {
+    description: "`refund_full` refunds what is left of the order and ends it; `refund_partial` takes `amount` from the shop's share",
+  }),
+  amount: Type.Optional(RefundAmount),
+  note: Type.String({ minLength: 5, maxLength: 500, description: "Shown to the customer and the shop" }),
 });

@@ -15,6 +15,9 @@ import { createDatabase, stamp, type Database, type UserRoles } from "../src/pla
 import { AppError } from "../src/platform/errors.js";
 import { ensurePlatformIndexes, seedModuleSettings } from "../src/platform/indexes.js";
 
+/** Stands in for Cloud Scheduler's Google ID token on /jobs routes. */
+export const JOB_TOKEN = "test-job-token";
+
 export interface Stack {
   app: App;
   db: Database;
@@ -119,6 +122,7 @@ export async function startStack(
     media: postMedia.store,
     printFiles: printStore,
     chatPhotos: chatStore,
+    jobAuth: async (token) => token === JOB_TOKEN,
     rateLimit,
     verifier: verifier ?? new FakeVerifier(),
   });

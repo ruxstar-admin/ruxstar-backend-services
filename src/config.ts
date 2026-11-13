@@ -45,6 +45,11 @@ export interface Config {
   printFiles: { bucket: string } | null;
   /** Photos sent in chats, in a private bucket. Null leaves chat photos off; text and shared posts still work. */
   chatPhotos: { bucket: string } | null;
+  /**
+   * Cloud Scheduler's service account, which alone may run the order timers at /jobs/orders, and the audience its
+   * Google ID token carries (API_URL). Null leaves the route off; orders still catch up whenever they are opened.
+   */
+  jobs: { invoker: string; audience: string } | null;
 }
 
 export interface CashfreeSettings {
@@ -180,6 +185,9 @@ export function loadConfig(env: Env = process.env): Config {
   if (printBucket && !/^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$/.test(printBucket)) problems.push("GCS_PRINT_BUCKET must be a bucket name like ruxstar-print-files");
   const chatBucket = read(env, "GCS_CHAT_BUCKET");
   if (chatBucket && !/^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$/.test(chatBucket)) problems.push("GCS_CHAT_BUCKET must be a bucket name like ruxstar-chat-media");
+  const jobsInvoker = read(env, "JOBS_INVOKER");
+  if (jobsInvoker && !/^[^@\s]+@[^@\s]+\.iam\.gserviceaccount\.com$/.test(jobsInvoker)) problems.push("JOBS_INVOKER must be a service account email");
+  if (jobsInvoker && !apiUrl) problems.push("JOBS_INVOKER needs API_URL, the audience of the scheduler's token");
 
   if (problems.length) throw new ConfigError(problems);
 
@@ -237,5 +245,6 @@ export function loadConfig(env: Env = process.env): Config {
     apiUrl,
     printFiles: printBucket ? { bucket: printBucket } : null,
     chatPhotos: chatBucket ? { bucket: chatBucket } : null,
+    jobs: jobsInvoker && apiUrl ? { invoker: jobsInvoker, audience: apiUrl } : null,
   };
 }

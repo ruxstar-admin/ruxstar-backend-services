@@ -53,7 +53,7 @@ const consoleHome: FastifyPluginAsyncTypebox = async (app) => {
       const d = db();
       const when = <T>(allowed: boolean, work: () => Promise<T>) => (allowed ? work() : Promise.resolve(null));
 
-      const [kyc, reports, users, businesses, modules, staff] = await Promise.all([
+      const [kyc, reports, users, businesses, modules, orders, staff] = await Promise.all([
         when(can("kyc.view"), async () => ({ waiting: await d.kycCases.countDocuments({ status: "submitted", track: "base" }) })),
         when(can("reports.view"), async () => {
           const [[row], people] = await Promise.all([
@@ -88,9 +88,10 @@ const consoleHome: FastifyPluginAsyncTypebox = async (app) => {
           const docs = await d.moduleSettings.find({}, { projection: { module: 1, live: 1 } }).toArray();
           return SWITCHABLE_MODULES.map((module) => ({ module, live: docs.find((m) => m.module === module)?.live ?? false }));
         }),
+        when(can("orders.view"), async () => ({ problems: await d.podOrders.countDocuments({ "problem.status": "open" }) })),
         when(access.admin, async () => ({ active: await d.ruxstarStaff.countDocuments({ status: "active" }) })),
       ]);
-      return ok(request, { kyc, reports, users, businesses, modules, staff });
+      return ok(request, { kyc, reports, users, businesses, modules, orders, staff });
     },
   );
 };

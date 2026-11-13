@@ -8,6 +8,8 @@ import { ok } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { seal } from "../../platform/sealed.js";
 import { loadCase, NAME_MATCHES, verificationId } from "../kyc/cases.js";
+import { releaseShare } from "../pod/order-rules.js";
+import { shopShareLeft } from "../pod/orders.js";
 import { payoutMethodView, requireVendor } from "./businesses.js";
 import { PayoutMethodBody, PayoutMethodResult, Payments } from "./contracts.js";
 
@@ -28,14 +30,22 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["vendor"],
         summary: "Your balance, payout account and latest payouts",
-        description: "Pending is your share of paid orders not delivered yet; it becomes available on delivery.",
+        description:
+          "Pending is your share of paid orders, less partial refunds. It becomes available 48 hours after delivery, " +
+          "or once Ruxstar settles a problem the customer reported.",
         response: { 200: Payments, ...Errors },
         security,
       },
     },
     async (request) => {
       const vendorId = request.auth!.userId;
-      const [method, payouts, paid, ledger] = await Promise.all([
+      const now = new Date();
+      const due = await db()
+        .podOrders.find({ vendorId, status: "delivered", releaseAt: { $lte: now }, releasedAt: null, "problem.status": { $ne: "open" } })
+        .limit(50)
+        .toArray();
+      for (const order of due) await releaseShare(app, db(), order, now);
+      const [method, payouts, paid, ledger, holding] = await Promise.all([
         db().payoutMethods.findOne({ userId: vendorId }),
         db().payouts.find({ vendorId }).sort({ createdAt: -1, _id: -1 }).limit(20).toArray(),
         db()
@@ -47,12 +57,20 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
             { $group: { _id: "$bucket", total: { $sum: "$signedPaise" } } },
           ])
           .toArray(),
+        db().podOrders.find({ vendorId, status: "delivered", releasedAt: null, releaseAt: { $ne: null } }).sort({ releaseAt: 1 }).limit(20).toArray(),
       ]);
       const sum = (bucket: "pending" | "withdrawable") => ledger.find((row) => row._id === bucket)?.total ?? 0;
       const paidOut = paid[0]?.total ?? 0;
       return ok(request, {
-        // Earned on delivered orders, less what was paid out; pending is paid orders not delivered yet.
+        // Released after the hold, less what was paid out; pending is paid orders not released yet.
         balance: { available: Math.max(0, sum("withdrawable") - paidOut), pending: Math.max(0, sum("pending")), paidOut },
+        upcoming: holding.map((o) => ({
+          orderId: o._id.toHexString(),
+          orderNo: o.orderNo,
+          amount: shopShareLeft(o),
+          availableAt: o.releaseAt!.toISOString(),
+          held: o.problem?.status === "open",
+        })),
         payoutMethod: method ? payoutMethodView(method) : null,
         payouts: payouts.map((p) => ({
           id: p._id.toHexString(),

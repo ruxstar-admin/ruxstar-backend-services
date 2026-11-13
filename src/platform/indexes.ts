@@ -90,6 +90,13 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.podOrders.createIndex({ vendorId: 1, status: 1, createdAt: -1, _id: -1 }),
     db.podOrders.createIndex({ shopId: 1, status: 1, createdAt: -1, _id: -1 }),
     db.podOrders.createIndex({ "payment.gatewayOrderId": 1 }, { unique: true }),
+    // The order timers: not accepted in time, long past the ready date, the shop's share due, refunds to retry.
+    db.podOrders.createIndex({ status: 1, acceptBy: 1 }),
+    db.podOrders.createIndex({ status: 1, readyBy: 1 }),
+    db.podOrders.createIndex({ status: 1, releaseAt: 1 }),
+    db.podOrders.createIndex({ "refunds.status": 1 }, { partialFilterExpression: { "refunds.status": "pending" } }),
+    // The console's order problems, open or settled, newest first.
+    db.podOrders.createIndex({ "problem.status": 1, problemAt: -1, _id: -1 }),
     // One entry per account and bucket in a transaction, so a money move can't be written twice.
     db.ledgerEntries.createIndex({ txnId: 1, accountId: 1, bucket: 1 }, { unique: true }),
     db.ledgerEntries.createIndex({ accountId: 1, bucket: 1 }),

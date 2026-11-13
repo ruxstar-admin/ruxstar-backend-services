@@ -55,6 +55,7 @@ export const ERROR_CODES = {
   ORDER_INVALID: { status: 422, message: "This order can't be placed as it is. Check it and try again." },
   SHOP_CLOSED: { status: 409, message: "This shop is closed right now. Try again when it opens." },
   ORDER_STATE: { status: 409, message: "This order has moved on. Refresh to see where it is." },
+  REPORT_CLOSED: { status: 409, message: "Problems can be reported up to 48 hours after delivery, or while an order is late." },
   PAYMENTS_UNAVAILABLE: { status: 503, message: "Payments are not available right now. Try again shortly." },
   // Chats
   CHAT_REQUEST_PENDING: { status: 409, message: "Wait until they accept your message request." },

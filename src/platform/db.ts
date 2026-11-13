@@ -489,7 +489,31 @@ export type PodOrderStatus =
   | "out_for_delivery"
   | "delivered"
   | "rejected"
-  | "cancelled";
+  | "cancelled"
+  | "refunded";
+
+/** Money sent back to the customer. Partial ones come out of the shop's share; a full one undoes the whole order. */
+export interface PodRefundDoc {
+  refundId: string;
+  amount: number;
+  kind: "full" | "partial";
+  reason: string | null;
+  by: "customer" | "vendor" | "staff" | "system";
+  status: "pending" | "done";
+  at: Date;
+}
+
+export type PodProblemKind = "not_received" | "wrong_item" | "poor_quality" | "damaged" | "other";
+
+export interface PodProblemDoc {
+  kind: PodProblemKind;
+  note: string;
+  /** Re-encoded JPEGs in the print files bucket, under `problems/<orderId>/`. */
+  photos: { id: ObjectId; key: string; bytes: number }[];
+  status: "open" | "resolved";
+  reportedAt: Date;
+  resolution: { outcome: "refunded" | "partial" | "dismissed"; amount: number; note: string; by: ObjectId; at: Date } | null;
+}
 
 export interface PodOrderDoc extends Stamped {
   _id: ObjectId;
@@ -523,16 +547,32 @@ export interface PodOrderDoc extends Stamped {
   address: { name: string; phone: string; line: string; city: string; pincode: string };
   note: string | null;
   status: PodOrderStatus;
-  timeline: { status: PodOrderStatus; at: Date; by: "customer" | "vendor" | "system" }[];
+  timeline: { status: PodOrderStatus; at: Date; by: "customer" | "vendor" | "system" | "staff" }[];
   payment: { gatewayOrderId: string; sessionId: string; paymentId: string | null; paidAt: Date | null };
-  refund: { refundId: string; amount: number; status: "pending" | "done"; at: Date } | null;
-  /** Why the shop turned it down. */
+  /** Before 13 Nov 2026 an order held at most one full refund here; `refunds` replaced it. Read through `refundsOf`. */
+  refund?: { refundId: string; amount: number; status: "pending" | "done"; at: Date } | null;
+  refunds?: PodRefundDoc[];
+  /** Why the shop turned it down, or why Ruxstar cancelled it. */
   reason: string | null;
+  /** The product's "ready in" days when it was ordered. Missing on older orders. */
+  turnaroundDays?: number;
+  /** Cancelled with a full refund if the shop hasn't accepted by then. */
+  acceptBy?: Date | null;
+  acceptedAt?: Date | null;
+  /** Accepted plus the ready-in days. Seven days after it, an order not marked delivered counts as delivered. */
+  readyBy?: Date | null;
+  deliveredAt?: Date | null;
+  /** The shop's share becomes available then, unless a problem is open. */
+  releaseAt?: Date | null;
+  releasedAt?: Date | null;
+  problem?: PodProblemDoc | null;
+  /** When the problem was reported; top level so the console can page by it. */
+  problemAt?: Date | null;
 }
 
 /**
  * One side of a money movement. Every `txnId`'s entries sum to zero. Accounts are `gateway` (money held at
- * Cashfree), `ruxstar` (commission and fees) and `vendor:<userId>`. `pending` becomes `withdrawable` on delivery.
+ * Cashfree), `ruxstar` (commission and fees) and `vendor:<userId>`. `pending` becomes `withdrawable` 48 hours after delivery.
  */
 export interface LedgerEntryDoc {
   _id?: ObjectId;

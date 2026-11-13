@@ -49,6 +49,8 @@ export const PermissionKey = Type.Union([
   Type.Literal("modules.manage"),
   Type.Literal("businesses.view"),
   Type.Literal("businesses.manage"),
+  Type.Literal("orders.view"),
+  Type.Literal("orders.manage"),
   Type.Literal("audit.view"),
 ]);
 
@@ -69,6 +71,7 @@ export const OverviewResult = Envelope(
       users: Nullable(Strict({ total: Count, newThisWeek: Count, suspended: Count })),
       businesses: Nullable(Strict({ total: Count, live: Count, suspended: Count })),
       modules: Nullable(Type.Array(Strict({ module: ModuleName, live: Type.Boolean() }))),
+      orders: Nullable(Strict({ problems: Type.Integer({ minimum: 0, description: "Order problems waiting for a decision" }) })),
       staff: Nullable(Strict({ active: Count })),
     },
     { description: "A section is null when you lack the permission to see it" },

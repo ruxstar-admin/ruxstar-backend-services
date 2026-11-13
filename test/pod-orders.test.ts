@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { FakeGateway } from "../src/adapters/payments.js";
 import { stamp } from "../src/platform/db.js";
 import { forgetModuleState } from "../src/platform/module-switch.js";
-import { signIn, startStack, web, type Stack } from "./helpers.js";
+import { JOB_TOKEN, signIn, startStack, web, type Stack } from "./helpers.js";
 
 type User = Awaited<ReturnType<typeof signIn>>;
 const BACK = "https://ruxstar.com/orders";
@@ -122,6 +122,36 @@ describe("print orders", () => {
     expect(test.json()).toEqual({ status: "placed" });
   }
 
+  const HOUR = 60 * 60_000;
+  /** Moves an order's timers into the past by the given hours, as if that time had gone by. */
+  const age = (orderId: string, hoursAgo: Partial<Record<"acceptBy" | "readyBy" | "deliveredAt" | "releaseAt", number>>) =>
+    stack.db.podOrders.updateOne(
+      { _id: new ObjectId(orderId) },
+      { $set: Object.fromEntries(Object.entries(hoursAgo).map(([field, hours]) => [field, new Date(Date.now() - hours * HOUR)])) },
+    );
+  const sweep = (token = JOB_TOKEN) =>
+    stack.app.inject({ method: "POST", url: "/jobs/orders", headers: token ? { authorization: `Bearer ${token}` } : {} });
+
+  /** A paid order the shop has accepted, or moved on to `to`. */
+  async function inHand(to: "accepted" | "out_for_delivery" | "delivered" = "accepted") {
+    const owner = await vendor();
+    const shopId = await teeShop(owner);
+    const customer = await signIn(stack);
+    const { order, checkoutUrl } = await placed(customer, shopId);
+    await pay(checkoutUrl);
+    await call("POST", `/vendor/orders/${order.id}/status`, owner.token, { status: "accepted" });
+    if (to !== "accepted") await call("POST", `/vendor/orders/${order.id}/status`, owner.token, { status: to });
+    return { owner, customer, order };
+  }
+
+  const photoUpload = (token: string, orderId: string) =>
+    stack.app.inject({
+      method: "POST",
+      url: `/v1/pod/orders/${orderId}/problem/photos`,
+      headers: web(token, { "content-type": "image/jpeg", "idempotency-key": randomUUID() }),
+      payload: photo,
+    });
+
   it("counts PDF pages, keeps files private and refuses anything else", async () => {
     const customer = await signIn(stack);
     const res = await upload(customer.token, pdf3, "application/pdf", "C:\\Users\\me\\Report final.pdf");
@@ -162,7 +192,7 @@ describe("print orders", () => {
     expect(notSold.json().error.details[0].path).toBe("body/product");
   });
 
-  it("takes payment, then the shop accepts, prints and delivers, and its share becomes available", async () => {
+  it("takes payment, then the shop accepts, prints and delivers, and its share becomes available 48 hours later", async () => {
     const owner = await vendor();
     const shopId = await teeShop(owner);
     const customer = await signIn(stack);
@@ -187,7 +217,7 @@ describe("print orders", () => {
     const bell = await stack.db.notifications.findOne({ userId: owner.userId });
     expect(bell).toMatchObject({ type: "order.placed", link: { screen: "shop_order", id: order.id } });
 
-    let balance = (await call("GET", "/vendor/payments", owner.token)).json().data.balance;
+    const balance = (await call("GET", "/vendor/payments", owner.token)).json().data.balance;
     expect(balance).toMatchObject({ available: 0, pending: 324_000 });
 
     const file = listed[0].files[0];
@@ -217,8 +247,17 @@ describe("print orders", () => {
       "delivered",
     ]);
 
-    balance = (await call("GET", "/vendor/payments", owner.token)).json().data.balance;
-    expect(balance).toMatchObject({ available: 324_000, pending: 0 });
+    expect(Date.parse(delivered.releaseAt) - Date.parse(delivered.deliveredAt)).toBe(48 * 60 * 60_000);
+    let payments = (await call("GET", "/vendor/payments", owner.token)).json().data;
+    expect(payments.balance).toMatchObject({ available: 0, pending: 324_000 });
+    expect(payments.upcoming).toEqual([{ orderId: order.id, orderNo: order.orderNo, amount: 324_000, availableAt: delivered.releaseAt, held: false }]);
+
+    await age(order.id, { releaseAt: 1 });
+    payments = (await call("GET", "/vendor/payments", owner.token)).json().data;
+    expect(payments.balance).toMatchObject({ available: 324_000, pending: 0 });
+    expect(payments.upcoming).toEqual([]);
+    expect((await call("GET", `/vendor/orders/${order.id}`, owner.token)).json().data).toMatchObject({ refundable: 0, releasedAt: expect.any(String) });
+    expect(await stack.db.notifications.findOne({ userId: owner.userId, title: "₹3,240 available" })).not.toBeNull();
     const entries = await stack.db.ledgerEntries.find({}).toArray();
     expect(entries.reduce((sum, e) => sum + e.signedPaise, 0)).toBe(0);
     const ruxstar = entries.filter((e) => e.accountId === "ruxstar" && e.bucket === "withdrawable").reduce((s, e) => s + e.signedPaise, 0);
@@ -238,7 +277,12 @@ describe("print orders", () => {
     const noReason = await call("POST", `/vendor/orders/${order.id}/status`, owner.token, { status: "rejected" });
     expect(noReason.json().error.code).toBe("VALIDATION_FAILED");
     const res = await call("POST", `/vendor/orders/${order.id}/status`, owner.token, { status: "rejected", reason: "Out of XXL white shirts" });
-    expect(res.json().data).toMatchObject({ status: "rejected", reason: "Out of XXL white shirts", refund: { amount: 360_500, status: "done" } });
+    expect(res.json().data).toMatchObject({
+      status: "rejected",
+      reason: "Out of XXL white shirts",
+      refunds: [{ amount: 360_500, kind: "full", status: "done" }],
+      refunded: 360_500,
+    });
     expect([...gateway().refunds.values()]).toContainEqual({ orderId: `rx_${order.id}`, amount: 360_500 });
 
     const balance = (await call("GET", "/vendor/payments", owner.token)).json().data.balance;
@@ -256,13 +300,13 @@ describe("print orders", () => {
 
     const unpaid = await placed(customer, shopId);
     const cancelled = await call("POST", `/pod/orders/${unpaid.order.id}/cancel`, customer.token);
-    expect(cancelled.json().data).toMatchObject({ status: "cancelled", refund: null });
+    expect(cancelled.json().data).toMatchObject({ status: "cancelled", refunds: [], refunded: 0 });
     expect(gateway().orders.get(`rx_${unpaid.order.id}`)?.status).toBe("terminated");
 
     const paid = await placed(customer, shopId);
     await pay(paid.checkoutUrl);
     const refunded = await call("POST", `/pod/orders/${paid.order.id}/cancel`, customer.token);
-    expect(refunded.json().data).toMatchObject({ status: "cancelled", refund: { status: "done" } });
+    expect(refunded.json().data).toMatchObject({ status: "cancelled", refunds: [{ kind: "full", status: "done" }] });
     expect(await stack.db.notifications.findOne({ userId: owner.userId, title: `Order #${paid.order.orderNo} cancelled` })).not.toBeNull();
 
     const accepted = await placed(customer, shopId);
@@ -338,6 +382,166 @@ describe("print orders", () => {
       payload: JSON.stringify({ data: { order: { order_id: "rx_x" } } }),
     });
     expect(hook.statusCode).toBe(401);
+  });
+
+  it("cancels and refunds a paid order the shop doesn't accept within 6 hours", async () => {
+    const owner = await vendor();
+    const shopId = await teeShop(owner);
+    const customer = await signIn(stack);
+    const { order, checkoutUrl } = await placed(customer, shopId);
+    await pay(checkoutUrl);
+    const mine = (await call("GET", `/pod/orders/${order.id}`, customer.token)).json().data;
+    expect(Date.parse(mine.acceptBy) - Date.parse(mine.paidAt)).toBe(6 * HOUR);
+
+    expect((await sweep("")).statusCode).toBe(401);
+    expect((await sweep("forged")).statusCode).toBe(401);
+    expect((await sweep()).json()).toMatchObject({ ok: true, cancelled: 0 });
+    await age(order.id, { acceptBy: 0.1 });
+    expect((await sweep()).json()).toMatchObject({ ok: true, checked: 1, cancelled: 1 });
+    const after = (await call("GET", `/pod/orders/${order.id}`, customer.token)).json().data;
+    expect(after).toMatchObject({
+      status: "cancelled",
+      acceptBy: null,
+      reason: "The shop didn't accept it within 6 hours.",
+      refunds: [{ amount: 360_500, kind: "full", status: "done" }],
+    });
+    expect([...gateway().refunds.values()]).toContainEqual({ orderId: `rx_${order.id}`, amount: 360_500 });
+    expect(await stack.db.notifications.findOne({ userId: customer.userId, title: `Order #${order.orderNo} cancelled` })).not.toBeNull();
+    expect((await call("POST", `/vendor/orders/${order.id}/status`, owner.token, { status: "accepted" })).json().error.code).toBe("ORDER_STATE");
+    expect((await sweep()).json()).toMatchObject({ checked: 0 });
+
+    // Opening the shop's orders catches up one the scheduler hasn't reached yet.
+    const second = await placed(customer, shopId);
+    await pay(second.checkoutUrl);
+    await age(second.order.id, { acceptBy: 0.1 });
+    expect((await call("GET", "/vendor/orders?view=new", owner.token)).json().data[0]).toMatchObject({ id: second.order.id, status: "cancelled" });
+  });
+
+  it("counts an order delivered a week after its ready date, and pays the shop 48 hours after that", async () => {
+    const { owner, customer, order } = await inHand("out_for_delivery");
+    const doc = await stack.db.podOrders.findOne({ _id: new ObjectId(order.id) });
+    expect(doc!.readyBy!.getTime() - doc!.acceptedAt!.getTime()).toBe(doc!.turnaroundDays! * 24 * HOUR);
+    expect((await call("GET", `/pod/orders/${order.id}`, customer.token)).json().data.readyBy).toBe(doc!.readyBy!.toISOString());
+
+    await age(order.id, { readyBy: 7 * 24 - 1 });
+    expect((await sweep()).json()).toMatchObject({ delivered: 0 });
+    await age(order.id, { readyBy: 7 * 24 + 1 });
+    expect((await sweep()).json()).toMatchObject({ delivered: 1 });
+    const after = (await call("GET", `/vendor/orders/${order.id}`, owner.token)).json().data;
+    expect(after.status).toBe("delivered");
+    expect(Date.parse(after.releaseAt) - Date.parse(after.deliveredAt)).toBe(48 * HOUR);
+    expect(await stack.db.notifications.findOne({ userId: customer.userId, title: `Marked delivered: #${order.orderNo}` })).not.toBeNull();
+
+    await age(order.id, { releaseAt: 1 });
+    expect((await sweep()).json()).toMatchObject({ released: 1 });
+    expect((await call("GET", "/vendor/payments", owner.token)).json().data.balance).toMatchObject({ available: 324_000, pending: 0 });
+  });
+
+  it("lets the shop refund part of an order out of its share, until the share is released", async () => {
+    const { owner, customer, order } = await inHand();
+    const refund = (amount: number) => call("POST", `/vendor/orders/${order.id}/refund`, owner.token, { amount, reason: "Two shirts misprinted" });
+    expect((await refund(324_001)).json().error).toMatchObject({ code: "ORDER_INVALID", details: [{ path: "body/amount" }] });
+    expect((await refund(50)).statusCode).toBe(400);
+    expect((await refund(50_000)).json().data).toMatchObject({
+      status: "accepted",
+      refunded: 50_000,
+      refundable: 274_000,
+      price: { payout: 324_000, payoutLeft: 274_000 },
+      refunds: [{ amount: 50_000, kind: "partial", reason: "Two shirts misprinted", status: "done" }],
+    });
+    expect(gateway().refunds.get(`rf_${order.id}_1`)).toEqual({ orderId: `rx_${order.id}`, amount: 50_000 });
+    expect(await stack.db.notifications.findOne({ userId: customer.userId, title: `₹500 back for order #${order.orderNo}` })).not.toBeNull();
+    expect((await call("GET", "/vendor/payments", owner.token)).json().data.balance).toMatchObject({ pending: 274_000 });
+
+    await call("POST", `/vendor/orders/${order.id}/status`, owner.token, { status: "delivered" });
+    await age(order.id, { releaseAt: 1 });
+    expect((await call("GET", "/vendor/payments", owner.token)).json().data.balance).toMatchObject({ available: 274_000, pending: 0 });
+    expect((await refund(1_000)).json().error.code).toBe("ORDER_STATE");
+    const entries = await stack.db.ledgerEntries.find({}).toArray();
+    expect(entries.reduce((sum, e) => sum + e.signedPaise, 0)).toBe(0);
+  });
+
+  it("takes a problem report with photos, holds the shop's share, and Ruxstar settles it", async () => {
+    const { owner, customer, order } = await inHand("delivered");
+    const report = (body: object) => call("POST", `/pod/orders/${order.id}/problem`, customer.token, body);
+    expect((await photoUpload(customer.token, order.id)).json().error.code).toBe("ORDER_STATE");
+    const reported = (await report({ kind: "wrong_item", note: "The print is the wrong design" })).json().data;
+    expect(reported).toMatchObject({ canReport: false, reportUntil: null, problem: { kind: "wrong_item", status: "open", photos: [], resolution: null } });
+    expect((await report({ kind: "damaged", note: "Again" })).json().error.code).toBe("CONFLICT");
+    expect(await stack.db.notifications.findOne({ userId: owner.userId, title: `Problem reported: #${order.orderNo}` })).not.toBeNull();
+
+    for (let i = 0; i < 3; i++) expect((await photoUpload(customer.token, order.id)).statusCode).toBe(200);
+    expect((await photoUpload(customer.token, order.id)).json().error.code).toBe("CONFLICT");
+    const shopView = (await call("GET", `/vendor/orders/${order.id}`, owner.token)).json().data;
+    expect(shopView.problem.photos).toHaveLength(3);
+    const href = new URL(shopView.problem.photos[0].url);
+    const image = await stack.app.inject({ method: "GET", url: href.pathname + href.search });
+    expect(image.statusCode).toBe(200);
+    expect(image.headers["content-type"]).toBe("image/jpeg");
+    href.searchParams.set("t", "forged");
+    expect((await stack.app.inject({ method: "GET", url: href.pathname + href.search })).statusCode).toBe(401);
+
+    // The hold is over, but the share waits for Ruxstar.
+    await age(order.id, { releaseAt: 1 });
+    expect((await sweep()).json()).toMatchObject({ released: 0 });
+    const payments = (await call("GET", "/vendor/payments", owner.token)).json().data;
+    expect(payments.balance).toMatchObject({ available: 0, pending: 324_000 });
+    expect(payments.upcoming[0]).toMatchObject({ orderId: order.id, held: true });
+
+    expect((await call("GET", "/ruxstar/reports/orders", customer.token)).statusCode).toBe(403);
+    const admin = await signIn(stack, { admin: true });
+    const queue = (await call("GET", "/ruxstar/reports/orders", admin.token)).json().data;
+    expect(queue).toHaveLength(1);
+    expect(queue[0]).toMatchObject({ id: order.id, vendor: { name: "Asha Rao" }, problem: { kind: "wrong_item" } });
+    expect((await call("GET", "/ruxstar/overview", admin.token)).json().data.orders).toEqual({ problems: 1 });
+
+    const settle = (body: object) => call("POST", `/ruxstar/reports/orders/${order.id}/settle`, admin.token, body);
+    expect((await settle({ outcome: "refund_partial", note: "Half the shirts were wrong" })).json().error.code).toBe("VALIDATION_FAILED");
+    expect((await settle({ outcome: "refund_partial", amount: 100_000, note: "Half the shirts were wrong" })).json().data).toMatchObject({
+      status: "delivered",
+      refunded: 100_000,
+      problem: { status: "resolved", resolution: { outcome: "partial", amount: 100_000, note: "Half the shirts were wrong" } },
+      releasedAt: expect.any(String),
+    });
+    expect((await settle({ outcome: "dismiss", note: "Again please" })).json().error.code).toBe("CONFLICT");
+    expect((await call("GET", "/vendor/payments", owner.token)).json().data.balance).toMatchObject({ available: 224_000, pending: 0 });
+    expect(await stack.db.notifications.findOne({ userId: owner.userId, title: `Refund on order #${order.orderNo}` })).not.toBeNull();
+    const photoKeys = (await stack.db.podOrders.findOne({ _id: new ObjectId(order.id) }))!.problem!.photos.map((p) => p.key);
+    expect(photoKeys.every((k) => k.startsWith(`problems/${order.id}/`) && stack.printFiles.expiring.has(k))).toBe(true);
+    expect((await call("GET", "/ruxstar/reports/orders?status=resolved", admin.token)).json().data).toHaveLength(1);
+  });
+
+  it("refunds a late order in full when Ruxstar settles a not-received report, and closes reports 48 hours after delivery", async () => {
+    const { owner, customer, order } = await inHand("out_for_delivery");
+    await age(order.id, { readyBy: 0.5 });
+    expect((await call("GET", `/pod/orders/${order.id}`, customer.token)).json().data.canReport).toBe(true);
+    expect((await call("POST", `/pod/orders/${order.id}/problem`, customer.token, { kind: "not_received", note: "Nothing arrived" })).statusCode).toBe(200);
+    // Not counted as delivered while the report is open.
+    await age(order.id, { readyBy: 8 * 24 });
+    expect((await sweep()).json()).toMatchObject({ delivered: 0 });
+
+    const admin = await signIn(stack, { admin: true });
+    const settled = await call("POST", `/ruxstar/reports/orders/${order.id}/settle`, admin.token, {
+      outcome: "refund_full",
+      note: "The shop couldn't show it was delivered",
+    });
+    expect(settled.json().data).toMatchObject({
+      status: "refunded",
+      refunded: 360_500,
+      refundable: 0,
+      price: { payoutLeft: 0 },
+      refunds: [{ kind: "full", amount: 360_500, status: "done" }],
+      problem: { status: "resolved", resolution: { outcome: "refunded", amount: 360_500 } },
+    });
+    const vendorEntries = await stack.db.ledgerEntries.find({ accountId: `vendor:${owner.userId.toHexString()}` }).toArray();
+    expect(vendorEntries.reduce((s, e) => s + e.signedPaise, 0)).toBe(0);
+    expect((await call("GET", "/vendor/orders?view=past", owner.token)).json().data.map((o: { id: string }) => o.id)).toEqual([order.id]);
+    expect((await sweep()).json()).toMatchObject({ checked: 0 });
+
+    const late = await inHand("delivered");
+    await age(late.order.id, { deliveredAt: 49 });
+    const closed = await call("POST", `/pod/orders/${late.order.id}/problem`, late.customer.token, { kind: "damaged", note: "Torn" });
+    expect(closed.json().error.code).toBe("REPORT_CLOSED");
   });
 
   it("lets the Ruxstar team set the platform fee", async () => {

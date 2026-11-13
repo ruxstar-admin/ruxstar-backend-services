@@ -6,7 +6,7 @@ import { ObjectIdString, Strict } from "../../contracts/common.js";
 import { requireDatabase } from "../../platform/context.js";
 import type { PodOrderDoc } from "../../platform/db.js";
 import { AppError } from "../../platform/errors.js";
-import { askForRefund, checkoutTokenValid, fileLinkValid, rupees, signingKey, syncPayment, withOrder } from "./orders.js";
+import { checkoutTokenValid, fileLinkValid, photoLinkValid, rupees, signingKey, syncPayment, withOrder } from "./orders.js";
 
 const Params = Strict({ id: ObjectIdString });
 const Query = Strict({ exp: Type.Integer(), back: Type.String({ maxLength: 500 }), t: Type.String({ maxLength: 100 }) });
@@ -159,6 +159,30 @@ if (!cfg.fake) pay();
     },
   );
 
+  // A problem report's photo, from a signed link in an order view for the customer, the shop or Ruxstar staff.
+  app.get(
+    "/problem-photos/:id/:photoId",
+    {
+      schema: {
+        hide: true,
+        params: Strict({ id: ObjectIdString, photoId: ObjectIdString }),
+        querystring: Strict({ exp: Type.Integer(), t: Type.String({ maxLength: 100 }) }),
+      },
+      config: { rateLimit: { max: 120, timeWindow: 60_000 } },
+    },
+    async (request, reply) => {
+      const { id, photoId } = request.params;
+      if (!photoLinkValid(key, id, photoId, request.query.exp, request.query.t)) {
+        throw new AppError("UNAUTHENTICATED", "This link has expired. Open the order again.");
+      }
+      const order = await db().podOrders.findOne({ _id: new ObjectId(id) }, { projection: { problem: 1 } });
+      const photo = order?.problem?.photos.find((p) => p.id.toHexString() === photoId);
+      if (!photo) throw new AppError("NOT_FOUND", "Photo not found.");
+      const data = await app.printFiles.read(photo.key);
+      return reply.headers({ ...noStore, "Content-Type": "image/jpeg", "X-Content-Type-Options": "nosniff" }).send(data);
+    },
+  );
+
   // Cashfree's return_url, when its checkout leaves the page instead of closing a popup.
   app.get("/pay/:id/done", { schema: { hide: true, params: Params } }, async (request, reply) => {
     reply.headers({ ...noStore, "Content-Type": "text/html; charset=utf-8" });
@@ -188,11 +212,8 @@ if (!cfg.fake) pay();
       // Answered 200 below: Cashfree retries anything else, and an unreadable event won't read better later.
     }
     const order = gatewayOrderId ? await db().podOrders.findOne({ "payment.gatewayOrderId": gatewayOrderId }) : null;
-    if (order) {
-      // The event only says something changed; the gateway is asked what.
-      const now = await syncPayment(app, db(), order);
-      if (now.refund?.status === "pending") await askForRefund(app, db(), now);
-    }
+    // The event only says something changed; the gateway is asked what. Pending refunds are asked about too.
+    if (order) await syncPayment(app, db(), order);
     return { ok: true };
   });
 };

@@ -235,6 +235,16 @@ export const Payments = Envelope(
       pending: Paise,
       paidOut: Paise,
     }),
+    upcoming: Type.Array(
+      Strict({
+        orderId: ObjectIdString,
+        orderNo: Type.Integer(),
+        amount: Paise,
+        availableAt: DateTime,
+        held: Type.Boolean({ description: "The customer reported a problem; it waits for Ruxstar" }),
+      }),
+      { description: "Delivered orders whose share is still on hold, soonest first, up to 20" },
+    ),
     payoutMethod: Nullable(PayoutMethod),
     payouts: Type.Array(Payout, { description: "The latest 20" }),
   }),

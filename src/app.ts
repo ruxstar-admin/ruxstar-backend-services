@@ -17,6 +17,7 @@ import type { Config } from "./config.js";
 import { ErrorEnvelope } from "./contracts/common.js";
 import { registerModules } from "./modules/index.js";
 import health from "./modules/health.js";
+import { googleJobAuth, jobs, type JobAuth } from "./modules/jobs.js";
 import checkout from "./modules/pod/checkout.js";
 import chatPhotoLinks from "./modules/social/chat-photo-links.js";
 import { registerAuth } from "./platform/auth.js";
@@ -69,6 +70,8 @@ export interface AppOptions {
   payments?: PaymentGateway;
   printFiles?: PrintFileStore;
   chatPhotos?: ChatPhotoStore;
+  /** Tests accept their own token for the scheduler's routes. */
+  jobAuth?: JobAuth;
   /** Tests send every request from one address, so most of them switch per-IP limits off. */
   rateLimit?: boolean;
 }
@@ -86,6 +89,7 @@ export async function buildApp({
   payments,
   printFiles,
   chatPhotos,
+  jobAuth,
   rateLimit: limitByIp = true,
 }: AppOptions) {
   const app = Fastify({
@@ -164,6 +168,7 @@ export async function buildApp({
   await registerModules(app);
   await app.register(checkout);
   await app.register(chatPhotoLinks);
+  await app.register(jobs(jobAuth ?? googleJobAuth(config)));
 
   if (config.env !== "prod") {
     app.get("/openapi.json", { schema: { hide: true } }, async () => app.swagger());

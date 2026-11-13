@@ -38,12 +38,14 @@ import {
   moveOrder,
   orderableShop,
   orderView,
+  photoLinks,
   priceOf,
   safeReturn,
   signingKey,
   sniff,
   syncPayment,
 } from "./orders.js";
+import { applyDue, dueApplied } from "./order-rules.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 const FILE_TYPES = ["application/pdf", "image/jpeg", "image/png", "application/octet-stream"];
@@ -210,8 +212,9 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
           status: "awaiting_payment",
           timeline: [{ status: "awaiting_payment", at: now, by: "customer" }],
           payment: { gatewayOrderId, sessionId, paymentId: null, paidAt: null },
-          refund: null,
+          refunds: [],
           reason: null,
+          turnaroundDays: priced.turnaroundDays,
           ...stamp(now),
         };
         await database.podOrders.insertOne(order, { session });
@@ -219,7 +222,7 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
       });
 
       reply.code(201);
-      return ok(request, { order: orderView(doc), checkoutUrl: checkoutUrl(app, key, request, id.toHexString(), back) });
+      return ok(request, { order: orderView(doc, photoLinks(app, request)), checkoutUrl: checkoutUrl(app, key, request, id.toHexString(), back) });
     },
   );
 
@@ -257,7 +260,8 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
         cursor: request.query.cursor,
         limit: request.query.limit,
       });
-      return page(request, items.map(orderView), nextCursor);
+      const links = photoLinks(app, request);
+      return page(request, (await dueApplied(app, db(), items)).map((o) => orderView(o, links)), nextCursor);
     },
   );
 
@@ -276,7 +280,7 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const order = await syncPayment(app, db(), await mine(request.auth!.userId, request.params.id));
-      return ok(request, orderView(order));
+      return ok(request, orderView(await applyDue(app, db(), order), photoLinks(app, request)));
     },
   );
 
@@ -295,7 +299,8 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const database = db();
-      let order = await syncPayment(app, database, await mine(request.auth!.userId, request.params.id));
+      const links = photoLinks(app, request);
+      let order = await applyDue(app, database, await syncPayment(app, database, await mine(request.auth!.userId, request.params.id)));
       if (order.status === "awaiting_payment") {
         // Closed at Cashfree first, so a payment can't arrive after the cancel. If it already did, the order is placed and refunded below.
         const closed = await app.payments.terminate(order.payment.gatewayOrderId).then(
@@ -305,12 +310,12 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
         if (!closed) order = await syncPayment(app, database, order);
         if (!closed && order.status === "awaiting_payment") throw new AppError("PAYMENTS_UNAVAILABLE");
       }
-      if (order.status === "cancelled") return ok(request, orderView(order));
+      if (order.status === "cancelled") return ok(request, orderView(order, links));
       if (order.status !== "awaiting_payment" && order.status !== "placed") {
         throw new AppError("ORDER_STATE", "The shop has started on this order, so it can't be cancelled here. Contact the shop.");
       }
       const moved = await moveOrder(app, database, order, "cancelled", { kind: "customer", actor: actorOf(request), ip: request.ip });
-      return ok(request, orderView(moved));
+      return ok(request, orderView(moved, links));
     },
   );
 
