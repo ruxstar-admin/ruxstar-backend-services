@@ -82,7 +82,11 @@ describe("vendor withdrawals", () => {
     const entries = await stack.db.ledgerEntries.find({}).toArray();
     expect(entries.reduce((sum, e) => sum + e.signedPaise, 0)).toBe(0);
     expect(entries.find((e) => e.accountId === "ruxstar")).toMatchObject({ kind: "payout", signedPaise: 590 });
-    expect(await stack.db.notifications.findOne({ userId: owner.userId, title: "₹494.10 sent", "link.screen": "payments" })).not.toBeNull();
+    const inbox = await call("GET", "/notifications", owner.token);
+    expect(inbox.statusCode).toBe(200);
+    expect(inbox.json().data).toEqual([
+      expect.objectContaining({ type: "payout.updated", title: "₹494.10 sent", link: { screen: "payments", id: payout.id } }),
+    ]);
     expect(await stack.db.auditLogs.findOne({ action: "payout.request", "target.id": new ObjectId(payout.id) })).not.toBeNull();
 
     // Asking again with the same key answers the same payout; a new key finds nothing left.
