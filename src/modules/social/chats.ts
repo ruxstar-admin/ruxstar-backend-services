@@ -22,19 +22,25 @@ import {
   CreateGroup,
   GROUP_MAX,
   MemberParams,
+  MediaQuery,
   MessageList,
   MessagePageQuery,
   MessageParams,
   MessageResult,
   MuteBody,
+  ReactBody,
   RenameGroup,
   SendMessage,
   StartDm,
+  TypingBody,
   UpdatesQuery,
+  VOICE_MAX_MS,
+  VoiceQuery,
   type Chat,
   type Message,
 } from "./chat-contracts.js";
-import { chatPhotoUrl } from "./chat-photo-links.js";
+import { isMp4, isOneEmoji, nap, parseLevels, reactionCounts, wake } from "./chat-live.js";
+import { chatPhotoUrl, chatVoiceUrl } from "./chat-photo-links.js";
 import { Done } from "./contracts.js";
 import { toChatPhoto } from "./photos.js";
 import { blockBetween, blockedAround, blockedError } from "./relations.js";
@@ -47,6 +53,13 @@ const isDuplicate = (err: unknown) => err instanceof MongoServerError && err.cod
 const POLL_OVERLAP_MS = 5_000;
 const POLL_MAX = 100;
 const PREVIEW_MAX = 120;
+/** A waiting /updates call looks at the chat this often, for changes made on another server. */
+const PULSE_CHECK_MS = 1_000;
+/** Typing… lasts this long after the last signal, so a closed app doesn't leave it on. */
+const TYPING_MS = 6_000;
+/** `activeAt` is written at most this often per person. */
+const ACTIVE_STEP_MS = 60_000;
+const VOICE_MAX_BYTES = 5 * 1024 * 1024;
 
 type Member = WithId<ChatMemberDoc>;
 type Conversation = WithId<ConversationDoc>;
@@ -77,7 +90,28 @@ function namesLine(names: string[]): string {
 function previewOf(kind: ChatMessageKind, text: string): string {
   const line = text.replace(/\s+/g, " ").trim();
   if (line) return line.length > PREVIEW_MAX ? `${line.slice(0, PREVIEW_MAX - 1)}…` : line;
-  return kind === "photo" ? "Sent a photo" : kind === "post" ? "Shared a post" : "";
+  return kind === "photo" ? "Sent a photo" : kind === "voice" ? "Sent a voice message" : kind === "post" ? "Shared a post" : "";
+}
+
+/** A message's photo and voice files in the bucket. */
+const mediaKeys = (m: Pick<ChatMessageDoc, "photo" | "voice">) => [m.photo?.key, m.voice?.key].filter((key): key is string => !!key);
+const HAS_MEDIA = { $or: [{ photo: { $ne: null } }, { voice: { $ne: null } }] };
+const MEDIA_PROJECTION = { projection: { photo: 1, voice: 1 } };
+
+/** Marks the person active, at most once a minute. */
+async function touchActive(d: Database, userId: ObjectId): Promise<void> {
+  const now = new Date();
+  await d.users.updateOne(
+    { _id: userId, $or: [{ activeAt: { $exists: false } }, { activeAt: { $lt: new Date(now.getTime() - ACTIVE_STEP_MS) } }] },
+    { $set: { activeAt: now } },
+  );
+}
+
+/** Like Seen, the other person's activity shows only once they've accepted the chat. */
+async function activeAtOf(d: Database, peerSide: Pick<ChatMemberDoc, "state" | "userId"> | null | undefined): Promise<string | null> {
+  if (peerSide?.state !== "active") return null;
+  const user = await d.users.findOne({ _id: peerSide.userId }, { projection: { activeAt: 1 } });
+  return user?.activeAt?.toISOString() ?? null;
 }
 
 /** People who can be messaged: signed up, with a username, not deleted or on hold. */
@@ -115,7 +149,7 @@ async function writeMessage(
   await d.chatMessages.insertOne(message, { session });
   await d.conversations.updateOne(
     { _id: conversationId },
-    { $set: { last: { messageId: message._id, senderId, kind: message.kind, text: previewOf(message.kind, message.text), at }, updatedAt: at } },
+    { $set: { last: { messageId: message._id, senderId, kind: message.kind, text: previewOf(message.kind, message.text), at }, updatedAt: at, pulseAt: at } },
     { session },
   );
   const counts = message.kind !== "event";
@@ -127,7 +161,7 @@ async function writeMessage(
     await d.chatMembers.updateOne(
       { conversationId, userId: senderId },
       counts
-        ? { $set: { lastAt: at, readAt: at, unread: 0, sentAt: at, state: "active" } }
+        ? { $set: { lastAt: at, readAt: at, unread: 0, sentAt: at, state: "active", typingUntil: null } }
         : { $set: { lastAt: at, readAt: at, unread: 0 } },
       { session },
     );
@@ -193,8 +227,8 @@ async function removeFromGroup(
 }
 
 async function deleteConversation(app: FastifyInstance, d: Database, conversationId: ObjectId): Promise<void> {
-  const photos = await d.chatMessages.find({ conversationId, photo: { $ne: null } }, { projection: { photo: 1 } }).toArray();
-  await Promise.all(photos.map((m) => app.chatPhotos.remove(m.photo!.key)));
+  const media = await d.chatMessages.find({ conversationId, ...HAS_MEDIA }, MEDIA_PROJECTION).toArray();
+  await Promise.all(media.flatMap(mediaKeys).map((key) => app.chatPhotos.remove(key)));
   await d.chatMessages.deleteMany({ conversationId });
   await d.chatMembers.deleteMany({ conversationId });
   await d.conversations.deleteOne({ _id: conversationId });
@@ -213,8 +247,10 @@ export async function eraseChats(app: FastifyInstance, d: Database, userId: Obje
     }
     const conversation = await d.conversations.findOne({ _id: membership.conversationId });
     if (!conversation) continue;
-    const photos = await d.chatMessages.find({ conversationId: conversation._id, senderId: userId, photo: { $ne: null } }, { projection: { photo: 1 } }).toArray();
-    await Promise.all(photos.map((m) => app.chatPhotos.remove(m.photo!.key)));
+    const media = await d.chatMessages.find({ conversationId: conversation._id, senderId: userId, ...HAS_MEDIA }, MEDIA_PROJECTION).toArray();
+    await Promise.all(media.flatMap(mediaKeys).map((key) => app.chatPhotos.remove(key)));
+    // Their reactions go too.
+    await d.chatMessages.updateMany({ conversationId: conversation._id, "reactions.userId": userId }, { $pull: { reactions: { userId } } });
     await d.chatMessages.deleteMany({ conversationId: conversation._id, senderId: userId });
     await removeFromGroup(app, d, conversation, userId, null);
     await refreshLast(d, conversation._id);
@@ -301,7 +337,26 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
       })
       .sort((a, b) => Number(b.me) - Number(a.me));
     const peerSide = conversation.kind === "dm" ? members.find((m) => !m.userId.equals(viewer)) : undefined;
-    return { ...chat, people, seenAt: seenBy(peerSide) };
+    return { ...chat, people, seenAt: seenBy(peerSide), activeAt: await activeAtOf(d, peerSide) };
+  }
+
+  /** What a reply shows of the message it answers. */
+  async function replyPreviews(request: FastifyRequest, messages: WithId<ChatMessageDoc>[]): Promise<Map<string, NonNullable<Message["replyTo"]>>> {
+    const ids = messages.flatMap((m) => (m.replyToId ? [m.replyToId] : []));
+    if (ids.length === 0) return new Map();
+    const d = db();
+    const viewer = me(request);
+    const targets = await d.chatMessages.find({ _id: { $in: ids } }, { projection: { senderId: 1, kind: 1, text: 1, status: 1 } }).toArray();
+    const names = await authorsOf(d, targets.map((t) => t.senderId));
+    return new Map(
+      targets.map((t) => {
+        const mine = t.senderId.equals(viewer);
+        const author = names.get(t.senderId.toHexString());
+        const live = t.status === "live";
+        const text = !live ? "" : t.kind === "photo" ? "Photo" : t.kind === "voice" ? "Voice message" : t.kind === "post" ? previewOf("text", t.text) || "Post" : previewOf("text", t.text);
+        return [t._id.toHexString(), { id: t._id.toHexString(), available: live, sender: mine ? "You" : author?.name || author?.username || "Someone", mine, kind: t.kind, text }];
+      }),
+    );
   }
 
   async function messageViews(request: FastifyRequest, messages: WithId<ChatMessageDoc>[]): Promise<Message[]> {
@@ -309,10 +364,11 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
     const d = db();
     const viewer = me(request);
     const postIds = messages.flatMap((m) => (m.postId ? [m.postId] : []));
-    const [senders, posts, blocked] = await Promise.all([
+    const [senders, posts, blocked, replies] = await Promise.all([
       authorsOf(d, messages.filter((m) => m.kind !== "event").map((m) => m.senderId)),
       postIds.length ? d.posts.find({ _id: { $in: postIds }, status: "live" }, { projection: { authorId: 1, text: 1, media: 1 } }).toArray() : Promise.resolve([]),
       postIds.length ? blockedAround(d, viewer) : Promise.resolve([]),
+      replyPreviews(request, messages),
     ]);
     const postAuthors = await authorsOf(d, posts.map((p) => p.authorId));
     const hidden = new Set(blocked.map((id) => id.toHexString()));
@@ -344,10 +400,30 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
           text: m.text,
           post,
           photo: m.photo ? { url: chatPhotoUrl(app, request, m._id.toHexString()), width: m.photo.width, height: m.photo.height } : null,
+          voice: m.voice ? { url: chatVoiceUrl(app, request, m._id.toHexString()), durationMs: m.voice.durationMs, levels: m.voice.levels } : null,
+          replyTo: m.replyToId ? (replies.get(m.replyToId.toHexString()) ?? null) : null,
+          reactions: reactionCounts(m.reactions, viewer),
           createdAt: m.createdAt.toISOString(),
         },
       ];
     });
+  }
+
+  /** Something an open chat shows changed: wake the calls waiting on it, here and on other servers. */
+  async function pulse(conversationId: ObjectId): Promise<void> {
+    await db().conversations.updateOne({ _id: conversationId }, { $set: { pulseAt: new Date() } });
+    wake(conversationId);
+  }
+
+  /** The message a reply answers: live, in this chat, and one you can see. */
+  async function replyTarget(conversation: Conversation, mine: Member, replyToId: string | undefined): Promise<ObjectId | null> {
+    if (!replyToId) return null;
+    const target = await db().chatMessages.findOne(
+      { _id: new ObjectId(replyToId), conversationId: conversation._id, status: "live", kind: { $ne: "event" }, createdAt: { $gte: mine.joinedAt } },
+      { projection: { _id: 1 } },
+    );
+    if (!target) throw new AppError("VALIDATION_FAILED", "That message is gone, so you can't reply to it.", [{ path: "replyToId", message: "Not available" }]);
+    return target._id;
   }
 
   /** Refuses a send that would break the request rule: one message until the other person accepts. */
@@ -359,7 +435,12 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
     if (peerSide.state !== "active" && mine.sentAt) throw new AppError("CHAT_REQUEST_PENDING");
   }
 
-  async function send(request: FastifyRequest, conversation: Conversation, mine: Member, fields: Pick<ChatMessageDoc, "kind" | "text" | "postId" | "photo">) {
+  async function send(
+    request: FastifyRequest,
+    conversation: Conversation,
+    mine: Member,
+    fields: Pick<ChatMessageDoc, "kind" | "text" | "postId" | "photo"> & Partial<Pick<ChatMessageDoc, "voice" | "replyToId">>,
+  ) {
     const d = db();
     const message: ChatMessageDoc = {
       _id: new ObjectId(),
@@ -371,6 +452,7 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
       unsentAt: null,
     };
     await d.transaction((session) => writeMessage(d, session, conversation, message));
+    wake(conversation._id);
     const [view] = await messageViews(request, [message]);
     return view!;
   }
@@ -478,7 +560,7 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
     async (request) => {
       const d = db();
       const viewer = me(request);
-      const blocked = await blockedAround(d, viewer);
+      const [blocked] = await Promise.all([blockedAround(d, viewer), touchActive(d, viewer)]);
       const result = await findPage(d.chatMembers, {
         filter: { userId: viewer, state: request.query.box === "requests" ? "request" : "active", lastAt: { $ne: null }, peerId: { $nin: blocked } },
         sortField: "lastAt",
@@ -496,7 +578,7 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["chats"],
         summary: "Unread messages for the badge, and waiting requests",
-        description: "Poll every 15 seconds or so while the app or site is open. Muted chats don't count.",
+        description: "Poll every 15 seconds or so while the app or site is open. Muted chats don't count. It also marks you active for \"Active 5m ago\".",
         response: { 200: ChatUnread, ...Errors },
         security,
       },
@@ -504,7 +586,7 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
     async (request) => {
       const d = db();
       const viewer = me(request);
-      const blocked = await blockedAround(d, viewer);
+      const [blocked] = await Promise.all([blockedAround(d, viewer), touchActive(d, viewer)]);
       const [sum, requests] = await Promise.all([
         d.chatMembers
           .aggregate<{ total: number }>([
@@ -639,31 +721,90 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["chats"],
         summary: "What changed in an open chat since your last look",
-        description: "Poll every 3 seconds or so while a chat is open. Pass the last answer's `now` as `since`.",
+        description:
+          "Call it again as soon as it answers while a chat is open, passing the last answer's `now` as `since`. With `wait` it holds on " +
+          "until something changes (a message, an unsend, a reaction, typing, Seen) or `wait` seconds pass, so new messages show at once.",
         params: ChatParams,
         querystring: UpdatesQuery,
         response: { 200: ChatUpdates, ...Errors },
         security,
       },
     },
-    async (request) => {
+    async (request, reply) => {
       const d = db();
-      const now = new Date();
-      const { conversation, mine } = await open(request, request.params.id);
+      const { conversation: opened, mine } = await open(request, request.params.id);
       const since = new Date(request.query.since);
+      const deadline = Date.now() + (request.query.wait ?? 0) * 1000;
+      const viewer = me(request);
+      await touchActive(d, viewer);
+
+      let conversation = opened;
+      let gone = false;
+      reply.raw.once("close", () => (gone = true));
+      const moved = (c: Conversation) => c.updatedAt > since || (!!c.pulseAt && c.pulseAt > since);
+      while (!gone && !moved(conversation) && Date.now() < deadline) {
+        await nap(conversation._id.toHexString(), Math.min(PULSE_CHECK_MS, deadline - Date.now()));
+        const fresh = await d.conversations.findOne({ _id: conversation._id });
+        if (!fresh) throw unavailable();
+        conversation = fresh;
+      }
+
+      const now = new Date();
       const from = new Date(Math.max(since.getTime() - POLL_OVERLAP_MS, mine.joinedAt.getTime() - 1));
-      const [messages, unsent, peerSide] = await Promise.all([
-        d.chatMessages.find({ conversationId: conversation._id, status: "live", createdAt: { $gt: from } }).sort({ createdAt: 1, _id: 1 }).limit(POLL_MAX).toArray(),
-        d.chatMessages.find({ conversationId: conversation._id, status: "unsent", unsentAt: { $gt: from } }, { projection: { _id: 1 } }).toArray(),
-        conversation.kind === "dm" ? d.chatMembers.findOne({ conversationId: conversation._id, userId: { $ne: mine.userId } }, { projection: { readAt: 1, state: 1 } }) : null,
+      const id = conversation._id;
+      const [messages, updated, unsent, peerSide, typing] = await Promise.all([
+        d.chatMessages.find({ conversationId: id, status: "live", createdAt: { $gt: from } }).sort({ createdAt: 1, _id: 1 }).limit(POLL_MAX).toArray(),
+        d.chatMessages
+          .find({ conversationId: id, status: "live", touchedAt: { $gt: from }, createdAt: { $lte: from, $gte: mine.joinedAt } })
+          .limit(POLL_MAX)
+          .toArray(),
+        d.chatMessages.find({ conversationId: id, status: "unsent", unsentAt: { $gt: from } }, { projection: { _id: 1 } }).toArray(),
+        conversation.kind === "dm" ? d.chatMembers.findOne({ conversationId: id, userId: { $ne: viewer } }, { projection: { readAt: 1, state: 1, userId: 1 } }) : null,
+        d.chatMembers.find({ conversationId: id, userId: { $ne: viewer }, state: "active", typingUntil: { $gt: now } }, { projection: { userId: 1 } }).toArray(),
+      ]);
+      const [messageList, updatedList, typists, activeAt] = await Promise.all([
+        messageViews(request, messages),
+        messageViews(request, updated),
+        authorsOf(d, typing.map((t) => t.userId)),
+        activeAtOf(d, peerSide),
       ]);
       return ok(request, {
-        messages: await messageViews(request, messages),
+        messages: messageList,
+        updated: updatedList,
         unsent: unsent.map((m) => m._id.toHexString()),
         seenAt: seenBy(peerSide),
+        activeAt,
+        typing: [...typists.values()],
         changed: (conversation.changedAt ?? conversation.createdAt) > since,
         now: now.toISOString(),
       });
+    },
+  );
+
+  app.post(
+    "/chats/:id/typing",
+    {
+      preHandler: requireAuth,
+      config: limit(1, 60),
+      schema: {
+        tags: ["chats"],
+        summary: "Say you're typing, or that you stopped",
+        description: "Send `typing: true` when someone starts typing and every 4 seconds while they keep going, and `false` when they stop. It wears off after 6 seconds.",
+        params: ChatParams,
+        body: TypingBody,
+        response: { 200: Done, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const { conversation, mine } = await open(request, request.params.id);
+      if (mine.state !== "active") return ok(request, { done: true as const });
+      const typingUntil = request.body.typing ? new Date(Date.now() + TYPING_MS) : null;
+      // Each "still typing" wakes the others so their typing… stays on; a stop only matters if they were.
+      const wasTyping = !!mine.typingUntil && mine.typingUntil > new Date();
+      await db().chatMembers.updateOne({ _id: mine._id }, { $set: { typingUntil } });
+      if (request.body.typing || wasTyping) await pulse(conversation._id);
+      return ok(request, { done: true as const });
     },
   );
 
@@ -697,7 +838,8 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
         }
       }
       await assertCanSend(conversation, mine);
-      const message = await send(request, conversation, mine, { kind: postId ? "post" : "text", text, postId, photo: null });
+      const replyToId = await replyTarget(conversation, mine, request.body.replyToId);
+      const message = await send(request, conversation, mine, { kind: postId ? "post" : "text", text, postId, photo: null, replyToId });
       return reply.status(201).send(ok(request, message));
     },
   );
@@ -714,6 +856,7 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
           "Send the image itself with Content-Type image/jpeg, image/png or image/webp, up to 8 MB, and an Idempotency-Key. " +
           "It is kept privately, as WebP at most 1280 pixels on its long side, without its metadata. Its link works for at least an hour.",
         params: ChatParams,
+        querystring: MediaQuery,
         response: { 201: MessageResult, ...Errors },
         security,
       },
@@ -722,16 +865,116 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
       const { conversation, mine } = await open(request, request.params.id);
       if (!Buffer.isBuffer(request.body) || request.body.length === 0) throw new AppError("PHOTO_INVALID");
       await assertCanSend(conversation, mine);
+      const replyToId = await replyTarget(conversation, mine, request.query.replyToId);
       const photo = await toChatPhoto(request.body);
       const key = `chat-media/${app.config.env}/${conversation._id.toHexString()}/${randomUUID()}.webp`;
       await app.chatPhotos.save(key, photo.data);
       try {
-        const message = await send(request, conversation, mine, { kind: "photo", text: "", postId: null, photo: { key, width: photo.width, height: photo.height } });
+        const message = await send(request, conversation, mine, { kind: "photo", text: "", postId: null, photo: { key, width: photo.width, height: photo.height }, replyToId });
         return reply.status(201).send(ok(request, message));
       } catch (err) {
         await app.chatPhotos.remove(key);
         throw err;
       }
+    },
+  );
+
+  app.addContentTypeParser(/^audio\//, { parseAs: "buffer", bodyLimit: VOICE_MAX_BYTES }, (_request, body, done) => done(null, body));
+
+  app.post(
+    "/chats/:id/voice",
+    {
+      preHandler: [requireAuth, idempotent],
+      config: limit(1, 30),
+      schema: {
+        tags: ["chats"],
+        summary: "Send a voice message",
+        description:
+          "Send the recording itself as AAC in MP4 (an .m4a file) with Content-Type audio/mp4, up to 5 MB and 2 minutes, and an Idempotency-Key. " +
+          "Pass its length in `durationMs` and, if you have them, loudness bars for its waveform in `levels`. It is kept privately; its link works for at least an hour.",
+        params: ChatParams,
+        querystring: VoiceQuery,
+        consumes: ["audio/mp4", "audio/m4a", "audio/x-m4a"],
+        response: { 201: MessageResult, ...Errors },
+        security,
+      },
+    },
+    async (request, reply) => {
+      const { conversation, mine } = await open(request, request.params.id);
+      if (!Buffer.isBuffer(request.body) || !isMp4(request.body)) {
+        throw new AppError("VALIDATION_FAILED", "That recording didn't work. Try recording it again.", [{ path: "body", message: "Not an MP4 audio file" }]);
+      }
+      await assertCanSend(conversation, mine);
+      const replyToId = await replyTarget(conversation, mine, request.query.replyToId);
+      const voice = { durationMs: Math.min(request.query.durationMs, VOICE_MAX_MS), levels: parseLevels(request.query.levels) };
+      const key = `chat-media/${app.config.env}/${conversation._id.toHexString()}/${randomUUID()}.m4a`;
+      await app.chatPhotos.save(key, request.body, "audio/mp4");
+      try {
+        const message = await send(request, conversation, mine, { kind: "voice", text: "", postId: null, photo: null, voice: { key, ...voice }, replyToId });
+        return reply.status(201).send(ok(request, message));
+      } catch (err) {
+        await app.chatPhotos.remove(key);
+        throw err;
+      }
+    },
+  );
+
+  app.put(
+    "/chats/:id/messages/:messageId/reaction",
+    {
+      preHandler: requireAuth,
+      config: limit(1, 60),
+      schema: {
+        tags: ["chats"],
+        summary: "React to a message with an emoji",
+        description: "One reaction per person: reacting again swaps it. Group lines can't be reacted to.",
+        params: MessageParams,
+        body: ReactBody,
+        response: { 200: MessageResult, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const d = db();
+      const viewer = me(request);
+      const { conversation, mine } = await open(request, request.params.id);
+      if (mine.state !== "active") throw new AppError("FORBIDDEN", "Accept the request to react.");
+      const emoji = request.body.emoji.trim();
+      if (!isOneEmoji(emoji)) throw new AppError("VALIDATION_FAILED", "React with one emoji.", [{ path: "body/emoji", message: "Not one emoji" }]);
+      const now = new Date();
+      const others = { $filter: { input: { $ifNull: ["$reactions", []] }, cond: { $ne: ["$$this.userId", viewer] } } };
+      const message = await d.chatMessages.findOneAndUpdate(
+        { _id: new ObjectId(request.params.messageId), conversationId: conversation._id, status: "live", kind: { $ne: "event" }, createdAt: { $gte: mine.joinedAt } },
+        [{ $set: { reactions: { $concatArrays: [others, [{ $literal: { userId: viewer, emoji, at: now } }]] }, touchedAt: now } }],
+        { returnDocument: "after" },
+      );
+      if (!message) throw new AppError("NOT_FOUND", "That message is gone.");
+      await pulse(conversation._id);
+      const [view] = await messageViews(request, [message]);
+      return ok(request, view!);
+    },
+  );
+
+  app.delete(
+    "/chats/:id/messages/:messageId/reaction",
+    {
+      preHandler: requireAuth,
+      config: limit(1, 60),
+      schema: { tags: ["chats"], summary: "Take back your reaction", params: MessageParams, response: { 200: MessageResult, ...Errors }, security },
+    },
+    async (request) => {
+      const d = db();
+      const viewer = me(request);
+      const { conversation, mine } = await open(request, request.params.id);
+      const message = await d.chatMessages.findOneAndUpdate(
+        { _id: new ObjectId(request.params.messageId), conversationId: conversation._id, status: "live", createdAt: { $gte: mine.joinedAt } },
+        { $pull: { reactions: { userId: viewer } }, $set: { touchedAt: new Date() } },
+        { returnDocument: "after" },
+      );
+      if (!message) throw new AppError("NOT_FOUND", "That message is gone.");
+      await pulse(conversation._id);
+      const [view] = await messageViews(request, [message]);
+      return ok(request, view!);
     },
   );
 
@@ -754,16 +997,17 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
       const now = new Date();
       const message = await d.chatMessages.findOneAndUpdate(
         { _id: new ObjectId(request.params.messageId), conversationId: conversation._id, senderId: me(request), status: "live", kind: { $ne: "event" } },
-        { $set: { status: "unsent", unsentAt: now, text: "", postId: null, photo: null } },
+        { $set: { status: "unsent", unsentAt: now, text: "", postId: null, photo: null, voice: null, reactions: [] } },
         { returnDocument: "before" },
       );
       if (!message) throw new AppError("NOT_FOUND", "That message is already gone.");
-      if (message.photo) await app.chatPhotos.remove(message.photo.key);
+      await Promise.all(mediaKeys(message).map((key) => app.chatPhotos.remove(key)));
       await d.chatMembers.updateMany(
         { conversationId: conversation._id, userId: { $ne: me(request) }, unread: { $gt: 0 }, $or: [{ readAt: null }, { readAt: { $lt: message.createdAt } }] },
         { $inc: { unread: -1 } },
       );
       if (conversation.last?.messageId.equals(message._id)) await refreshLast(d, conversation._id);
+      await pulse(conversation._id);
       return ok(request, { done: true as const });
     },
   );
@@ -783,8 +1027,10 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (request) => {
-      const { mine } = await open(request, request.params.id);
+      const { conversation, mine } = await open(request, request.params.id);
       await db().chatMembers.updateOne({ _id: mine._id }, { $set: { unread: 0, readAt: new Date() } });
+      // Only the other person in a 1:1 chat sees Seen, and only once they're past the request.
+      if (conversation.kind === "dm" && mine.state === "active") await pulse(conversation._id);
       return ok(request, { done: true as const });
     },
   );

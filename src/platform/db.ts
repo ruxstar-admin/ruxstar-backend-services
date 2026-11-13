@@ -60,6 +60,8 @@ export interface UserDoc extends Stamped {
   card?: { id: string; issuedAt: Date };
   /** Why the Ruxstar team put the account on hold (`status: "locked"`). Removed when it is unlocked. */
   suspension?: { by: ObjectId; at: Date; reason: string };
+  /** When they last had the app or website open, to the minute. People they chat with see "Active 5m ago". */
+  activeAt?: Date;
 }
 
 export type KycTrack = "base" | "vendor";
@@ -340,6 +342,8 @@ export interface ConversationDoc extends Stamped {
   last: { messageId: ObjectId; senderId: ObjectId; kind: ChatMessageKind; text: string; at: Date } | null;
   /** When the name, people or admins last changed, so an open chat knows to fetch them again. */
   changedAt: Date;
+  /** When anything an open chat shows last changed: typing, a reaction, Seen, an unsend. Wakes waiting /updates calls. */
+  pulseAt?: Date;
 }
 
 /**
@@ -366,9 +370,18 @@ export interface ChatMemberDoc {
   muted: boolean;
   /** When they last sent something. Until the other person accepts a 1:1 request, the sender gets one message. */
   sentAt: Date | null;
+  /** Shown as typing… to the others until then. Refreshed every few seconds while they type. */
+  typingUntil?: Date | null;
 }
 
-export type ChatMessageKind = "text" | "post" | "photo" | "event";
+export type ChatMessageKind = "text" | "post" | "photo" | "voice" | "event";
+
+/** One per person: reacting again swaps it. */
+export interface ChatReaction {
+  userId: ObjectId;
+  emoji: string;
+  at: Date;
+}
 
 /** Kept until the sender unsends it or deletes their account. */
 export interface ChatMessageDoc {
@@ -382,6 +395,13 @@ export interface ChatMessageDoc {
   postId: ObjectId | null;
   /** In the private chat bucket; only the API reads it. */
   photo: { key: string; width: number; height: number } | null;
+  /** An AAC voice message in MP4, in the private chat bucket. `levels` are 0-100 loudness bars for its waveform. */
+  voice?: { key: string; durationMs: number; levels: number[] } | null;
+  /** The message this one answers. */
+  replyToId?: ObjectId | null;
+  reactions?: ChatReaction[];
+  /** When its reactions last changed, so open chats pick that up. */
+  touchedAt?: Date;
   status: "live" | "unsent";
   createdAt: Date;
   unsentAt: Date | null;

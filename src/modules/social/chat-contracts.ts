@@ -7,7 +7,12 @@ export const GROUP_TITLE_MAX = 60;
 /** Everyone in a group, the creator included, and anyone still deciding on an invite. */
 export const GROUP_MAX = 50;
 
-const MessageKind = Type.Union([Type.Literal("text"), Type.Literal("post"), Type.Literal("photo"), Type.Literal("event")]);
+/** The longest voice message, and the most loudness bars its waveform keeps. */
+export const VOICE_MAX_MS = 2 * 60_000;
+export const VOICE_LEVELS_MAX = 48;
+export const REACTION_MAX_LENGTH = 16;
+
+const MessageKind = Type.Union([Type.Literal("text"), Type.Literal("post"), Type.Literal("photo"), Type.Literal("voice"), Type.Literal("event")]);
 const MemberState = Type.Union([Type.Literal("active"), Type.Literal("request")], {
   description: "`request`: someone you don't follow started it or added you. Accept to reply; it sits in Requests until then.",
 });
@@ -49,6 +54,7 @@ export const ChatDetail = Strict({
   ...Chat.properties,
   people: Type.Array(ChatPerson, { description: "Everyone in it, you first. Groups list up to 50; 1:1 chats list both people." }),
   seenAt: Type.Union([DateTime, Type.Null()], { description: "1:1 chats: when the other person last read it. Show Seen under your messages up to then." }),
+  activeAt: Type.Union([DateTime, Type.Null()], { description: "1:1 chats: when the other person last had Ruxstar open, to the minute. Show \"Active now\" or \"Active 5m ago\"." }),
 });
 export const ChatDetailResult = Envelope(ChatDetail);
 
@@ -60,6 +66,21 @@ export const SharedPost = Strict({
   photo: Type.Union([Type.String(), Type.Null()], { description: "A small copy of its first photo" }),
 });
 
+export const ReplyPreview = Strict({
+  id: ObjectIdString,
+  available: Type.Boolean({ description: "False once that message was unsent" }),
+  sender: Type.String({ description: "Their name; \"You\" for your own" }),
+  mine: Type.Boolean(),
+  kind: MessageKind,
+  text: Type.String({ description: "The start of it, or \"Photo\", \"Voice message\" or \"Post\"" }),
+});
+
+export const ReactionCount = Strict({
+  emoji: Type.String(),
+  count: Type.Integer({ minimum: 1 }),
+  mine: Type.Boolean({ description: "This one is yours" }),
+});
+
 export const Message = Strict({
   id: ObjectIdString,
   chatId: ObjectIdString,
@@ -69,6 +90,16 @@ export const Message = Strict({
   text: Type.String(),
   post: Type.Union([SharedPost, Type.Null()]),
   photo: Type.Union([Strict({ url: Type.String({ description: "Works for at least an hour" }), width: Type.Integer(), height: Type.Integer() }), Type.Null()]),
+  voice: Type.Union([
+    Strict({
+      url: Type.String({ description: "AAC in MP4. Works for at least an hour and answers Range requests." }),
+      durationMs: Type.Integer(),
+      levels: Type.Array(Type.Integer({ minimum: 0, maximum: 100 }), { description: "Loudness bars for its waveform; may be empty" }),
+    }),
+    Type.Null(),
+  ]),
+  replyTo: Type.Union([ReplyPreview, Type.Null()]),
+  reactions: Type.Array(ReactionCount, { description: "Each emoji once, in the order first used. One reaction per person." }),
   createdAt: DateTime,
 });
 export type Message = Static<typeof Message>;
@@ -78,8 +109,11 @@ export const MessageList = ListEnvelope(Message);
 export const ChatUpdates = Envelope(
   Strict({
     messages: Type.Array(Message, { description: "Sent since `since`, oldest first. Includes a few seconds before it, so merge by id." }),
+    updated: Type.Array(Message, { description: "Older messages whose reactions changed since `since`. Replace the ones you have." }),
     unsent: Type.Array(ObjectIdString, { description: "Messages unsent since `since`. Remove them." }),
     seenAt: Type.Union([DateTime, Type.Null()]),
+    activeAt: Type.Union([DateTime, Type.Null()], { description: "1:1 chats: when the other person last had Ruxstar open" }),
+    typing: Type.Array(Author, { description: "Others typing right now. Hide each after about 6 seconds unless the next answer still has them." }),
     changed: Type.Boolean({ description: "The chat's name, people or admins changed. Fetch it again." }),
     now: DateTime,
   }),
@@ -101,7 +135,26 @@ export const ChatListQuery = Strict({
   ...PageQuery,
 });
 export const MessagePageQuery = Strict({ ...PageQuery });
-export const UpdatesQuery = Strict({ since: DateTime });
+export const UpdatesQuery = Strict({
+  since: DateTime,
+  wait: Type.Optional(
+    Type.Integer({
+      minimum: 0,
+      maximum: 25,
+      default: 0,
+      description: "Seconds to hold the call open when nothing has changed yet. It answers the moment something does.",
+    }),
+  ),
+});
+const ReplyTo = { replyToId: Type.Optional(ObjectIdString) };
+export const MediaQuery = Strict({ ...ReplyTo });
+export const VoiceQuery = Strict({
+  ...ReplyTo,
+  durationMs: Type.Integer({ minimum: 300, maximum: VOICE_MAX_MS + 1000 }),
+  levels: Type.Optional(Type.String({ pattern: "^\\d{1,3}(,\\d{1,3}){0,47}$", description: "Up to 48 loudness bars, 0-100, comma separated" })),
+});
+export const ReactBody = Strict({ emoji: Type.String({ minLength: 1, maxLength: REACTION_MAX_LENGTH }) });
+export const TypingBody = Strict({ typing: Type.Boolean() });
 
 export const StartDm = Strict({ userId: ObjectIdString });
 export const CreateGroup = Strict({
@@ -113,5 +166,6 @@ export const AddPeople = Strict({ userIds: Type.Array(ObjectIdString, { minItems
 export const SendMessage = Strict({
   text: Type.Optional(Type.String({ maxLength: MESSAGE_TEXT_MAX })),
   postId: Type.Optional(ObjectIdString),
+  ...ReplyTo,
 });
 export const MuteBody = Strict({ muted: Type.Boolean() });

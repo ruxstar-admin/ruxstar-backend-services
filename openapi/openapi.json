@@ -8540,6 +8540,12 @@
                                       {
                                         "type": "string",
                                         "enum": [
+                                          "voice"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
                                           "event"
                                         ]
                                       }
@@ -8630,7 +8636,7 @@
         "tags": [
           "chats"
         ],
-        "description": "Poll every 15 seconds or so while the app or site is open. Muted chats don't count.",
+        "description": "Poll every 15 seconds or so while the app or site is open. Muted chats don't count. It also marks you active for \"Active 5m ago\".",
         "security": [
           {
             "bearer": []
@@ -8775,7 +8781,8 @@
                         "last",
                         "createdAt",
                         "people",
-                        "seenAt"
+                        "seenAt",
+                        "activeAt"
                       ],
                       "properties": {
                         "id": {
@@ -8926,6 +8933,12 @@
                                     {
                                       "type": "string",
                                       "enum": [
+                                        "voice"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
                                         "event"
                                       ]
                                     }
@@ -9037,6 +9050,18 @@
                             }
                           ],
                           "description": "1:1 chats: when the other person last read it. Show Seen under your messages up to then."
+                        },
+                        "activeAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "1:1 chats: when the other person last had Ruxstar open, to the minute. Show \"Active now\" or \"Active 5m ago\"."
                         }
                       },
                       "additionalProperties": false
@@ -9087,7 +9112,8 @@
                         "last",
                         "createdAt",
                         "people",
-                        "seenAt"
+                        "seenAt",
+                        "activeAt"
                       ],
                       "properties": {
                         "id": {
@@ -9238,6 +9264,12 @@
                                     {
                                       "type": "string",
                                       "enum": [
+                                        "voice"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
                                         "event"
                                       ]
                                     }
@@ -9349,6 +9381,18 @@
                             }
                           ],
                           "description": "1:1 chats: when the other person last read it. Show Seen under your messages up to then."
+                        },
+                        "activeAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "1:1 chats: when the other person last had Ruxstar open, to the minute. Show \"Active now\" or \"Active 5m ago\"."
                         }
                       },
                       "additionalProperties": false
@@ -9471,7 +9515,8 @@
                         "last",
                         "createdAt",
                         "people",
-                        "seenAt"
+                        "seenAt",
+                        "activeAt"
                       ],
                       "properties": {
                         "id": {
@@ -9622,6 +9667,12 @@
                                     {
                                       "type": "string",
                                       "enum": [
+                                        "voice"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
                                         "event"
                                       ]
                                     }
@@ -9733,6 +9784,18 @@
                             }
                           ],
                           "description": "1:1 chats: when the other person last read it. Show Seen under your messages up to then."
+                        },
+                        "activeAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "1:1 chats: when the other person last had Ruxstar open, to the minute. Show \"Active now\" or \"Active 5m ago\"."
                         }
                       },
                       "additionalProperties": false
@@ -9833,7 +9896,8 @@
                         "last",
                         "createdAt",
                         "people",
-                        "seenAt"
+                        "seenAt",
+                        "activeAt"
                       ],
                       "properties": {
                         "id": {
@@ -9984,6 +10048,12 @@
                                     {
                                       "type": "string",
                                       "enum": [
+                                        "voice"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
                                         "event"
                                       ]
                                     }
@@ -10095,6 +10165,18 @@
                             }
                           ],
                           "description": "1:1 chats: when the other person last read it. Show Seen under your messages up to then."
+                        },
+                        "activeAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "1:1 chats: when the other person last had Ruxstar open, to the minute. Show \"Active now\" or \"Active 5m ago\"."
                         }
                       },
                       "additionalProperties": false
@@ -10214,7 +10296,8 @@
                         "last",
                         "createdAt",
                         "people",
-                        "seenAt"
+                        "seenAt",
+                        "activeAt"
                       ],
                       "properties": {
                         "id": {
@@ -10365,6 +10448,12 @@
                                     {
                                       "type": "string",
                                       "enum": [
+                                        "voice"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
                                         "event"
                                       ]
                                     }
@@ -10476,6 +10565,18 @@
                             }
                           ],
                           "description": "1:1 chats: when the other person last read it. Show Seen under your messages up to then."
+                        },
+                        "activeAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "1:1 chats: when the other person last had Ruxstar open, to the minute. Show \"Active now\" or \"Active 5m ago\"."
                         }
                       },
                       "additionalProperties": false
@@ -10593,6 +10694,9 @@
                           "text",
                           "post",
                           "photo",
+                          "voice",
+                          "replyTo",
+                          "reactions",
                           "createdAt"
                         ],
                         "properties": {
@@ -10624,6 +10728,12 @@
                                 "type": "string",
                                 "enum": [
                                   "photo"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "voice"
                                 ]
                               },
                               {
@@ -10811,6 +10921,141 @@
                               }
                             ]
                           },
+                          "voice": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "url",
+                                  "durationMs",
+                                  "levels"
+                                ],
+                                "properties": {
+                                  "url": {
+                                    "type": "string",
+                                    "description": "AAC in MP4. Works for at least an hour and answers Range requests."
+                                  },
+                                  "durationMs": {
+                                    "type": "integer"
+                                  },
+                                  "levels": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 100
+                                    },
+                                    "description": "Loudness bars for its waveform; may be empty"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "replyTo": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "available",
+                                  "sender",
+                                  "mine",
+                                  "kind",
+                                  "text"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "available": {
+                                    "type": "boolean",
+                                    "description": "False once that message was unsent"
+                                  },
+                                  "sender": {
+                                    "type": "string",
+                                    "description": "Their name; \"You\" for your own"
+                                  },
+                                  "mine": {
+                                    "type": "boolean"
+                                  },
+                                  "kind": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "text"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "post"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "photo"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "voice"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "event"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "text": {
+                                    "type": "string",
+                                    "description": "The start of it, or \"Photo\", \"Voice message\" or \"Post\""
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "reactions": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "emoji",
+                                "count",
+                                "mine"
+                              ],
+                              "properties": {
+                                "emoji": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "integer",
+                                  "minimum": 1
+                                },
+                                "mine": {
+                                  "type": "boolean",
+                                  "description": "This one is yours"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "description": "Each emoji once, in the order first used. One reaction per person."
+                          },
                           "createdAt": {
                             "type": "string",
                             "format": "date-time"
@@ -10891,6 +11136,11 @@
                     "type": "string",
                     "pattern": "^[a-f0-9]{24}$",
                     "description": "MongoDB ObjectId as hex"
+                  },
+                  "replyToId": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{24}$",
+                    "description": "MongoDB ObjectId as hex"
                   }
                 },
                 "additionalProperties": false
@@ -10941,6 +11191,9 @@
                         "text",
                         "post",
                         "photo",
+                        "voice",
+                        "replyTo",
+                        "reactions",
                         "createdAt"
                       ],
                       "properties": {
@@ -10972,6 +11225,12 @@
                               "type": "string",
                               "enum": [
                                 "photo"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "voice"
                               ]
                             },
                             {
@@ -11159,6 +11418,141 @@
                             }
                           ]
                         },
+                        "voice": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "url",
+                                "durationMs",
+                                "levels"
+                              ],
+                              "properties": {
+                                "url": {
+                                  "type": "string",
+                                  "description": "AAC in MP4. Works for at least an hour and answers Range requests."
+                                },
+                                "durationMs": {
+                                  "type": "integer"
+                                },
+                                "levels": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 100
+                                  },
+                                  "description": "Loudness bars for its waveform; may be empty"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "replyTo": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "available",
+                                "sender",
+                                "mine",
+                                "kind",
+                                "text"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "available": {
+                                  "type": "boolean",
+                                  "description": "False once that message was unsent"
+                                },
+                                "sender": {
+                                  "type": "string",
+                                  "description": "Their name; \"You\" for your own"
+                                },
+                                "mine": {
+                                  "type": "boolean"
+                                },
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "text"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "post"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "photo"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "voice"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "event"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "text": {
+                                  "type": "string",
+                                  "description": "The start of it, or \"Photo\", \"Voice message\" or \"Post\""
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "reactions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "emoji",
+                              "count",
+                              "mine"
+                            ],
+                            "properties": {
+                              "emoji": {
+                                "type": "string"
+                              },
+                              "count": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "mine": {
+                                "type": "boolean",
+                                "description": "This one is yours"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Each emoji once, in the order first used. One reaction per person."
+                        },
                         "createdAt": {
                           "type": "string",
                           "format": "date-time"
@@ -11213,7 +11607,7 @@
         "tags": [
           "chats"
         ],
-        "description": "Poll every 3 seconds or so while a chat is open. Pass the last answer's `now` as `since`.",
+        "description": "Call it again as soon as it answers while a chat is open, passing the last answer's `now` as `since`. With `wait` it holds on until something changes (a message, an unsend, a reaction, typing, Seen) or `wait` seconds pass, so new messages show at once.",
         "parameters": [
           {
             "schema": {
@@ -11223,6 +11617,18 @@
             "in": "query",
             "name": "since",
             "required": true
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 25,
+              "default": 0
+            },
+            "in": "query",
+            "name": "wait",
+            "required": false,
+            "description": "Seconds to hold the call open when nothing has changed yet. It answers the moment something does."
           },
           {
             "schema": {
@@ -11259,8 +11665,11 @@
                       "type": "object",
                       "required": [
                         "messages",
+                        "updated",
                         "unsent",
                         "seenAt",
+                        "activeAt",
+                        "typing",
                         "changed",
                         "now"
                       ],
@@ -11278,6 +11687,9 @@
                               "text",
                               "post",
                               "photo",
+                              "voice",
+                              "replyTo",
+                              "reactions",
                               "createdAt"
                             ],
                             "properties": {
@@ -11309,6 +11721,12 @@
                                     "type": "string",
                                     "enum": [
                                       "photo"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "voice"
                                     ]
                                   },
                                   {
@@ -11496,6 +11914,141 @@
                                   }
                                 ]
                               },
+                              "voice": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "url",
+                                      "durationMs",
+                                      "levels"
+                                    ],
+                                    "properties": {
+                                      "url": {
+                                        "type": "string",
+                                        "description": "AAC in MP4. Works for at least an hour and answers Range requests."
+                                      },
+                                      "durationMs": {
+                                        "type": "integer"
+                                      },
+                                      "levels": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 100
+                                        },
+                                        "description": "Loudness bars for its waveform; may be empty"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "replyTo": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "id",
+                                      "available",
+                                      "sender",
+                                      "mine",
+                                      "kind",
+                                      "text"
+                                    ],
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "pattern": "^[a-f0-9]{24}$",
+                                        "description": "MongoDB ObjectId as hex"
+                                      },
+                                      "available": {
+                                        "type": "boolean",
+                                        "description": "False once that message was unsent"
+                                      },
+                                      "sender": {
+                                        "type": "string",
+                                        "description": "Their name; \"You\" for your own"
+                                      },
+                                      "mine": {
+                                        "type": "boolean"
+                                      },
+                                      "kind": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "text"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "post"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "photo"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "voice"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "event"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      "text": {
+                                        "type": "string",
+                                        "description": "The start of it, or \"Photo\", \"Voice message\" or \"Post\""
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "reactions": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "emoji",
+                                    "count",
+                                    "mine"
+                                  ],
+                                  "properties": {
+                                    "emoji": {
+                                      "type": "string"
+                                    },
+                                    "count": {
+                                      "type": "integer",
+                                      "minimum": 1
+                                    },
+                                    "mine": {
+                                      "type": "boolean",
+                                      "description": "This one is yours"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                "description": "Each emoji once, in the order first used. One reaction per person."
+                              },
                               "createdAt": {
                                 "type": "string",
                                 "format": "date-time"
@@ -11504,6 +12057,390 @@
                             "additionalProperties": false
                           },
                           "description": "Sent since `since`, oldest first. Includes a few seconds before it, so merge by id."
+                        },
+                        "updated": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "chatId",
+                              "kind",
+                              "sender",
+                              "mine",
+                              "text",
+                              "post",
+                              "photo",
+                              "voice",
+                              "replyTo",
+                              "reactions",
+                              "createdAt"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "chatId": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "kind": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "text"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "post"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "photo"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "voice"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "event"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "sender": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "id",
+                                      "name",
+                                      "username",
+                                      "avatarUrl",
+                                      "vendor",
+                                      "verified"
+                                    ],
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "pattern": "^[a-f0-9]{24}$",
+                                        "description": "MongoDB ObjectId as hex"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "username": {
+                                        "type": "string"
+                                      },
+                                      "avatarUrl": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "vendor": {
+                                        "type": "boolean"
+                                      },
+                                      "verified": {
+                                        "type": "boolean",
+                                        "description": "Identity verified by Ruxstar"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Null for group lines like \"Asha added Ravi\""
+                              },
+                              "mine": {
+                                "type": "boolean"
+                              },
+                              "text": {
+                                "type": "string"
+                              },
+                              "post": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "id",
+                                      "available",
+                                      "author",
+                                      "text",
+                                      "photo"
+                                    ],
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "pattern": "^[a-f0-9]{24}$",
+                                        "description": "MongoDB ObjectId as hex"
+                                      },
+                                      "available": {
+                                        "type": "boolean",
+                                        "description": "False when the post was deleted, or you can't see its author"
+                                      },
+                                      "author": {
+                                        "anyOf": [
+                                          {
+                                            "type": "object",
+                                            "required": [
+                                              "id",
+                                              "name",
+                                              "username",
+                                              "avatarUrl",
+                                              "vendor",
+                                              "verified"
+                                            ],
+                                            "properties": {
+                                              "id": {
+                                                "type": "string",
+                                                "pattern": "^[a-f0-9]{24}$",
+                                                "description": "MongoDB ObjectId as hex"
+                                              },
+                                              "name": {
+                                                "type": "string"
+                                              },
+                                              "username": {
+                                                "type": "string"
+                                              },
+                                              "avatarUrl": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "string"
+                                                  },
+                                                  {
+                                                    "type": "null"
+                                                  }
+                                                ]
+                                              },
+                                              "vendor": {
+                                                "type": "boolean"
+                                              },
+                                              "verified": {
+                                                "type": "boolean",
+                                                "description": "Identity verified by Ruxstar"
+                                              }
+                                            },
+                                            "additionalProperties": false
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "text": {
+                                        "type": "string",
+                                        "description": "The start of the post"
+                                      },
+                                      "photo": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ],
+                                        "description": "A small copy of its first photo"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "photo": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "url",
+                                      "width",
+                                      "height"
+                                    ],
+                                    "properties": {
+                                      "url": {
+                                        "type": "string",
+                                        "description": "Works for at least an hour"
+                                      },
+                                      "width": {
+                                        "type": "integer"
+                                      },
+                                      "height": {
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "voice": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "url",
+                                      "durationMs",
+                                      "levels"
+                                    ],
+                                    "properties": {
+                                      "url": {
+                                        "type": "string",
+                                        "description": "AAC in MP4. Works for at least an hour and answers Range requests."
+                                      },
+                                      "durationMs": {
+                                        "type": "integer"
+                                      },
+                                      "levels": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 100
+                                        },
+                                        "description": "Loudness bars for its waveform; may be empty"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "replyTo": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "id",
+                                      "available",
+                                      "sender",
+                                      "mine",
+                                      "kind",
+                                      "text"
+                                    ],
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "pattern": "^[a-f0-9]{24}$",
+                                        "description": "MongoDB ObjectId as hex"
+                                      },
+                                      "available": {
+                                        "type": "boolean",
+                                        "description": "False once that message was unsent"
+                                      },
+                                      "sender": {
+                                        "type": "string",
+                                        "description": "Their name; \"You\" for your own"
+                                      },
+                                      "mine": {
+                                        "type": "boolean"
+                                      },
+                                      "kind": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "text"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "post"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "photo"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "voice"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "event"
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      "text": {
+                                        "type": "string",
+                                        "description": "The start of it, or \"Photo\", \"Voice message\" or \"Post\""
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "reactions": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "required": [
+                                    "emoji",
+                                    "count",
+                                    "mine"
+                                  ],
+                                  "properties": {
+                                    "emoji": {
+                                      "type": "string"
+                                    },
+                                    "count": {
+                                      "type": "integer",
+                                      "minimum": 1
+                                    },
+                                    "mine": {
+                                      "type": "boolean",
+                                      "description": "This one is yours"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                "description": "Each emoji once, in the order first used. One reaction per person."
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Older messages whose reactions changed since `since`. Replace the ones you have."
                         },
                         "unsent": {
                           "type": "array",
@@ -11525,6 +12462,64 @@
                             }
                           ]
                         },
+                        "activeAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "1:1 chats: when the other person last had Ruxstar open"
+                        },
+                        "typing": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name",
+                              "username",
+                              "avatarUrl",
+                              "vendor",
+                              "verified"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "username": {
+                                "type": "string"
+                              },
+                              "avatarUrl": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "vendor": {
+                                "type": "boolean"
+                              },
+                              "verified": {
+                                "type": "boolean",
+                                "description": "Identity verified by Ruxstar"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Others typing right now. Hide each after about 6 seconds unless the next answer still has them."
+                        },
                         "changed": {
                           "type": "boolean",
                           "description": "The chat's name, people or admins changed. Fetch it again."
@@ -11532,6 +12527,120 @@
                         "now": {
                           "type": "string",
                           "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/social/chats/{id}/typing": {
+      "post": {
+        "summary": "Say you're typing, or that you stopped",
+        "tags": [
+          "chats"
+        ],
+        "description": "Send `typing: true` when someone starts typing and every 4 seconds while they keep going, and `false` when they stop. It wears off after 6 seconds.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "typing"
+                ],
+                "properties": {
+                  "typing": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
                         }
                       },
                       "additionalProperties": false
@@ -11590,6 +12699,16 @@
               "type": "string",
               "pattern": "^[a-f0-9]{24}$"
             },
+            "in": "query",
+            "name": "replyToId",
+            "required": false,
+            "description": "MongoDB ObjectId as hex"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
             "in": "path",
             "name": "id",
             "required": true,
@@ -11627,6 +12746,9 @@
                         "text",
                         "post",
                         "photo",
+                        "voice",
+                        "replyTo",
+                        "reactions",
                         "createdAt"
                       ],
                       "properties": {
@@ -11658,6 +12780,12 @@
                               "type": "string",
                               "enum": [
                                 "photo"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "voice"
                               ]
                             },
                             {
@@ -11844,6 +12972,1589 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "voice": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "url",
+                                "durationMs",
+                                "levels"
+                              ],
+                              "properties": {
+                                "url": {
+                                  "type": "string",
+                                  "description": "AAC in MP4. Works for at least an hour and answers Range requests."
+                                },
+                                "durationMs": {
+                                  "type": "integer"
+                                },
+                                "levels": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 100
+                                  },
+                                  "description": "Loudness bars for its waveform; may be empty"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "replyTo": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "available",
+                                "sender",
+                                "mine",
+                                "kind",
+                                "text"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "available": {
+                                  "type": "boolean",
+                                  "description": "False once that message was unsent"
+                                },
+                                "sender": {
+                                  "type": "string",
+                                  "description": "Their name; \"You\" for your own"
+                                },
+                                "mine": {
+                                  "type": "boolean"
+                                },
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "text"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "post"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "photo"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "voice"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "event"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "text": {
+                                  "type": "string",
+                                  "description": "The start of it, or \"Photo\", \"Voice message\" or \"Post\""
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "reactions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "emoji",
+                              "count",
+                              "mine"
+                            ],
+                            "properties": {
+                              "emoji": {
+                                "type": "string"
+                              },
+                              "count": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "mine": {
+                                "type": "boolean",
+                                "description": "This one is yours"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Each emoji once, in the order first used. One reaction per person."
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/social/chats/{id}/voice": {
+      "post": {
+        "summary": "Send a voice message",
+        "tags": [
+          "chats"
+        ],
+        "description": "Send the recording itself as AAC in MP4 (an .m4a file) with Content-Type audio/mp4, up to 5 MB and 2 minutes, and an Idempotency-Key. Pass its length in `durationMs` and, if you have them, loudness bars for its waveform in `levels`. It is kept privately; its link works for at least an hour.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "query",
+            "name": "replyToId",
+            "required": false,
+            "description": "MongoDB ObjectId as hex"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 300,
+              "maximum": 121000
+            },
+            "in": "query",
+            "name": "durationMs",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,3}(,\\d{1,3}){0,47}$"
+            },
+            "in": "query",
+            "name": "levels",
+            "required": false,
+            "description": "Up to 48 loudness bars, 0-100, comma separated"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "chatId",
+                        "kind",
+                        "sender",
+                        "mine",
+                        "text",
+                        "post",
+                        "photo",
+                        "voice",
+                        "replyTo",
+                        "reactions",
+                        "createdAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "chatId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "kind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "text"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "post"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "photo"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "voice"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "event"
+                              ]
+                            }
+                          ]
+                        },
+                        "sender": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name",
+                                "username",
+                                "avatarUrl",
+                                "vendor",
+                                "verified"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "username": {
+                                  "type": "string"
+                                },
+                                "avatarUrl": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "vendor": {
+                                  "type": "boolean"
+                                },
+                                "verified": {
+                                  "type": "boolean",
+                                  "description": "Identity verified by Ruxstar"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Null for group lines like \"Asha added Ravi\""
+                        },
+                        "mine": {
+                          "type": "boolean"
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "post": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "available",
+                                "author",
+                                "text",
+                                "photo"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "available": {
+                                  "type": "boolean",
+                                  "description": "False when the post was deleted, or you can't see its author"
+                                },
+                                "author": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "id",
+                                        "name",
+                                        "username",
+                                        "avatarUrl",
+                                        "vendor",
+                                        "verified"
+                                      ],
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{24}$",
+                                          "description": "MongoDB ObjectId as hex"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "username": {
+                                          "type": "string"
+                                        },
+                                        "avatarUrl": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "vendor": {
+                                          "type": "boolean"
+                                        },
+                                        "verified": {
+                                          "type": "boolean",
+                                          "description": "Identity verified by Ruxstar"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "text": {
+                                  "type": "string",
+                                  "description": "The start of the post"
+                                },
+                                "photo": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "A small copy of its first photo"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "photo": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "url",
+                                "width",
+                                "height"
+                              ],
+                              "properties": {
+                                "url": {
+                                  "type": "string",
+                                  "description": "Works for at least an hour"
+                                },
+                                "width": {
+                                  "type": "integer"
+                                },
+                                "height": {
+                                  "type": "integer"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "voice": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "url",
+                                "durationMs",
+                                "levels"
+                              ],
+                              "properties": {
+                                "url": {
+                                  "type": "string",
+                                  "description": "AAC in MP4. Works for at least an hour and answers Range requests."
+                                },
+                                "durationMs": {
+                                  "type": "integer"
+                                },
+                                "levels": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 100
+                                  },
+                                  "description": "Loudness bars for its waveform; may be empty"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "replyTo": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "available",
+                                "sender",
+                                "mine",
+                                "kind",
+                                "text"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "available": {
+                                  "type": "boolean",
+                                  "description": "False once that message was unsent"
+                                },
+                                "sender": {
+                                  "type": "string",
+                                  "description": "Their name; \"You\" for your own"
+                                },
+                                "mine": {
+                                  "type": "boolean"
+                                },
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "text"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "post"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "photo"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "voice"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "event"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "text": {
+                                  "type": "string",
+                                  "description": "The start of it, or \"Photo\", \"Voice message\" or \"Post\""
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "reactions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "emoji",
+                              "count",
+                              "mine"
+                            ],
+                            "properties": {
+                              "emoji": {
+                                "type": "string"
+                              },
+                              "count": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "mine": {
+                                "type": "boolean",
+                                "description": "This one is yours"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Each emoji once, in the order first used. One reaction per person."
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/social/chats/{id}/messages/{messageId}/reaction": {
+      "put": {
+        "summary": "React to a message with an emoji",
+        "tags": [
+          "chats"
+        ],
+        "description": "One reaction per person: reacting again swaps it. Group lines can't be reacted to.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "emoji"
+                ],
+                "properties": {
+                  "emoji": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "chatId",
+                        "kind",
+                        "sender",
+                        "mine",
+                        "text",
+                        "post",
+                        "photo",
+                        "voice",
+                        "replyTo",
+                        "reactions",
+                        "createdAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "chatId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "kind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "text"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "post"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "photo"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "voice"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "event"
+                              ]
+                            }
+                          ]
+                        },
+                        "sender": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name",
+                                "username",
+                                "avatarUrl",
+                                "vendor",
+                                "verified"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "username": {
+                                  "type": "string"
+                                },
+                                "avatarUrl": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "vendor": {
+                                  "type": "boolean"
+                                },
+                                "verified": {
+                                  "type": "boolean",
+                                  "description": "Identity verified by Ruxstar"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Null for group lines like \"Asha added Ravi\""
+                        },
+                        "mine": {
+                          "type": "boolean"
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "post": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "available",
+                                "author",
+                                "text",
+                                "photo"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "available": {
+                                  "type": "boolean",
+                                  "description": "False when the post was deleted, or you can't see its author"
+                                },
+                                "author": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "id",
+                                        "name",
+                                        "username",
+                                        "avatarUrl",
+                                        "vendor",
+                                        "verified"
+                                      ],
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{24}$",
+                                          "description": "MongoDB ObjectId as hex"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "username": {
+                                          "type": "string"
+                                        },
+                                        "avatarUrl": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "vendor": {
+                                          "type": "boolean"
+                                        },
+                                        "verified": {
+                                          "type": "boolean",
+                                          "description": "Identity verified by Ruxstar"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "text": {
+                                  "type": "string",
+                                  "description": "The start of the post"
+                                },
+                                "photo": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "A small copy of its first photo"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "photo": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "url",
+                                "width",
+                                "height"
+                              ],
+                              "properties": {
+                                "url": {
+                                  "type": "string",
+                                  "description": "Works for at least an hour"
+                                },
+                                "width": {
+                                  "type": "integer"
+                                },
+                                "height": {
+                                  "type": "integer"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "voice": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "url",
+                                "durationMs",
+                                "levels"
+                              ],
+                              "properties": {
+                                "url": {
+                                  "type": "string",
+                                  "description": "AAC in MP4. Works for at least an hour and answers Range requests."
+                                },
+                                "durationMs": {
+                                  "type": "integer"
+                                },
+                                "levels": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 100
+                                  },
+                                  "description": "Loudness bars for its waveform; may be empty"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "replyTo": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "available",
+                                "sender",
+                                "mine",
+                                "kind",
+                                "text"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "available": {
+                                  "type": "boolean",
+                                  "description": "False once that message was unsent"
+                                },
+                                "sender": {
+                                  "type": "string",
+                                  "description": "Their name; \"You\" for your own"
+                                },
+                                "mine": {
+                                  "type": "boolean"
+                                },
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "text"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "post"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "photo"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "voice"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "event"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "text": {
+                                  "type": "string",
+                                  "description": "The start of it, or \"Photo\", \"Voice message\" or \"Post\""
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "reactions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "emoji",
+                              "count",
+                              "mine"
+                            ],
+                            "properties": {
+                              "emoji": {
+                                "type": "string"
+                              },
+                              "count": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "mine": {
+                                "type": "boolean",
+                                "description": "This one is yours"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Each emoji once, in the order first used. One reaction per person."
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Take back your reaction",
+        "tags": [
+          "chats"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "chatId",
+                        "kind",
+                        "sender",
+                        "mine",
+                        "text",
+                        "post",
+                        "photo",
+                        "voice",
+                        "replyTo",
+                        "reactions",
+                        "createdAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "chatId": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "kind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "text"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "post"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "photo"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "voice"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "event"
+                              ]
+                            }
+                          ]
+                        },
+                        "sender": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "name",
+                                "username",
+                                "avatarUrl",
+                                "vendor",
+                                "verified"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "username": {
+                                  "type": "string"
+                                },
+                                "avatarUrl": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "vendor": {
+                                  "type": "boolean"
+                                },
+                                "verified": {
+                                  "type": "boolean",
+                                  "description": "Identity verified by Ruxstar"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Null for group lines like \"Asha added Ravi\""
+                        },
+                        "mine": {
+                          "type": "boolean"
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "post": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "available",
+                                "author",
+                                "text",
+                                "photo"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "available": {
+                                  "type": "boolean",
+                                  "description": "False when the post was deleted, or you can't see its author"
+                                },
+                                "author": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "id",
+                                        "name",
+                                        "username",
+                                        "avatarUrl",
+                                        "vendor",
+                                        "verified"
+                                      ],
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{24}$",
+                                          "description": "MongoDB ObjectId as hex"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "username": {
+                                          "type": "string"
+                                        },
+                                        "avatarUrl": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "vendor": {
+                                          "type": "boolean"
+                                        },
+                                        "verified": {
+                                          "type": "boolean",
+                                          "description": "Identity verified by Ruxstar"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "text": {
+                                  "type": "string",
+                                  "description": "The start of the post"
+                                },
+                                "photo": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "A small copy of its first photo"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "photo": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "url",
+                                "width",
+                                "height"
+                              ],
+                              "properties": {
+                                "url": {
+                                  "type": "string",
+                                  "description": "Works for at least an hour"
+                                },
+                                "width": {
+                                  "type": "integer"
+                                },
+                                "height": {
+                                  "type": "integer"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "voice": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "url",
+                                "durationMs",
+                                "levels"
+                              ],
+                              "properties": {
+                                "url": {
+                                  "type": "string",
+                                  "description": "AAC in MP4. Works for at least an hour and answers Range requests."
+                                },
+                                "durationMs": {
+                                  "type": "integer"
+                                },
+                                "levels": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 100
+                                  },
+                                  "description": "Loudness bars for its waveform; may be empty"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "replyTo": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "id",
+                                "available",
+                                "sender",
+                                "mine",
+                                "kind",
+                                "text"
+                              ],
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                },
+                                "available": {
+                                  "type": "boolean",
+                                  "description": "False once that message was unsent"
+                                },
+                                "sender": {
+                                  "type": "string",
+                                  "description": "Their name; \"You\" for your own"
+                                },
+                                "mine": {
+                                  "type": "boolean"
+                                },
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "text"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "post"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "photo"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "voice"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "event"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "text": {
+                                  "type": "string",
+                                  "description": "The start of it, or \"Photo\", \"Voice message\" or \"Post\""
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "reactions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "emoji",
+                              "count",
+                              "mine"
+                            ],
+                            "properties": {
+                              "emoji": {
+                                "type": "string"
+                              },
+                              "count": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "mine": {
+                                "type": "boolean",
+                                "description": "This one is yours"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Each emoji once, in the order first used. One reaction per person."
                         },
                         "createdAt": {
                           "type": "string",
@@ -12147,7 +14858,8 @@
                         "last",
                         "createdAt",
                         "people",
-                        "seenAt"
+                        "seenAt",
+                        "activeAt"
                       ],
                       "properties": {
                         "id": {
@@ -12298,6 +15010,12 @@
                                     {
                                       "type": "string",
                                       "enum": [
+                                        "voice"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
                                         "event"
                                       ]
                                     }
@@ -12409,6 +15127,18 @@
                             }
                           ],
                           "description": "1:1 chats: when the other person last read it. Show Seen under your messages up to then."
+                        },
+                        "activeAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "1:1 chats: when the other person last had Ruxstar open, to the minute. Show \"Active now\" or \"Active 5m ago\"."
                         }
                       },
                       "additionalProperties": false
@@ -12746,7 +15476,8 @@
                         "last",
                         "createdAt",
                         "people",
-                        "seenAt"
+                        "seenAt",
+                        "activeAt"
                       ],
                       "properties": {
                         "id": {
@@ -12897,6 +15628,12 @@
                                     {
                                       "type": "string",
                                       "enum": [
+                                        "voice"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
                                         "event"
                                       ]
                                     }
@@ -13008,6 +15745,18 @@
                             }
                           ],
                           "description": "1:1 chats: when the other person last read it. Show Seen under your messages up to then."
+                        },
+                        "activeAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "1:1 chats: when the other person last had Ruxstar open, to the minute. Show \"Active now\" or \"Active 5m ago\"."
                         }
                       },
                       "additionalProperties": false
@@ -13222,7 +15971,8 @@
                         "last",
                         "createdAt",
                         "people",
-                        "seenAt"
+                        "seenAt",
+                        "activeAt"
                       ],
                       "properties": {
                         "id": {
@@ -13373,6 +16123,12 @@
                                     {
                                       "type": "string",
                                       "enum": [
+                                        "voice"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
                                         "event"
                                       ]
                                     }
@@ -13484,6 +16240,18 @@
                             }
                           ],
                           "description": "1:1 chats: when the other person last read it. Show Seen under your messages up to then."
+                        },
+                        "activeAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "1:1 chats: when the other person last had Ruxstar open, to the minute. Show \"Active now\" or \"Active 5m ago\"."
                         }
                       },
                       "additionalProperties": false

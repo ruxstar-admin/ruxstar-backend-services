@@ -281,6 +281,148 @@ describe("groups", () => {
   });
 });
 
+describe("live chat", () => {
+  async function pair(tag: string) {
+    const asha = await person(`Asha ${tag}`);
+    const ravi = await person(`Ravi ${tag}`);
+    await follow(asha, ravi);
+    await follow(ravi, asha);
+    const chat = await dm(ravi, asha);
+    return { asha, ravi, chat };
+  }
+  const updates = (who: Person, chatId: string, since: string, wait = 0) => call("GET", `/social/chats/${chatId}/updates?since=${since}&wait=${wait}`, who);
+  const fakeM4a = () => Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from("ftypM4A "), Buffer.alloc(400, 7)]);
+
+  it("holds /updates open until a message arrives, and answers when the wait runs out", async () => {
+    const { asha, ravi, chat } = await pair("Wait");
+    const since = new Date().toISOString();
+
+    const started = Date.now();
+    const waiting = updates(asha, chat.id, since, 10);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await say(ravi, chat.id, "Right now");
+    const answer = (await waiting).json().data;
+    expect(Date.now() - started).toBeLessThan(3000);
+    expect(answer.messages.map((m: { text: string }) => m.text)).toEqual(["Right now"]);
+
+    const quiet = Date.now();
+    const empty = (await updates(asha, chat.id, answer.now, 1)).json().data;
+    expect(Date.now() - quiet).toBeGreaterThanOrEqual(900);
+    // Only the overlap that guards against missed messages: nothing new.
+    expect(empty.messages.map((m: { text: string }) => m.text)).toEqual(["Right now"]);
+    expect(empty).toMatchObject({ updated: [], unsent: [], typing: [] });
+  });
+
+  it("shows typing… until they stop or send", async () => {
+    const { asha, ravi, chat } = await pair("Typing");
+    const since = new Date(Date.now() - 1000).toISOString();
+    await call("POST", `/social/chats/${chat.id}/typing`, ravi, { typing: true });
+    expect((await updates(asha, chat.id, since)).json().data.typing).toEqual([expect.objectContaining({ username: ravi.username })]);
+    expect((await updates(ravi, chat.id, since)).json().data.typing).toEqual([]);
+    await say(ravi, chat.id, "Done typing");
+    expect((await updates(asha, chat.id, since)).json().data.typing).toEqual([]);
+    await call("POST", `/social/chats/${chat.id}/typing`, ravi, { typing: true });
+    await call("POST", `/social/chats/${chat.id}/typing`, ravi, { typing: false });
+    expect((await updates(asha, chat.id, since)).json().data.typing).toEqual([]);
+  });
+
+  it("keeps one reaction per person, swaps it, and tells open chats", async () => {
+    const { asha, ravi, chat } = await pair("React");
+    const hello = (await say(ravi, chat.id, "Hello")).json().data;
+    expect(hello.reactions).toEqual([]);
+    // Make it a minute old, so a poll from now only gets it for its reactions.
+    const minuteAgo = new Date(Date.now() - 60_000);
+    await stack.db.chatMessages.updateOne({ _id: new ObjectId(hello.id) }, { $set: { createdAt: minuteAgo } });
+    await stack.db.chatMembers.updateMany({ conversationId: new ObjectId(chat.id) }, { $set: { joinedAt: new Date(minuteAgo.getTime() - 1000) } });
+    const since = new Date().toISOString();
+
+    const react = (who: Person, emoji: string) => call("PUT", `/social/chats/${chat.id}/messages/${hello.id}/reaction`, who, { emoji });
+    expect((await react(asha, "❤️")).json().data.reactions).toEqual([{ emoji: "❤️", count: 1, mine: true }]);
+    expect((await react(ravi, "❤️")).json().data.reactions).toEqual([{ emoji: "❤️", count: 2, mine: true }]);
+    expect((await react(asha, "😂")).json().data.reactions).toEqual([
+      { emoji: "❤️", count: 1, mine: false },
+      { emoji: "😂", count: 1, mine: true },
+    ]);
+    expect((await react(asha, "hi")).statusCode).toBe(400);
+    expect((await react(asha, "👍👍")).statusCode).toBe(400);
+    expect((await react(asha, "👍🏽")).statusCode).toBe(200);
+
+    const fromLater = (await updates(ravi, chat.id, since)).json().data;
+    expect(fromLater.messages).toEqual([]);
+    expect(fromLater.updated).toEqual([expect.objectContaining({ id: hello.id, reactions: expect.arrayContaining([{ emoji: "👍🏽", count: 1, mine: false }]) })]);
+
+    const undone = await call("DELETE", `/social/chats/${chat.id}/messages/${hello.id}/reaction`, asha);
+    expect(undone.json().data.reactions).toEqual([{ emoji: "❤️", count: 1, mine: false }]);
+  });
+
+  it("replies show what they answer, even after it is unsent", async () => {
+    const { asha, ravi, chat } = await pair("Reply");
+    const question = (await say(asha, chat.id, "Coffee at 5?")).json().data;
+    const answer = await call("POST", `/social/chats/${chat.id}/messages`, ravi, { text: "Yes!", replyToId: question.id });
+    expect(answer.statusCode).toBe(201);
+    expect(answer.json().data.replyTo).toEqual({ id: question.id, available: true, sender: asha.name, mine: false, kind: "text", text: "Coffee at 5?" });
+
+    const mineView = (await call("GET", `/social/chats/${chat.id}/messages`, asha)).json().data[0];
+    expect(mineView.replyTo).toMatchObject({ sender: "You", mine: true });
+
+    await call("DELETE", `/social/chats/${chat.id}/messages/${question.id}`, asha);
+    const after = (await call("GET", `/social/chats/${chat.id}/messages`, ravi)).json().data[0];
+    expect(after.replyTo).toMatchObject({ id: question.id, available: false, text: "" });
+
+    const other = await pair("Reply Other");
+    const elsewhere = (await say(other.asha, other.chat.id, "Not yours")).json().data;
+    expect((await call("POST", `/social/chats/${chat.id}/messages`, ravi, { text: "Hm", replyToId: elsewhere.id })).statusCode).toBe(400);
+  });
+
+  it("sends voice messages that play from a private link in pieces", async () => {
+    const { asha, ravi, chat } = await pair("Voice");
+    const upload = (body: Buffer, query: string, type = "audio/mp4") =>
+      stack.app.inject({
+        method: "POST",
+        url: `/v1/social/chats/${chat.id}/voice?${query}`,
+        headers: { ...web(ravi.token, { "idempotency-key": randomUUID() }), "content-type": type },
+        payload: body,
+      });
+
+    expect((await upload(Buffer.from("not audio at all"), "durationMs=1200")).statusCode).toBe(400);
+    expect((await upload(fakeM4a(), "durationMs=100")).statusCode).toBe(400);
+    const sent = await upload(fakeM4a(), "durationMs=4200&levels=10,80,35");
+    expect(sent.statusCode, sent.body).toBe(201);
+    const voice = sent.json().data;
+    expect(voice).toMatchObject({ kind: "voice", text: "", voice: { durationMs: 4200, levels: [10, 80, 35] } });
+    expect((await list(asha))[0]!.last!.text).toBe("Sent a voice message");
+
+    const link = new URL(voice.voice.url);
+    const whole = await stack.app.inject({ method: "GET", url: `${link.pathname}${link.search}` });
+    expect(whole.statusCode).toBe(200);
+    expect(whole.headers).toMatchObject({ "content-type": "audio/mp4", "accept-ranges": "bytes" });
+    expect(whole.rawPayload.length).toBe(fakeM4a().length);
+    const piece = await stack.app.inject({ method: "GET", url: `${link.pathname}${link.search}`, headers: { range: "bytes=0-1" } });
+    expect(piece.statusCode).toBe(206);
+    expect(piece.headers["content-range"]).toBe(`bytes 0-1/${fakeM4a().length}`);
+    expect(piece.rawPayload.length).toBe(2);
+    expect((await stack.app.inject({ method: "GET", url: `${link.pathname}${link.search}`, headers: { range: "bytes=99999-" } })).statusCode).toBe(416);
+    // A photo link's signature doesn't open a voice message.
+    expect((await stack.app.inject({ method: "GET", url: `/chat-photos/${voice.id}${link.search}` })).statusCode).toBe(401);
+
+    const before = stack.chatPhotos.size;
+    await call("DELETE", `/social/chats/${chat.id}/messages/${voice.id}`, ravi);
+    expect(stack.chatPhotos.size).toBe(before - 1);
+  });
+
+  it("shows when the other person was last active, but not before they accept", async () => {
+    const { asha, ravi, chat } = await pair("Active");
+    await call("GET", "/social/chats/unread", asha);
+    const detail = (await call("GET", `/social/chats/${chat.id}`, ravi)).json().data;
+    expect(Date.now() - Date.parse(detail.activeAt)).toBeLessThan(60_000);
+
+    const stranger = await person("Kiran Active");
+    const request = await dm(stranger, asha);
+    await say(stranger, request.id, "Hi");
+    expect((await call("GET", `/social/chats/${request.id}`, stranger)).json().data.activeAt).toBeNull();
+  });
+});
+
 describe("account deletion", () => {
   it("erases the person's 1:1 chats and their group messages", async () => {
     const asha = await person("Asha Erase");
