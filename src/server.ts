@@ -20,19 +20,35 @@ const app = await buildApp({ config, db });
 if (!db) app.log.warn("MONGODB_URI and MONGODB_DB are not set. Only /health works until they are.");
 if (!config.jwtSecret) app.log.warn("JWT_SECRET is not set. Every signed-in route will return 401.");
 
+type ServerSeen = { type: string; roundTripTime?: number; error?: { message?: string } | null };
+
+/** What the driver last saw of each server when selection gave up, so a failed start says why. */
+function serversOf(err: unknown) {
+  const servers = (err as { reason?: { servers?: Map<string, ServerSeen> } }).reason?.servers;
+  return servers ? [...servers].map(([address, s]) => ({ address, type: s.type, rttMs: Math.round(s.roundTripTime ?? -1), error: s.error?.message })) : undefined;
+}
+
 /** Connects and builds the indexes once. A failed client is swapped for a new one before the next try. */
 async function setUpDatabase(database: NonNullable<typeof db>, attempt: number): Promise<boolean> {
+  const started = Date.now();
+  let step = "connect";
   try {
     await database.client.connect();
     // The unique index on module must exist before seeding, or two instances starting together can insert twins.
+    step = "indexes";
     await ensurePlatformIndexes(database);
+    step = "seed";
     await seedModuleSettings(database);
     database.ready = true;
-    app.log.info({ db: config.mongo!.db, attempt }, "Database ready");
+    app.log.info({ db: config.mongo!.db, attempt, ms: Date.now() - started }, "Database ready");
     return true;
   } catch (err) {
     const { name, message } = err as Error;
-    app.log.error({ attempt, error: name }, `Database setup failed: ${message}. Retrying with a new connection`);
+    const cause = (err as { cause?: Error }).cause;
+    app.log.error(
+      { attempt, error: name, step, ms: Date.now() - started, servers: serversOf(err), cause: cause ? `${cause.name}: ${cause.message}` : undefined },
+      `Database setup failed: ${message}. Retrying with a new connection`,
+    );
     database.renew();
     return false;
   }
