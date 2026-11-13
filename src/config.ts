@@ -38,6 +38,8 @@ export interface Config {
   payoutKey: Buffer | null;
   /** Customer payments. `fake` marks orders paid from a test button and is refused in prod; Cashfree without keys takes no payments. */
   payments: { provider: "fake" | "cashfree"; cashfree: CashfreeSettings | null };
+  /** Vendor withdrawals. `fake` settles them in memory and is refused in prod; Cashfree without keys sends none. */
+  payouts: { provider: "fake" | "cashfree"; cashfree: CashfreeSettings | null };
   /**
    * This API's public origin, for the links Cashfree calls back (payment webhooks and returns).
    * Null on a laptop, where Cashfree cannot reach it; payments are then confirmed when the payer comes back.
@@ -182,6 +184,15 @@ export function loadConfig(env: Env = process.env): Config {
   if (paymentsProvider !== "fake" && paymentsProvider !== "cashfree") problems.push("PAYMENTS_PROVIDER must be fake or cashfree");
   if (paymentsProvider === "fake" && ruxstarEnv === "prod") problems.push("PAYMENTS_PROVIDER=fake is not allowed in prod");
 
+  const payoutId = read(env, "CASHFREE_PAYOUT_CLIENT_ID");
+  const payoutSecret = read(env, "CASHFREE_PAYOUT_SECRET");
+  const payoutEnv = plain("CASHFREE_PAYOUT_ENV") ?? "sandbox";
+  if (payoutEnv !== "sandbox" && payoutEnv !== "production") problems.push("CASHFREE_PAYOUT_ENV must be sandbox or production");
+  if (!payoutId !== !payoutSecret) problems.push("CASHFREE_PAYOUT_CLIENT_ID and CASHFREE_PAYOUT_SECRET go together");
+  const payoutsProvider = plain("PAYOUTS_PROVIDER") ?? (payoutId && payoutSecret ? "cashfree" : ruxstarEnv === "prod" ? "cashfree" : "fake");
+  if (payoutsProvider !== "fake" && payoutsProvider !== "cashfree") problems.push("PAYOUTS_PROVIDER must be fake or cashfree");
+  if (payoutsProvider === "fake" && ruxstarEnv === "prod") problems.push("PAYOUTS_PROVIDER=fake is not allowed in prod");
+
   const apiUrl = read(env, "API_URL")?.replace(/\/+$/, "") ?? null;
   if (apiUrl && !/^https:\/\/[^/\s]+$/.test(apiUrl)) problems.push("API_URL must be an https origin like https://api.ruxstar.com");
 
@@ -250,6 +261,19 @@ export function loadConfig(env: Env = process.env): Config {
       cashfree:
         pgId && pgSecret
           ? { clientId: pgId, clientSecret: pgSecret, env: pgEnv as "sandbox" | "production", apiVersion: plain("CASHFREE_PG_API_VERSION") ?? "2023-08-01", publicKey: null }
+          : null,
+    },
+    payouts: {
+      provider: payoutsProvider as "fake" | "cashfree",
+      cashfree:
+        payoutId && payoutSecret
+          ? {
+              clientId: payoutId,
+              clientSecret: payoutSecret,
+              env: payoutEnv as "sandbox" | "production",
+              apiVersion: plain("CASHFREE_PAYOUT_API_VERSION") ?? "2024-01-01",
+              publicKey: read(env, "CASHFREE_PAYOUT_PUBLIC_KEY")?.replace(/\\n/g, "\n") ?? null,
+            }
           : null,
     },
     apiUrl,

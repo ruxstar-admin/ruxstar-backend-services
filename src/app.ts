@@ -9,6 +9,7 @@ import { createChatPhotoStore, type ChatPhotoStore } from "./adapters/chat-photo
 import { createEmailSender, type EmailSender } from "./adapters/email.js";
 import { createGeocoder, type Geocoder } from "./adapters/geocoder.js";
 import { createPaymentGateway, type PaymentGateway } from "./adapters/payments.js";
+import { createPayoutGateway, type PayoutGateway } from "./adapters/payouts.js";
 import { createMediaStore, createPhotoStore, type PhotoStore } from "./adapters/photos.js";
 import { createPrintFileStore, type PrintFileStore } from "./adapters/print-files.js";
 import { createPushSender, type PushSender } from "./adapters/push.js";
@@ -70,6 +71,7 @@ export interface AppOptions {
   media?: PhotoStore;
   verifier?: Verifier;
   payments?: PaymentGateway;
+  payouts?: PayoutGateway;
   printFiles?: PrintFileStore;
   chatPhotos?: ChatPhotoStore;
   /** Tests record phone notifications instead of sending them. */
@@ -91,6 +93,7 @@ export async function buildApp({
   media,
   verifier,
   payments,
+  payouts,
   printFiles,
   chatPhotos,
   push,
@@ -120,6 +123,7 @@ export async function buildApp({
   app.decorate("media", media ?? createMediaStore(config, app.log));
   app.decorate("verifier", verifier ?? createVerifier(config, app.log));
   app.decorate("payments", payments ?? createPaymentGateway(config, app.log));
+  app.decorate("payouts", payouts ?? createPayoutGateway(config, app.log));
   app.decorate("printFiles", printFiles ?? createPrintFileStore(config, app.log));
   app.decorate("chatPhotos", chatPhotos ?? createChatPhotoStore(config, app.log));
   app.decorate("push", push ?? createPushSender(config.push, app.log));

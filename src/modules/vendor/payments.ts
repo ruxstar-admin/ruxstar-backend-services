@@ -3,16 +3,30 @@ import { ObjectId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { actorOf, writeAudit } from "../../platform/audit.js";
 import { requireDatabase } from "../../platform/context.js";
-import type { PayoutMethodDoc, Stamped } from "../../platform/db.js";
+import type { PayoutDoc, PayoutMethodDoc, Stamped } from "../../platform/db.js";
 import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
+import { idempotent } from "../../platform/idempotency.js";
 import { findPage } from "../../platform/pagination.js";
 import { seal } from "../../platform/sealed.js";
 import { loadCase, NAME_MATCHES, verificationId } from "../kyc/cases.js";
 import { releaseShare } from "../pod/order-rules.js";
 import { shopShareLeft } from "../pod/orders.js";
 import { payoutMethodView, requireVendor } from "./businesses.js";
-import { PayoutMethodBody, PayoutMethodResult, Payments, Statement, StatementQuery, type StatementLine } from "./contracts.js";
+import { PayoutMethodBody, PayoutMethodResult, PayoutResult, Payments, Statement, StatementQuery, type Payout, type StatementLine } from "./contracts.js";
+import { failureText, payoutRules, settleDue, withdraw } from "./payouts.js";
+
+const payoutView = (p: PayoutDoc): Payout => ({
+  id: p._id.toHexString(),
+  amount: p.amount,
+  fee: p.fee ?? 0,
+  status: p.status,
+  to: p.to,
+  utr: p.utr,
+  paidAt: p.paidAt?.toISOString() ?? null,
+  failure: p.status === "failed" ? failureText(p.failure ?? null) : null,
+  createdAt: p.createdAt.toISOString(),
+});
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 /** UPI answers MATCH where bank checks grade the name. */
@@ -46,7 +60,8 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
         .limit(50)
         .toArray();
       for (const order of due) await releaseShare(app, db(), order, now);
-      const [method, payouts, paid, ledger, holding] = await Promise.all([
+      await settleDue(app, db(), vendorId, now);
+      const [method, payouts, paid, ledger, holding, rules] = await Promise.all([
         db().payoutMethods.findOne({ userId: vendorId }),
         db().payouts.find({ vendorId }).sort({ createdAt: -1, _id: -1 }).limit(20).toArray(),
         db()
@@ -59,12 +74,13 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           ])
           .toArray(),
         db().podOrders.find({ vendorId, status: "delivered", releasedAt: null, releaseAt: { $ne: null } }).sort({ releaseAt: 1 }).limit(20).toArray(),
+        payoutRules(db()),
       ]);
       const sum = (bucket: "pending" | "withdrawable") => ledger.find((row) => row._id === bucket)?.total ?? 0;
       const paidOut = paid[0]?.total ?? 0;
       return ok(request, {
-        // Released after the hold, less what was paid out; pending is paid orders not released yet.
-        balance: { available: Math.max(0, sum("withdrawable") - paidOut), pending: Math.max(0, sum("pending")), paidOut },
+        // Released after the hold, less withdrawals (they leave the ledger when asked for); pending is paid orders not released yet.
+        balance: { available: Math.max(0, sum("withdrawable")), pending: Math.max(0, sum("pending")), paidOut },
         upcoming: holding.map((o) => ({
           orderId: o._id.toHexString(),
           orderNo: o.orderNo,
@@ -72,17 +88,32 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           availableAt: o.releaseAt!.toISOString(),
           held: o.problem?.status === "open",
         })),
+        withdrawal: rules,
         payoutMethod: method ? payoutMethodView(method) : null,
-        payouts: payouts.map((p) => ({
-          id: p._id.toHexString(),
-          amount: p.amount,
-          status: p.status,
-          to: p.to,
-          utr: p.utr,
-          paidAt: p.paidAt?.toISOString() ?? null,
-          createdAt: p.createdAt.toISOString(),
-        })),
+        payouts: payouts.map(payoutView),
       });
+    },
+  );
+
+  app.post(
+    "/payouts",
+    {
+      preHandler: [requireVendor, idempotent],
+      config: { rateLimit: { max: 10, timeWindow: 60_000 } },
+      schema: {
+        tags: ["vendor"],
+        summary: "Withdraw everything available to your payout account",
+        description:
+          "Takes the whole available balance, at least the minimum, and sends it less the payout fee. One withdrawal at a time. " +
+          "It usually arrives within minutes; until Cashfree confirms it, it shows as pending. If it fails, the amount is back in your balance. " +
+          "Send an Idempotency-Key.",
+        response: { 200: PayoutResult, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const payout = await withdraw(app, db(), request.auth!.userId, actorOf(request), request.ip);
+      return ok(request, payoutView(payout));
     },
   );
 
@@ -94,8 +125,8 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
         tags: ["vendor"],
         summary: "Every change to your earnings, newest first",
         description:
-          "One line per money movement on your orders: the share arriving (pending), the hold ending (available), and refunds " +
-          "out of your share. Payouts are listed with the balance.",
+          "One line per money movement: an order's share arriving (pending), its hold ending (available), refunds out of your " +
+          "share, withdrawals, and failed withdrawals coming back.",
         querystring: StatementQuery,
         response: { 200: Statement, ...Errors },
         security,
@@ -110,24 +141,32 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
         cursor: request.query.cursor,
         limit: request.query.limit,
       });
-      const orders = await database.podOrders
-        .find({ _id: { $in: [...new Set(items.map((e) => e.source.id.toHexString()))].map((id) => new ObjectId(id)) } }, { projection: { orderNo: 1, shopId: 1 } })
-        .toArray();
+      const ids = (type: "pod_order" | "payout") => items.filter((e) => e.source.type === type).map((e) => e.source.id);
+      const [orders, payouts] = await Promise.all([
+        database.podOrders.find({ _id: { $in: ids("pod_order") } }, { projection: { orderNo: 1, shopId: 1 } }).toArray(),
+        database.payouts.find({ _id: { $in: ids("payout") } }, { projection: { to: 1 } }).toArray(),
+      ]);
       const shops = await database.businesses
         .find({ _id: { $in: orders.map((o) => o.shopId) } }, { projection: { name: 1 } })
         .toArray();
       const lines = items.flatMap((entry): StatementLine[] => {
+        const base = { id: entry._id.toHexString(), amount: entry.signedPaise, at: entry.at.toISOString() };
+        if (entry.source.type === "payout") {
+          const payout = payouts.find((p) => p._id.equals(entry.source.id));
+          if (!payout) return [];
+          const kind = entry.kind === "payout" ? "withdrawal" : "returned";
+          return [{ ...base, kind, module: "ledger", order: null, payout: { id: payout._id.toHexString(), to: payout.to } }];
+        }
         const order = orders.find((o) => o._id.equals(entry.source.id));
         if (!order) return [];
         const shop = shops.find((s) => s._id.equals(order.shopId));
         return [
           {
-            id: entry._id.toHexString(),
+            ...base,
             kind: entry.kind === "payment" ? "paid" : entry.kind === "release" ? "available" : "refund",
-            amount: entry.signedPaise,
-            at: entry.at.toISOString(),
             module: "pod",
             order: { id: order._id.toHexString(), orderNo: order.orderNo, business: shop ? { id: shop._id.toHexString(), name: shop.name } : null },
+            payout: null,
           },
         ];
       });

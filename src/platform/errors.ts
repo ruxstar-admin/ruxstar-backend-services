@@ -49,6 +49,9 @@ export const ERROR_CODES = {
   BUSINESS_INCOMPLETE: { status: 422, message: "Finish the business details first." },
   BUSINESS_SUSPENDED: { status: 423, message: "This business is on hold. Contact support to continue." },
   PAYOUTS_UNAVAILABLE: { status: 503, message: "Payout accounts can't be added right now. Try again later." },
+  PAYOUT_METHOD_REQUIRED: { status: 409, message: "Add where you get paid first." },
+  PAYOUT_TOO_SMALL: { status: 422, message: "There isn't enough available to withdraw yet." },
+  PAYOUT_IN_PROGRESS: { status: 409, message: "A payout is already on the way. Wait for it to arrive." },
   // Orders and payments
   FILE_INVALID: { status: 422, message: "Choose a PDF, JPEG or PNG file." },
   FILES_UNAVAILABLE: { status: 503, message: "We cannot take files right now. Try again shortly." },

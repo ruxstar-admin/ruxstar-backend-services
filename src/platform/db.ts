@@ -215,16 +215,31 @@ export interface PayoutMethodDoc extends Stamped {
   verifiedAt: Date;
 }
 
+/**
+ * A withdrawal of everything available. `amount` leaves the vendor's balance; `fee` is Ruxstar's and `amount - fee`
+ * reaches the bank. A vendor has at most one pending at a time. A failed one puts `amount` back.
+ */
 export interface PayoutDoc extends Stamped {
   _id: ObjectId;
   vendorId: ObjectId;
   /** Paise. */
   amount: number;
+  /** Paise, the payout fee in force when it was asked for. */
+  fee: number;
   status: "pending" | "paid" | "failed";
   /** How it was sent, for example "Bank ••1191" or "asha@upi". */
   to: string;
+  /** Where it goes, copied when asked for, so a later change of account can't redirect it. */
+  destination: { name: string; bank?: { number: string; ifsc: string }; upi?: { vpa: string } };
+  /** Cashfree's `transfer_id`. */
+  transferId: string;
   utr: string | null;
   paidAt: Date | null;
+  /** Cashfree's reason code once it failed. */
+  failure: string | null;
+  /** Times it was sent to Cashfree; a transfer Cashfree never got is sent again, up to a limit. */
+  attempts: number;
+  checkedAt: Date | null;
 }
 
 export type PostKind = "personal" | "business";
@@ -419,7 +434,8 @@ export type NotificationType =
   | "business.suspended"
   | "business.restored"
   | "order.placed"
-  | "order.updated";
+  | "order.updated"
+  | "payout.updated";
 
 export interface NotificationDoc {
   _id: ObjectId;
@@ -431,9 +447,10 @@ export interface NotificationDoc {
   body: string;
   /**
    * `verification` opens the KYC screen (its id is the track); `business` opens a business in the vendor portal;
-   * `order` opens a customer's print order and `shop_order` the same order in the vendor portal; `profile` opens a person (its id is theirs).
+   * `order` opens a customer's print order and `shop_order` the same order in the vendor portal; `profile` opens a person (its id is theirs);
+   * `payments` opens the vendor's Payments (its id is the payout).
    */
-  link: { screen: "post" | "verification" | "business" | "order" | "shop_order" | "profile"; id: string };
+  link: { screen: "post" | "verification" | "business" | "order" | "shop_order" | "profile" | "payments"; id: string };
   readAt: Date | null;
   createdAt: Date;
 }
@@ -482,6 +499,9 @@ export interface ModuleSettingsDoc extends Stamped {
   commissionBps: number;
   /** Paise the customer pays Ruxstar on each order, on top of the vendor's prices. Missing on older documents: 0. */
   platformFee?: number;
+  /** The ledger module only, in paise: taken from each withdrawal, and the least a vendor can withdraw. Missing: the defaults. */
+  payoutFee?: number;
+  minPayout?: number;
   deliveryEnabled: boolean;
   permissionCatalog: string[];
   updatedBy: ObjectId | null;
@@ -599,11 +619,12 @@ export interface PodOrderDoc extends Stamped {
 export interface LedgerEntryDoc {
   _id?: ObjectId;
   txnId: string;
-  kind: "payment" | "refund" | "release";
+  /** `payout` takes a withdrawal out of the vendor's available balance; `payout_return` puts a failed one back. */
+  kind: "payment" | "refund" | "release" | "payout" | "payout_return";
   accountId: string;
   bucket: "pending" | "withdrawable";
   signedPaise: number;
-  source: { type: "pod_order"; id: ObjectId };
+  source: { type: "pod_order" | "payout"; id: ObjectId };
   at: Date;
 }
 

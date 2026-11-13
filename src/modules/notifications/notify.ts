@@ -161,6 +161,29 @@ export async function notifyOrder(
   }
 }
 
+/** Tells a vendor a withdrawal reached the bank or came back. Logged, never thrown: the payout is already settled. */
+export async function notifyPayout(
+  db: Database,
+  log: FastifyBaseLogger,
+  event: { to: ObjectId; payoutId: ObjectId; title: string; body: string },
+): Promise<void> {
+  try {
+    await save(db, {
+      _id: new ObjectId(),
+      userId: event.to,
+      type: "payout.updated",
+      actorId: event.to,
+      title: clip(event.title, 60),
+      body: clip(event.body, 140),
+      link: { screen: "payments", id: event.payoutId.toHexString() },
+      readAt: null,
+      createdAt: new Date(),
+    });
+  } catch (err) {
+    log.warn({ err: (err as Error).message, type: "payout" }, "Notification not saved");
+  }
+}
+
 /** Tells a user their verification was decided. Logged, never thrown: the decision is already saved. */
 export async function notifyKycDecision(
   db: Database,

@@ -3,6 +3,7 @@ import type { ChatPhotoStore } from "../adapters/chat-photos.js";
 import type { Geocoder } from "../adapters/geocoder.js";
 import type { EmailSender } from "../adapters/email.js";
 import type { PaymentGateway } from "../adapters/payments.js";
+import type { PayoutGateway } from "../adapters/payouts.js";
 import type { PhotoStore } from "../adapters/photos.js";
 import type { PrintFileStore } from "../adapters/print-files.js";
 import type { PushSender } from "../adapters/push.js";
@@ -48,6 +49,8 @@ declare module "fastify" {
     verifier: Verifier;
     /** Customer payments and refunds. */
     payments: PaymentGateway;
+    /** Vendor withdrawals. */
+    payouts: PayoutGateway;
     /** Customers' print files, private. */
     printFiles: PrintFileStore;
     /** Photos sent in chats, private. */

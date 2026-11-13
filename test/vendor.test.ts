@@ -291,6 +291,7 @@ describe("vendor portal", () => {
       expect(payments).toEqual({
         balance: { available: 0, pending: 0, paidOut: 0 },
         upcoming: [],
+        withdrawal: { minimum: 10_000, fee: 590 },
         payoutMethod: expect.objectContaining({ kind: "bank" }),
         payouts: [],
       });

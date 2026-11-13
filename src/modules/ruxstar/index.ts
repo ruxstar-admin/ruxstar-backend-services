@@ -8,6 +8,7 @@ import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { forgetModuleState } from "../../platform/module-switch.js";
+import { DEFAULT_MIN_PAYOUT, DEFAULT_PAYOUT_FEE } from "../vendor/payouts.js";
 import { ModuleParams, ModuleSettingsList, ModuleSettingsOne, ModuleSettingsPatch, type ModuleSettings } from "./contracts.js";
 import auditLog from "./audit-log.js";
 import businesses from "./businesses.js";
@@ -27,6 +28,7 @@ const view = (doc: ModuleSettingsDoc): ModuleSettings => ({
   signupsOpen: doc.signupsOpen,
   commissionBps: doc.commissionBps,
   platformFee: doc.platformFee ?? 0,
+  payouts: doc.module === "ledger" ? { fee: doc.payoutFee ?? DEFAULT_PAYOUT_FEE, minimum: doc.minPayout ?? DEFAULT_MIN_PAYOUT } : null,
   deliveryEnabled: doc.deliveryEnabled,
   permissionCatalog: doc.permissionCatalog,
   updatedAt: doc.updatedAt.toISOString(),
@@ -66,7 +68,7 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: [requireRuxstar("modules.manage"), idempotent],
       schema: {
         tags: ["ruxstar"],
-        summary: "Switch a module on or off, or change its signups, commission, platform fee or delivery",
+        summary: "Switch a module on or off, or change its signups, commission, platform fee or delivery; on the ledger, the payout fee and minimum",
         params: ModuleParams,
         body: ModuleSettingsPatch,
         response: { 200: ModuleSettingsOne, ...Errors },
@@ -82,6 +84,19 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
       const updated = await db.transaction(async (session) => {
         const before = await db.moduleSettings.findOne({ module }, { session });
         if (!before) throw new AppError("NOT_FOUND", "Module not found.");
+        const payoutsChanged = changes.payoutFee !== undefined || changes.minPayout !== undefined;
+        if (payoutsChanged && module !== "ledger") {
+          throw new AppError("VALIDATION_FAILED", "The payout fee and minimum are set on the ledger module.", [
+            { path: "body/payoutFee", message: "Ledger only" },
+          ]);
+        }
+        const fee = changes.payoutFee ?? before.payoutFee ?? DEFAULT_PAYOUT_FEE;
+        const minimum = changes.minPayout ?? before.minPayout ?? DEFAULT_MIN_PAYOUT;
+        if (payoutsChanged && minimum < fee + 100) {
+          throw new AppError("VALIDATION_FAILED", "The minimum withdrawal must be at least ₹1 more than the payout fee.", [
+            { path: "body/minPayout", message: "At least ₹1 more than the fee" },
+          ]);
+        }
         const diff = diffOf(before, changes);
         changed = Object.keys(diff);
         if (!changed.length) return before;

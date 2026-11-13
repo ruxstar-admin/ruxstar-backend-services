@@ -4,6 +4,7 @@ import type { Config } from "../config.js";
 import { requireDatabase } from "../platform/context.js";
 import { AppError } from "../platform/errors.js";
 import { sweepOrders } from "./pod/order-rules.js";
+import { sweepPayouts } from "./vendor/payouts.js";
 
 /** Whether a bearer token is the scheduler's. */
 export type JobAuth = (token: string) => Promise<boolean>;
@@ -36,9 +37,11 @@ export function jobs(auth: JobAuth | null): FastifyPluginAsync {
       const header = request.headers.authorization;
       const token = header?.startsWith("Bearer ") ? header.slice(7).trim() : "";
       if (!token || !(await auth(token))) throw new AppError("UNAUTHENTICATED");
-      const counts = await sweepOrders(app, requireDatabase(app.db));
-      request.log.info({ job: "orders", ...counts }, "Order timers swept");
-      return { ok: true, ...counts };
+      const db = requireDatabase(app.db);
+      const counts = await sweepOrders(app, db);
+      const payouts = await sweepPayouts(app, db);
+      request.log.info({ job: "orders", ...counts, payouts }, "Order timers and payouts swept");
+      return { ok: true, ...counts, payouts };
     });
   };
 }

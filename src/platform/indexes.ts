@@ -84,6 +84,9 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.businesses.createIndex({ status: 1, updatedAt: -1, _id: -1 }),
     db.payoutMethods.createIndex({ userId: 1 }, { unique: true }),
     db.payouts.createIndex({ vendorId: 1, createdAt: -1, _id: -1 }),
+    // One withdrawal on the way per vendor, so two taps at once can't both take the balance.
+    db.payouts.createIndex({ vendorId: 1 }, { name: "one_pending_payout", unique: true, partialFilterExpression: { status: "pending" } }),
+    db.payouts.createIndex({ status: 1, checkedAt: 1 }),
     db.printFiles.createIndex({ userId: 1, orderId: 1, createdAt: 1 }),
     // A customer's orders, a shop's orders (all, or one status), and finding an order from Cashfree's id.
     db.podOrders.createIndex({ orderNo: 1 }, { unique: true }),

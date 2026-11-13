@@ -3,7 +3,7 @@ import { DateTime, Envelope, ListEnvelope, ModuleName, ObjectIdString, PageQuery
 import { GSTIN_PATTERN } from "../kyc/contracts.js";
 import { BUSINESS_TYPES, MAX_POD_CITIES, MAX_PRICE_TIERS, MAX_TURNAROUND_DAYS, POD_PRODUCTS } from "./catalog.js";
 
-const Nullable = <T extends TSchema>(schema: T) => Type.Union([schema, Type.Null()]);
+const Nullable = <T extends TSchema>(schema: T, options: { description?: string } = {}) => Type.Union([schema, Type.Null()], options);
 
 /** Businesses a vendor can have at once. */
 export const MAX_BUSINESSES = 10;
@@ -221,12 +221,17 @@ export const PayoutMethodBody = Type.Union([
 const Payout = Strict({
   id: ObjectIdString,
   amount: Paise,
+  fee: Type.Integer({ minimum: 0, description: "Paise taken from the amount; the bank gets amount - fee" }),
   status: Type.Union([Type.Literal("pending"), Type.Literal("paid"), Type.Literal("failed")]),
   to: Type.String(),
   utr: Nullable(Type.String({ description: "The bank's reference once paid" })),
   paidAt: Nullable(DateTime),
+  failure: Nullable(Type.String({ description: "Why it failed, for the vendor; the amount is back in their balance" })),
   createdAt: DateTime,
 });
+export type Payout = Static<typeof Payout>;
+
+export const PayoutResult = Envelope(Payout);
 
 export const Payments = Envelope(
   Strict({
@@ -245,6 +250,10 @@ export const Payments = Envelope(
       }),
       { description: "Delivered orders whose share is still on hold, soonest first, up to 20" },
     ),
+    withdrawal: Strict(
+      { minimum: Paise, fee: Paise },
+      { description: "The least that can be withdrawn and the fee taken from each withdrawal, both set by Ruxstar" },
+    ),
     payoutMethod: Nullable(PayoutMethod),
     payouts: Type.Array(Payout, { description: "The latest 20" }),
   }),
@@ -254,19 +263,26 @@ export const StatementQuery = Strict({ ...PageQuery });
 
 const StatementLine = Strict({
   id: ObjectIdString,
-  kind: Type.Union([Type.Literal("paid"), Type.Literal("available"), Type.Literal("refund")], {
-    description:
-      "paid: an order's share arrived, pending until its hold ends. available: the hold ended and it can be withdrawn. " +
-      "refund: money went back to the customer out of your share.",
-  }),
-  amount: Type.Integer({ description: "Paise; negative for refunds" }),
+  kind: Type.Union(
+    [Type.Literal("paid"), Type.Literal("available"), Type.Literal("refund"), Type.Literal("withdrawal"), Type.Literal("returned")],
+    {
+      description:
+        "paid: an order's share arrived, pending until its hold ends. available: the hold ended and it can be withdrawn. " +
+        "refund: money went back to the customer out of your share. withdrawal: you withdrew it. returned: a withdrawal failed and came back.",
+    },
+  ),
+  amount: Type.Integer({ description: "Paise; negative for refunds and withdrawals" }),
   at: DateTime,
   module: ModuleName,
-  order: Strict({
-    id: ObjectIdString,
-    orderNo: Type.Integer(),
-    business: Nullable(Strict({ id: ObjectIdString, name: Type.String() })),
-  }),
+  order: Nullable(
+    Strict({
+      id: ObjectIdString,
+      orderNo: Type.Integer(),
+      business: Nullable(Strict({ id: ObjectIdString, name: Type.String() })),
+    }),
+    { description: "Set on order lines" },
+  ),
+  payout: Nullable(Strict({ id: ObjectIdString, to: Type.String() }), { description: "Set on withdrawal lines" }),
 });
 export type StatementLine = Static<typeof StatementLine>;
 

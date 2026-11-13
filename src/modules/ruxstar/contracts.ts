@@ -7,6 +7,10 @@ const Count = Type.Integer({ minimum: 0 });
 const Reason = Type.String({ minLength: 5, maxLength: 300, description: "Shown to the person, so be clear" });
 /** ₹500. */
 export const MAX_PLATFORM_FEE = 50_000;
+/** ₹100. */
+export const MAX_PAYOUT_FEE = 10_000;
+/** ₹1,00,000. */
+export const MAX_MIN_PAYOUT = 10_000_000;
 
 export const ModuleSettings = Strict({
   module: ModuleName,
@@ -14,6 +18,12 @@ export const ModuleSettings = Strict({
   signupsOpen: Type.Boolean(),
   commissionBps: Type.Integer({ minimum: 0, maximum: 10000, description: "Commission in basis points. 1000 = 10%" }),
   platformFee: Type.Integer({ minimum: 0, maximum: MAX_PLATFORM_FEE, description: "Paise the customer pays Ruxstar on each order" }),
+  payouts: Nullable(
+    Strict({
+      fee: Type.Integer({ minimum: 0, description: "Paise taken from each vendor withdrawal" }),
+      minimum: Type.Integer({ minimum: 0, description: "Paise, the least a vendor can withdraw" }),
+    }),
+  ),
   deliveryEnabled: Type.Boolean(),
   permissionCatalog: Type.Array(Type.String()),
   updatedAt: DateTime,
@@ -28,6 +38,8 @@ export const ModuleSettingsPatch = Strict(
     signupsOpen: Type.Optional(Type.Boolean()),
     commissionBps: Type.Optional(Type.Integer({ minimum: 0, maximum: 10000 })),
     platformFee: Type.Optional(Type.Integer({ minimum: 0, maximum: MAX_PLATFORM_FEE, description: "Paise, up to ₹500" })),
+    payoutFee: Type.Optional(Type.Integer({ minimum: 0, maximum: MAX_PAYOUT_FEE, description: "Ledger only. Paise taken from each withdrawal, up to ₹100" })),
+    minPayout: Type.Optional(Type.Integer({ minimum: 100, maximum: MAX_MIN_PAYOUT, description: "Ledger only. Paise, at least ₹1 more than the payout fee" })),
     deliveryEnabled: Type.Optional(Type.Boolean()),
   },
   { minProperties: 1 },
