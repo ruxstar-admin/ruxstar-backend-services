@@ -17,6 +17,8 @@ substitutions:
   _CASHFREE_PG_ID_SECRET: cashfree-pg-sandbox-client-id
   _CASHFREE_PG_KEY_SECRET: cashfree-pg-sandbox-client-secret
   _GCS_PRINT_BUCKET: ruxstar-print-files
+  # Photos sent in chats, private.
+  _GCS_CHAT_BUCKET: ruxstar-chat-media
   # Where Cashfree sends payment webhooks and returns customers. Switch to https://api.ruxstar.com once it serves HTTPS.
   _API_URL: https://ruxstar-backend-services-391710984982.us-central1.run.app
   # All outgoing traffic leaves through Cloud NAT ruxstar-nat on the static IP ruxstar-egress-ip (34.46.40.84).
@@ -55,7 +57,7 @@ steps:
       - --network=${_VPC_NETWORK}
       - --subnet=${_VPC_SUBNET}
       - --vpc-egress=all-traffic
-      - --set-env-vars=^@^NODE_ENV=production@RUXSTAR_ENV=${_RUXSTAR_ENV}@MONGODB_DB=${_MONGODB_DB}@GCS_BUCKET=${_GCS_BUCKET}@GCS_MEDIA_BUCKET=${_GCS_MEDIA_BUCKET}@LOG_LEVEL=info@CORS_ORIGINS=${_CORS_ORIGINS}@OTP_PROVIDER=msg91@CASHFREE_ENV=${_CASHFREE_ENV}@CASHFREE_PG_ENV=${_CASHFREE_PG_ENV}@GCS_PRINT_BUCKET=${_GCS_PRINT_BUCKET}@API_URL=${_API_URL}
+      - --set-env-vars=^@^NODE_ENV=production@RUXSTAR_ENV=${_RUXSTAR_ENV}@MONGODB_DB=${_MONGODB_DB}@GCS_BUCKET=${_GCS_BUCKET}@GCS_MEDIA_BUCKET=${_GCS_MEDIA_BUCKET}@LOG_LEVEL=info@CORS_ORIGINS=${_CORS_ORIGINS}@OTP_PROVIDER=msg91@CASHFREE_ENV=${_CASHFREE_ENV}@CASHFREE_PG_ENV=${_CASHFREE_PG_ENV}@GCS_PRINT_BUCKET=${_GCS_PRINT_BUCKET}@GCS_CHAT_BUCKET=${_GCS_CHAT_BUCKET}@API_URL=${_API_URL}
       - --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest,MSG91_AUTH_KEY=msg91-auth-key:latest,MSG91_TEMPLATE_ID=msg91-template-id:latest,MSG91_SENDER_ID=msg91-sender-id:latest,CASHFREE_CLIENT_ID=${_CASHFREE_ID_SECRET}:latest,CASHFREE_CLIENT_SECRET=${_CASHFREE_KEY_SECRET}:latest,PAYOUT_ENCRYPTION_KEY=payout-encryption-key:latest,CASHFREE_PG_CLIENT_ID=${_CASHFREE_PG_ID_SECRET}:latest,CASHFREE_PG_SECRET=${_CASHFREE_PG_KEY_SECRET}:latest
 
 images:

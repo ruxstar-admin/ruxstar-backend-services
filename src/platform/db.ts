@@ -324,6 +324,69 @@ export interface UserReportDoc {
   closedAt?: Date;
 }
 
+/** A 1:1 chat or a private group. Communities come later. */
+export interface ConversationDoc extends Stamped {
+  _id: ObjectId;
+  kind: "dm" | "group";
+  /** 1:1 chats only: both user ids, smaller first, joined by ":". Unique, so two people share one chat. */
+  pairKey?: string;
+  /** Groups only. */
+  title: string | null;
+  createdBy: ObjectId;
+  /** Everyone in it, including people still deciding on an invite. At most 50. */
+  memberIds: ObjectId[];
+  /** Groups only. Never empty while anyone is left. */
+  adminIds: ObjectId[];
+  last: { messageId: ObjectId; senderId: ObjectId; kind: ChatMessageKind; text: string; at: Date } | null;
+  /** When the name, people or admins last changed, so an open chat knows to fetch them again. */
+  changedAt: Date;
+}
+
+/**
+ * One person's side of a chat. `request` is a chat or group invite from someone they don't follow; it sits in
+ * Requests until accepted. `declined` is a 1:1 request they turned down: hidden from them, and the sender can't send more.
+ */
+export interface ChatMemberDoc {
+  _id?: ObjectId;
+  conversationId: ObjectId;
+  userId: ObjectId;
+  kind: "dm" | "group";
+  /** 1:1 chats only: the other person, so chats with blocked people can be left out. */
+  peerId: ObjectId | null;
+  state: "active" | "request" | "declined";
+  addedBy: ObjectId;
+  /** Groups show messages from here on. */
+  joinedAt: Date;
+  /** The latest message's time, for sorting the chat list. Null until the first message. */
+  lastAt: Date | null;
+  unread: number;
+  /** When they last read the chat. In 1:1 chats this is the other person's "Seen". */
+  readAt: Date | null;
+  /** Muted chats don't count toward the unread badge. */
+  muted: boolean;
+  /** When they last sent something. Until the other person accepts a 1:1 request, the sender gets one message. */
+  sentAt: Date | null;
+}
+
+export type ChatMessageKind = "text" | "post" | "photo" | "event";
+
+/** Kept until the sender unsends it or deletes their account. */
+export interface ChatMessageDoc {
+  _id: ObjectId;
+  conversationId: ObjectId;
+  senderId: ObjectId;
+  /** `event` is a line the group shows, like "Asha added Ravi", written when it happened. */
+  kind: ChatMessageKind;
+  text: string;
+  /** A shared post. */
+  postId: ObjectId | null;
+  /** In the private chat bucket; only the API reads it. */
+  photo: { key: string; width: number; height: number } | null;
+  status: "live" | "unsent";
+  createdAt: Date;
+  unsentAt: Date | null;
+}
+
 export type NotificationType =
   | "user.followed"
   | "post.like"
@@ -603,6 +666,15 @@ export class Database {
   }
   get userReports() {
     return this.db.collection<UserReportDoc>("user_reports");
+  }
+  get conversations() {
+    return this.db.collection<ConversationDoc>("conversations");
+  }
+  get chatMembers() {
+    return this.db.collection<ChatMemberDoc>("chat_members");
+  }
+  get chatMessages() {
+    return this.db.collection<ChatMessageDoc>("chat_messages");
   }
   get kycCases() {
     return this.db.collection<KycCaseDoc>("kyc_cases");

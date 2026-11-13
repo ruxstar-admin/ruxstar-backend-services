@@ -56,6 +56,9 @@ export const ERROR_CODES = {
   SHOP_CLOSED: { status: 409, message: "This shop is closed right now. Try again when it opens." },
   ORDER_STATE: { status: 409, message: "This order has moved on. Refresh to see where it is." },
   PAYMENTS_UNAVAILABLE: { status: 503, message: "Payments are not available right now. Try again shortly." },
+  // Chats
+  CHAT_REQUEST_PENDING: { status: 409, message: "Wait until they accept your message request." },
+  CHAT_GROUP_FULL: { status: 422, message: "A group can have up to 50 people." },
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CODES;

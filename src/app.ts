@@ -5,6 +5,7 @@ import rateLimit from "@fastify/rate-limit";
 import swagger from "@fastify/swagger";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import Fastify, { type FastifyServerOptions } from "fastify";
+import { createChatPhotoStore, type ChatPhotoStore } from "./adapters/chat-photos.js";
 import { createEmailSender, type EmailSender } from "./adapters/email.js";
 import { createGeocoder, type Geocoder } from "./adapters/geocoder.js";
 import { createPaymentGateway, type PaymentGateway } from "./adapters/payments.js";
@@ -17,6 +18,7 @@ import { ErrorEnvelope } from "./contracts/common.js";
 import { registerModules } from "./modules/index.js";
 import health from "./modules/health.js";
 import checkout from "./modules/pod/checkout.js";
+import chatPhotoLinks from "./modules/social/chat-photo-links.js";
 import { registerAuth } from "./platform/auth.js";
 import { registerClientCheck } from "./platform/client.js";
 import "./platform/context.js";
@@ -66,6 +68,7 @@ export interface AppOptions {
   verifier?: Verifier;
   payments?: PaymentGateway;
   printFiles?: PrintFileStore;
+  chatPhotos?: ChatPhotoStore;
   /** Tests send every request from one address, so most of them switch per-IP limits off. */
   rateLimit?: boolean;
 }
@@ -82,6 +85,7 @@ export async function buildApp({
   verifier,
   payments,
   printFiles,
+  chatPhotos,
   rateLimit: limitByIp = true,
 }: AppOptions) {
   const app = Fastify({
@@ -108,6 +112,7 @@ export async function buildApp({
   app.decorate("verifier", verifier ?? createVerifier(config, app.log));
   app.decorate("payments", payments ?? createPaymentGateway(config, app.log));
   app.decorate("printFiles", printFiles ?? createPrintFileStore(config, app.log));
+  app.decorate("chatPhotos", chatPhotos ?? createChatPhotoStore(config, app.log));
 
   app.addHook("onRequest", async (request, reply) => {
     reply.header("x-request-id", request.id);
@@ -158,6 +163,7 @@ export async function buildApp({
   await app.register(health);
   await registerModules(app);
   await app.register(checkout);
+  await app.register(chatPhotoLinks);
 
   if (config.env !== "prod") {
     app.get("/openapi.json", { schema: { hide: true } }, async () => app.swagger());

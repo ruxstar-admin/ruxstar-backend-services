@@ -1,5 +1,6 @@
 import { randomBytes, randomInt } from "node:crypto";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
+import type { ChatPhotoStore } from "../src/adapters/chat-photos.js";
 import type { EmailSender } from "../src/adapters/email.js";
 import type { Geocoder } from "../src/adapters/geocoder.js";
 import type { PhotoStore } from "../src/adapters/photos.js";
@@ -29,6 +30,8 @@ export interface Stack {
   media: Map<string, Buffer>;
   /** Customers' print files by key, and the keys whose 30-day countdown started. */
   printFiles: { objects: Map<string, Buffer>; expiring: Set<string> };
+  /** Photos sent in chats by key, in their private bucket. */
+  chatPhotos: Map<string, Buffer>;
   stop: () => Promise<void>;
 }
 
@@ -95,6 +98,16 @@ export async function startStack(
     expire: async (key) => void printFiles.expiring.add(key),
     remove: async (key) => void printFiles.objects.delete(key),
   };
+  const chatPhotos = new Map<string, Buffer>();
+  const chatStore: ChatPhotoStore = {
+    save: async (key, data) => void chatPhotos.set(key, data),
+    read: async (key) => {
+      const data = chatPhotos.get(key);
+      if (!data) throw new AppError("PHOTO_UNAVAILABLE");
+      return data;
+    },
+    remove: async (key) => void chatPhotos.delete(key),
+  };
   const app = await buildApp({
     config,
     db,
@@ -105,6 +118,7 @@ export async function startStack(
     photos: profilePhotos.store,
     media: postMedia.store,
     printFiles: printStore,
+    chatPhotos: chatStore,
     rateLimit,
     verifier: verifier ?? new FakeVerifier(),
   });
@@ -120,6 +134,7 @@ export async function startStack(
     photos: profilePhotos.objects,
     media: postMedia.objects,
     printFiles,
+    chatPhotos,
     stop: async () => {
       await app.close();
       await replSet.stop();

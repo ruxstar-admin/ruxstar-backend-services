@@ -10,10 +10,11 @@ const KEEP_MS = 24 * 60 * 60 * 1000;
 /** A key still marked running after this long belongs to a request that died. */
 const STALE_MS = 60 * 1000;
 
-const hashRequest = (request: FastifyRequest) =>
-  createHash("sha256")
-    .update(`${request.method} ${request.url}\n${JSON.stringify(request.body ?? null)}`)
-    .digest("base64url");
+/** Uploads are hashed as bytes: a JSON copy of a photo would be many times its size. */
+const hashRequest = (request: FastifyRequest) => {
+  const hash = createHash("sha256").update(`${request.method} ${request.url}\n`);
+  return (Buffer.isBuffer(request.body) ? hash.update(request.body) : hash.update(JSON.stringify(request.body ?? null))).digest("base64url");
+};
 
 function replay(reply: FastifyReply, doc: IdempotencyDoc) {
   return reply

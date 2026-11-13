@@ -57,6 +57,14 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.userReports.createIndex({ userId: 1, reporterId: 1, status: 1 }),
     db.userReports.createIndex({ status: 1, createdAt: -1 }),
     db.posts.createIndex({ authorId: 1, status: 1, createdAt: -1, _id: -1 }),
+    // Chats: one 1:1 chat per pair, each person's chat list newest first (chats and requests), and a chat's
+    // messages newest first, plus what was unsent since a poll.
+    db.conversations.createIndex({ pairKey: 1 }, { unique: true, partialFilterExpression: { pairKey: { $type: "string" } } }),
+    db.chatMembers.createIndex({ conversationId: 1, userId: 1 }, { unique: true }),
+    db.chatMembers.createIndex({ userId: 1, state: 1, lastAt: -1, _id: -1 }),
+    db.chatMessages.createIndex({ conversationId: 1, createdAt: -1, _id: -1 }),
+    db.chatMessages.createIndex({ conversationId: 1, unsentAt: 1 }, { partialFilterExpression: { status: "unsent" } }),
+    db.chatMessages.createIndex({ senderId: 1 }),
     db.notifications.createIndex({ userId: 1, createdAt: -1, _id: -1 }),
     db.notifications.createIndex({ userId: 1, readAt: 1 }),
     db.notifications.createIndex({ userId: 1, type: 1, "link.id": 1, actorId: 1 }),

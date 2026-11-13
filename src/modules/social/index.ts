@@ -32,6 +32,7 @@ import {
   type Comment,
   type Post,
 } from "./contracts.js";
+import chats from "./chats.js";
 import { forYouPage } from "./feed.js";
 import people from "./people.js";
 import { POST_PHOTO_MAX_BYTES, toPostPhoto } from "./photos.js";
@@ -152,6 +153,7 @@ async function businessFor(db: Database, vendorId: ObjectId, picked: string | nu
 const social: FastifyPluginAsyncTypebox = async (app) => {
   app.addContentTypeParser(/^image\//, { parseAs: "buffer", bodyLimit: POST_PHOTO_MAX_BYTES }, (_request, body, done) => done(null, body));
   await app.register(people);
+  await app.register(chats);
 
   const me = (request: FastifyRequest) => request.auth?.userId ?? null;
   // A cached anonymous answer must not be reused once someone signs in: it would show "not liked".

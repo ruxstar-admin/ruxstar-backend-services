@@ -1,4 +1,5 @@
 import type { ObjectId } from "mongodb";
+import type { ChatPhotoStore } from "../adapters/chat-photos.js";
 import type { Geocoder } from "../adapters/geocoder.js";
 import type { EmailSender } from "../adapters/email.js";
 import type { PaymentGateway } from "../adapters/payments.js";
@@ -48,6 +49,8 @@ declare module "fastify" {
     payments: PaymentGateway;
     /** Customers' print files, private. */
     printFiles: PrintFileStore;
+    /** Photos sent in chats, private. */
+    chatPhotos: ChatPhotoStore;
     authCache: SessionCache;
   }
 

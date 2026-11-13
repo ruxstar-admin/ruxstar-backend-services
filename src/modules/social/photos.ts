@@ -56,3 +56,21 @@ export async function toPostPhoto(input: Buffer): Promise<{ full: PhotoFile; sma
     throw new AppError("PHOTO_INVALID", undefined, [{ path: "body", message: `Use a JPEG, PNG or WebP at least ${MIN_SIDE} pixels wide.` }]);
   }
 }
+
+const CHAT_LONG_SIDE = 1280;
+const CHAT_MIN_SIDE = 50;
+
+/** A chat photo keeps its shape, at most 1280 pixels on its long side, as WebP without its metadata. */
+export async function toChatPhoto(input: Buffer): Promise<PhotoFile> {
+  try {
+    const out = await sharp(input, { failOn: "error", limitInputPixels: MAX_PIXELS })
+      .rotate()
+      .resize(CHAT_LONG_SIDE, CHAT_LONG_SIDE, { fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 80 })
+      .toBuffer({ resolveWithObject: true });
+    if (Math.min(out.info.width, out.info.height) < CHAT_MIN_SIDE) throw new Error("too small");
+    return { data: out.data, width: out.info.width, height: out.info.height };
+  } catch {
+    throw new AppError("PHOTO_INVALID", undefined, [{ path: "body", message: "Use a JPEG, PNG or WebP photo." }]);
+  }
+}

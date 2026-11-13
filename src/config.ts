@@ -43,6 +43,8 @@ export interface Config {
   apiUrl: string | null;
   /** Customers' print files, in a private bucket. Null leaves print orders off. */
   printFiles: { bucket: string } | null;
+  /** Photos sent in chats, in a private bucket. Null leaves chat photos off; text and shared posts still work. */
+  chatPhotos: { bucket: string } | null;
 }
 
 export interface CashfreeSettings {
@@ -176,6 +178,8 @@ export function loadConfig(env: Env = process.env): Config {
 
   const printBucket = read(env, "GCS_PRINT_BUCKET");
   if (printBucket && !/^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$/.test(printBucket)) problems.push("GCS_PRINT_BUCKET must be a bucket name like ruxstar-print-files");
+  const chatBucket = read(env, "GCS_CHAT_BUCKET");
+  if (chatBucket && !/^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$/.test(chatBucket)) problems.push("GCS_CHAT_BUCKET must be a bucket name like ruxstar-chat-media");
 
   if (problems.length) throw new ConfigError(problems);
 
@@ -232,5 +236,6 @@ export function loadConfig(env: Env = process.env): Config {
     },
     apiUrl,
     printFiles: printBucket ? { bucket: printBucket } : null,
+    chatPhotos: chatBucket ? { bucket: chatBucket } : null,
   };
 }
