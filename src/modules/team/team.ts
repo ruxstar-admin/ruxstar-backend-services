@@ -302,20 +302,20 @@ export function placeView(d: EmploymentDoc, business: WithId<BusinessDoc>, owner
 }
 
 /**
- * What a team member may do at a business: their active place must include `permission`, they must be verified, and the business
- * must not be on hold. Owners use the vendor routes, not this.
+ * What a team member may do at a business: their active place must include `permission` (or one of them), they must be verified,
+ * and the business must not be on hold. Owners use the vendor routes, not this.
  */
 export async function teamAccess(
   db: Database,
   auth: Pick<AuthContext, "userId" | "kyc">,
   where: { placeId: string } | { businessId: ObjectId },
-  permission: TeamPermission,
+  permission: TeamPermission | TeamPermission[],
 ) {
   const at = "placeId" in where ? { _id: new ObjectId(where.placeId) } : { businessId: where.businessId };
   const place = await db.employments.findOne({ ...at, userId: auth.userId, status: "active", current: true });
   if (!place) throw new AppError("NOT_FOUND", "You're not on this business's team.");
   if (auth.kyc.base !== "approved") throw new AppError("KYC_REQUIRED", "Get verified to work at this business.");
-  if (!place.permissions.includes(permission)) throw new AppError("FORBIDDEN", "The owner hasn't given you this.");
+  if (![permission].flat().some((p) => place.permissions.includes(p))) throw new AppError("FORBIDDEN", "The owner hasn't given you this.");
   const business = await db.businesses.findOne({ _id: place.businessId });
   if (!business) throw new AppError("NOT_FOUND", "Business not found.");
   if (business.suspension) throw new AppError("BUSINESS_SUSPENDED");

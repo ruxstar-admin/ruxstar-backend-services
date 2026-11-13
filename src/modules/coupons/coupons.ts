@@ -212,7 +212,16 @@ function checkTerms(next: Pick<CouponDoc, "kind" | "value" | "cap" | "startsAt" 
 
 export async function createCoupon(
   db: Database,
-  input: { body: CreateCouponBody; fundedBy: CouponDoc["fundedBy"]; vendorId: ObjectId | null; businessIds: ObjectId[]; actor: AuditLogDoc["actor"]; ip: string },
+  input: {
+    body: CreateCouponBody;
+    fundedBy: CouponDoc["fundedBy"];
+    vendorId: ObjectId | null;
+    businessIds: ObjectId[];
+    actor: AuditLogDoc["actor"];
+    ip: string;
+    /** The shop's activity shows it: someone on its team made it. */
+    shopId?: ObjectId;
+  },
 ): Promise<WithId<CouponDoc>> {
   const { body } = input;
   const now = new Date();
@@ -248,7 +257,7 @@ export async function createCoupon(
         db,
         {
           actor: input.actor,
-          scope: { module: "ledger" },
+          scope: { module: "ledger", ...(input.shopId ? { businessId: input.shopId } : {}) },
           action: "coupon.create",
           target: { type: "coupon", id: doc._id },
           diff: { code: { from: null, to: doc.code }, discount: { from: null, to: labelOf(doc) } },
@@ -269,7 +278,7 @@ export async function createCoupon(
 export async function updateCoupon(
   db: Database,
   coupon: WithId<CouponDoc>,
-  input: { body: UpdateCouponBody; businessIds?: ObjectId[]; by: "staff" | "vendor"; actor: AuditLogDoc["actor"]; ip: string },
+  input: { body: UpdateCouponBody; businessIds?: ObjectId[]; by: "staff" | "vendor"; actor: AuditLogDoc["actor"]; ip: string; shopId?: ObjectId },
 ): Promise<WithId<CouponDoc>> {
   const { body } = input;
   const set: Partial<CouponDoc> = {};
@@ -305,7 +314,7 @@ export async function updateCoupon(
     if (!done) throw new AppError("CONFLICT");
     await writeAudit(
       db,
-      { actor: input.actor, scope: { module: "ledger" }, action: "coupon.update", target: { type: "coupon", id: coupon._id }, diff, ip: input.ip },
+      { actor: input.actor, scope: { module: "ledger", ...(input.shopId ? { businessId: input.shopId } : {}) }, action: "coupon.update", target: { type: "coupon", id: coupon._id }, diff, ip: input.ip },
       session,
     );
     return done;

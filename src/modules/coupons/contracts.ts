@@ -89,6 +89,11 @@ export const StaffCouponsQuery = Strict({
 });
 export const VendorCouponsQuery = Strict({ ...PageQuery });
 
+/** Someone on a shop's team: coupons for that shop alone. */
+export const TeamCreateCouponBody = Strict({ ...Discount, ...Terms });
+export const TeamUpdateCouponBody = Strict({ ...Terms, active: Type.Optional(Type.Boolean()) });
+export const TeamCouponParams = Strict({ id: ObjectIdString, couponId: ObjectIdString });
+
 /** A coupon a customer can pick at checkout. */
 export const Offer = Strict({
   code: Type.String(),

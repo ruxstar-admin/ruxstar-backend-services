@@ -9,6 +9,7 @@ import { Done } from "../social/contracts.js";
 import { WorkOne, WorkParams, WorkPlaceOne } from "../team/contracts.js";
 import { answerInvite, endPlace, ownPlace, placeView, workOf } from "../team/team.js";
 import orders from "./orders.js";
+import shop from "./shop.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 
@@ -17,6 +18,7 @@ const employment: FastifyPluginAsyncTypebox = async (app) => {
   const db = () => requireDatabase(app.db);
   const ctx = (request: Parameters<typeof actorOf>[0]) => ({ actor: actorOf(request), ip: request.ip, log: request.log, userId: request.auth!.userId });
   await app.register(orders);
+  await app.register(shop);
 
   app.get(
     "/",

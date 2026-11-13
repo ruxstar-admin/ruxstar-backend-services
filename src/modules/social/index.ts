@@ -3,14 +3,16 @@ import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { MongoServerError, ObjectId, type WithId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
+import { actorOf, writeAudit } from "../../platform/audit.js";
 import { requireAuth } from "../../platform/auth.js";
-import { requireDatabase } from "../../platform/context.js";
+import { requireDatabase, type AuthContext } from "../../platform/context.js";
 import type { Database, PostCommentDoc, PostDoc, PostMediaDoc, PostPhoto } from "../../platform/db.js";
 import { stamp } from "../../platform/db.js";
 import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { findPage } from "../../platform/pagination.js";
 import { notifyPostEvent } from "../notifications/notify.js";
+import { teamAccess } from "../team/team.js";
 import {
   CommentCreate,
   CommentList,
@@ -138,16 +140,28 @@ async function livePost(db: Database, id: string) {
 
 const isDuplicate = (err: unknown) => err instanceof MongoServerError && err.code === 11000;
 
-/** The vendor's business a business post is for: the one they picked, or their only one. */
-async function businessFor(db: Database, vendorId: ObjectId, picked: string | null | undefined): Promise<ObjectId | null> {
+/**
+ * The business a business post is for, and who it's posted as: the vendor's pick or their only business, or a business whose
+ * team the person posts for (with "Post as the business"), posted as its owner so it sits with the owner's other business posts.
+ */
+async function businessFor(db: Database, auth: AuthContext, picked: string | null | undefined): Promise<{ businessId: ObjectId; authorId: ObjectId } | null> {
+  const notYours = () => new AppError("VALIDATION_FAILED", "Pick one of your businesses.", [{ path: "body/businessId", message: "Not your business" }]);
   if (picked) {
-    const business = await db.businesses.findOne({ _id: new ObjectId(picked), ownerId: vendorId }, { projection: { _id: 1 } });
-    if (!business) throw new AppError("VALIDATION_FAILED", "Pick one of your businesses.", [{ path: "body/businessId", message: "Not your business" }]);
-    return business._id;
+    const business = await db.businesses.findOne({ _id: new ObjectId(picked) }, { projection: { _id: 1, ownerId: 1 } });
+    if (!business) throw notYours();
+    if (business.ownerId.equals(auth.userId)) {
+      if (!auth.roles.vendor) throw new AppError("FORBIDDEN", "Only vendors can post as a business.");
+      return { businessId: business._id, authorId: auth.userId };
+    }
+    await teamAccess(db, auth, { businessId: business._id }, "posts.create").catch((err: unknown) => {
+      throw err instanceof AppError && err.code === "NOT_FOUND" ? notYours() : err;
+    });
+    return { businessId: business._id, authorId: business.ownerId };
   }
-  const mine = await db.businesses.find({ ownerId: vendorId }, { projection: { _id: 1 } }).limit(2).toArray();
+  if (!auth.roles.vendor) throw new AppError("FORBIDDEN", "Only vendors can post as a business.");
+  const mine = await db.businesses.find({ ownerId: auth.userId }, { projection: { _id: 1 } }).limit(2).toArray();
   if (mine.length > 1) throw new AppError("VALIDATION_FAILED", "Pick which business this post is for.", [{ path: "body/businessId", message: "Required" }]);
-  return mine[0]?._id ?? null;
+  return mine[0] ? { businessId: mine[0]._id, authorId: auth.userId } : null;
 }
 
 const social: FastifyPluginAsyncTypebox = async (app) => {
@@ -347,7 +361,9 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["social"],
         summary: "Make a post: text, up to 4 photos, or both",
-        description: "Upload photos first with POST /media. `kind: business` is for vendors, from the vendor portal.",
+        description:
+          "Upload photos first with POST /media. `kind: business` is for vendors from the vendor portal, and for people on a business's " +
+          'team with "Post as the business", from Work; theirs is posted as the owner.',
         body: PostCreate,
         response: { 201: PostResult, ...Errors },
         security,
@@ -362,8 +378,9 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
       if (!text && mediaIds.length === 0) {
         throw new AppError("VALIDATION_FAILED", "Write something or add a photo.", [{ path: "body/text", message: "Empty post" }]);
       }
-      if (kind === "business" && !auth.roles.vendor) throw new AppError("FORBIDDEN", "Only vendors can post as a business.");
-      const businessId = kind === "business" ? await businessFor(db, auth.userId, request.body.businessId) : null;
+      const as = kind === "business" ? await businessFor(db, auth, request.body.businessId) : null;
+      const businessId = as?.businessId ?? null;
+      const authorId = as?.authorId ?? auth.userId;
 
       const postId = new ObjectId();
       let media: WithId<PostMediaDoc>[] = [];
@@ -385,7 +402,7 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
       const now = new Date();
       const doc: PostDoc = {
         _id: postId,
-        authorId: auth.userId,
+        authorId,
         kind,
         ...(businessId ? { businessId } : {}),
         text,
@@ -400,9 +417,18 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
       };
       // The author's details are read while the post is saved; the count only moves once it is.
       const [, [post]] = await Promise.all([
-        db.posts.insertOne(doc).then(() => db.users.updateOne({ _id: auth.userId }, { $inc: { "social.posts": 1 } })),
+        db.posts.insertOne(doc).then(() => db.users.updateOne({ _id: authorId }, { $inc: { "social.posts": 1 } })),
         present(db, [doc], auth.userId),
       ]);
+      if (businessId && !authorId.equals(auth.userId)) {
+        await writeAudit(db, {
+          actor: actorOf(request),
+          scope: { module: "social", businessId },
+          action: "post.create",
+          target: { type: "post", id: postId },
+          ip: request.ip,
+        });
+      }
       return reply.status(201).send(ok(request, post!));
     },
   );

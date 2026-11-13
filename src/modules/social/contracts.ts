@@ -74,7 +74,7 @@ export const PostCreate = Strict({
   kind: Type.Optional(PostKind),
   businessId: Type.Optional(
     Type.Union([ObjectIdString, Type.Null()], {
-      description: "Business posts only: which of your businesses it is for. Picked for you when you have just one.",
+      description: "Business posts only: which of your businesses, or a business whose team you post for. Picked for you when you own just one.",
     }),
   ),
 });

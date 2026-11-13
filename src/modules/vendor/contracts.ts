@@ -152,6 +152,16 @@ export const UpdateBusinessBody = Strict(
   },
   { minProperties: 1 },
 );
+/** The same for someone on the team: the GSTIN stays with the owner. */
+export const TeamUpdateBusinessBody = Strict(
+  {
+    name: UpdateBusinessBody.properties.name,
+    description: UpdateBusinessBody.properties.description,
+    phone: UpdateBusinessBody.properties.phone,
+    location: UpdateBusinessBody.properties.location,
+  },
+  { minProperties: 1 },
+);
 
 /** Everything the Add a business and setup screens choose from, so the app and the website show the same lists. */
 export const Catalog = Envelope(

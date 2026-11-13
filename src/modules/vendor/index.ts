@@ -1,18 +1,19 @@
-import { randomUUID } from "node:crypto";
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
+import type { FastifyRequest } from "fastify";
 import { ObjectId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { actorOf, writeAudit } from "../../platform/audit.js";
 import { requireDatabase } from "../../platform/context.js";
 import { requireAuth } from "../../platform/auth.js";
-import { stamp, type BusinessDoc, type BusinessPhoto } from "../../platform/db.js";
+import { stamp, type BusinessDoc } from "../../platform/db.js";
 import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { isModuleLive } from "../../platform/module-switch.js";
 import { Done } from "../social/contracts.js";
-import { POST_PHOTO_MAX_BYTES, toPostPhoto } from "../social/photos.js";
-import { businessView, emptyPod, liveModules, missingOf, nextPod, ownedBy, photoKeys, requireVendor, toLocation } from "./businesses.js";
+import { POST_PHOTO_MAX_BYTES } from "../social/photos.js";
+import { businessView, emptyPod, liveModules, missingOf, ownedBy, photoKeys, requireVendor, toLocation } from "./businesses.js";
+import { addPhoto, editDetails, editPod, incomplete, removePhoto, setOpen } from "./shop-edits.js";
 import { CATEGORIES, MAX_POD_CITIES, MAX_PRICE_TIERS, MAX_TURNAROUND_DAYS, PRODUCTS, TYPES, typeOf } from "./catalog.js";
 import {
   BusinessList,
@@ -38,21 +39,7 @@ import { endPlacesFor } from "../team/team.js";
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 const limit = (perMinutes: number, max: number) => ({ rateLimit: { max, timeWindow: perMinutes * 60_000 } });
 
-const failed = (path: string, message: string) => new AppError("KYC_CHECK_FAILED", message, [{ path, message }]);
-const NEEDS: Record<Business["missing"][number], string> = {
-  photo: "Add a cover photo",
-  phone: "Add a phone number",
-  location: "Add the state and city",
-  products: "Select at least one print category you offer",
-  area: 'Add at least one service city or turn on "Serve everywhere"',
-  pricing: "Set a price for every product you offer",
-};
-const incomplete = (missing: Business["missing"]) =>
-  new AppError(
-    "BUSINESS_INCOMPLETE",
-    undefined,
-    missing.map((field) => ({ path: `body/${field}`, message: NEEDS[field] })),
-  );
+const by = (request: FastifyRequest) => ({ actor: actorOf(request), ip: request.ip });
 
 /** The vendor portal: a verified person's businesses, one module each, and how they get paid. */
 const vendor: FastifyPluginAsyncTypebox = async (app) => {
@@ -211,26 +198,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const doc = await owned(request, request.params.id);
-      const body = request.body;
-      const set: Partial<BusinessDoc> = {};
-      if (body.name !== undefined) set.name = body.name.trim();
-      if (body.description !== undefined) set.description = body.description?.trim() || null;
-      if (body.phone !== undefined) set.phone = body.phone;
-      if (body.location !== undefined) set.location = body.location ? toLocation(body.location) : null;
-      if (body.gstin !== undefined && body.gstin !== doc.gstin?.number) {
-        if (body.gstin === null) set.gstin = null;
-        else {
-          const result = await app.verifier.gstin(body.gstin, set.name ?? doc.name);
-          if (!result.valid) throw failed("body/gstin", "We could not find this GSTIN. Check it, or leave it empty.");
-          if (result.status && result.status.toLowerCase() !== "active") throw failed("body/gstin", "This GSTIN is not active.");
-          set.gstin = { number: body.gstin, legalName: result.legalName, status: result.status };
-        }
-      }
-      if (doc.status === "live") {
-        const missing = missingOf({ ...doc, ...set });
-        if (missing.length) throw incomplete(missing);
-      }
-      await db().businesses.updateOne({ _id: doc._id }, { $set: { ...set, updatedAt: new Date() } });
+      await editDetails(app, db(), doc, request.body, by(request));
       return ok(request, await reload(doc._id));
     },
   );
@@ -254,13 +222,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const doc = await owned(request, request.params.id);
-      if (doc.module !== "pod") throw new AppError("CONFLICT", "Only print on demand businesses have this setup.");
-      const pod = nextPod(doc.pod, request.body);
-      if (doc.status === "live") {
-        const missing = missingOf({ ...doc, pod });
-        if (missing.length) throw incomplete(missing);
-      }
-      await db().businesses.updateOne({ _id: doc._id }, { $set: { pod, updatedAt: new Date() } });
+      await editPod(db(), doc, request.body, by(request));
       return ok(request, await reload(doc._id));
     },
   );
@@ -284,26 +246,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request, reply) => {
       const doc = await owned(request, request.params.id);
-      const full = `Up to ${MAX_BUSINESS_PHOTOS} photos. Remove one first.`;
-      if (doc.photos.length >= MAX_BUSINESS_PHOTOS) throw new AppError("CONFLICT", full);
-      if (!Buffer.isBuffer(request.body) || request.body.length === 0) throw new AppError("PHOTO_INVALID");
-      const { full: big, smaller } = await toPostPhoto(request.body);
-      const id = randomUUID();
-      const base = `business-media/${app.config.env}/${doc._id.toHexString()}/${id}`;
-      const save = async (file: typeof big, suffix: string) => {
-        const key = `${base}${suffix}.webp`;
-        return { key, url: await app.media.save(key, file.data), width: file.width, height: file.height };
-      };
-      const [saved, ...copies] = await Promise.all([save(big, ""), ...smaller.map((file) => save(file, `-${file.width}w`))]);
-      const photo: BusinessPhoto = { id, ...saved!, smaller: copies };
-      const res = await db().businesses.updateOne(
-        { _id: doc._id, suspension: { $exists: false }, [`photos.${MAX_BUSINESS_PHOTOS - 1}`]: { $exists: false } },
-        { $push: { photos: photo }, $set: { updatedAt: new Date() } },
-      );
-      if (res.matchedCount === 0) {
-        await Promise.all(photoKeys(photo).map((key) => app.media.remove(key)));
-        throw new AppError("CONFLICT", full);
-      }
+      await addPhoto(app, db(), doc, request.body, by(request));
       return reply.status(201).send(ok(request, await reload(doc._id)));
     },
   );
@@ -323,11 +266,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const doc = await owned(request, request.params.id);
-      const photo = doc.photos.find((p) => p.id === request.params.photoId);
-      if (!photo) throw new AppError("NOT_FOUND", "Photo not found.");
-      if (doc.status === "live" && doc.photos.length === 1) throw incomplete(["photo"]);
-      await db().businesses.updateOne({ _id: doc._id }, { $pull: { photos: { id: photo.id } }, $set: { updatedAt: new Date() } });
-      await Promise.all(photoKeys(photo).map((key) => app.media.remove(key)));
+      await removePhoto(app, db(), doc, request.params.photoId, by(request));
       return ok(request, await reload(doc._id));
     },
   );
@@ -395,9 +334,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
       },
       async (request) => {
         const doc = await owned(request, request.params.id);
-        if (doc.status !== "live") throw new AppError("CONFLICT", "Publish this business first.");
-        if (open && !(await isModuleLive(db(), doc.module))) throw new AppError("MODULE_OFF");
-        if (doc.open !== open) await db().businesses.updateOne({ _id: doc._id }, { $set: { open, updatedAt: new Date() } });
+        await setOpen(db(), doc, open, () => isModuleLive(db(), doc.module), by(request));
         return ok(request, await reload(doc._id));
       },
     );
