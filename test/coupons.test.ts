@@ -179,6 +179,9 @@ describe("coupons", () => {
     expect(back.json().error.code).toBe("FORBIDDEN");
     expect((await call("PATCH", `/vendor/coupons/${vendorCoupon.id}`, owner.token, { endsAt: new Date(Date.now() + DAY).toISOString() })).statusCode).toBe(200);
     expect((await call("PATCH", `/ruxstar/coupons/${vendorCoupon.id}`, manager.token, { active: true })).json().data).toMatchObject({ active: true, stoppedByRuxstar: false });
+
+    expect((await call("PATCH", `/vendor/coupons/${vendorCoupon.id}`, owner.token, { active: false })).json().data).toMatchObject({ active: false, stoppedByRuxstar: false });
+    expect((await call("PATCH", `/ruxstar/coupons/${vendorCoupon.id}`, manager.token, { active: true })).json().error.code).toBe("FORBIDDEN");
   });
 
   it("takes a Ruxstar coupon off the items and Ruxstar pays for it, so the shop's share doesn't change", async () => {

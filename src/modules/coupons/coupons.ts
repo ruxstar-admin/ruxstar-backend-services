@@ -273,9 +273,11 @@ export async function updateCoupon(
 ): Promise<WithId<CouponDoc>> {
   const { body } = input;
   const set: Partial<CouponDoc> = {};
-  if (coupon.fundedBy === "vendor" && body.active !== undefined) {
-    if (input.by === "staff") set.stoppedByRuxstar = !body.active;
-    else if (body.active && coupon.stoppedByRuxstar) throw new AppError("FORBIDDEN", "Ruxstar switched this coupon off. Contact Ruxstar support to use it again.");
+  if (coupon.fundedBy === "vendor" && body.active !== undefined && body.active !== coupon.active) {
+    if (input.by === "staff") {
+      if (body.active && !coupon.stoppedByRuxstar) throw new AppError("FORBIDDEN", "The vendor switched this coupon off. Only they can switch it back on.");
+      set.stoppedByRuxstar = !body.active;
+    } else if (body.active && coupon.stoppedByRuxstar) throw new AppError("FORBIDDEN", "Ruxstar switched this coupon off. Contact Ruxstar support to use it again.");
   }
   if (body.minOrder !== undefined) set.minOrder = body.minOrder;
   if (body.startsAt !== undefined) set.startsAt = date(body.startsAt)!;
