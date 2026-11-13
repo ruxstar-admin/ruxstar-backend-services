@@ -24,11 +24,6 @@ substitutions:
   # Cloud Scheduler job ruxstar-order-timers calls /jobs/orders every 10 minutes as this account, with _API_URL as the
   # token's audience. Change both together.
   _JOBS_INVOKER: ruxstar-scheduler@ruxstar-platform.iam.gserviceaccount.com
-  # All outgoing traffic leaves through Cloud NAT ruxstar-nat on the static IP ruxstar-egress-ip (34.46.40.84).
-  # Cashfree Secure ID and MongoDB Atlas allow-list that IP, so both break if this is removed or the IP changes.
-  _VPC_NETWORK: default
-  _VPC_SUBNET: default
-
 steps:
   - name: gcr.io/cloud-builders/docker
     args:
@@ -57,9 +52,10 @@ steps:
       - --port=8080
       - --allow-unauthenticated
       - --service-account=${_RUNTIME_SA}
-      - --network=${_VPC_NETWORK}
-      - --subnet=${_VPC_SUBNET}
-      - --vpc-egress=all-traffic
+      # Direct VPC egress through Cloud NAT (static IP 34.46.40.84) made every MongoDB Atlas round trip take 5-11 s,
+      # so the API couldn't reach the database. Outgoing traffic uses Google's own addresses until the static IP moves
+      # to a Serverless VPC Access connector. Cashfree calls that need the allow-listed IP fail until then.
+      - --clear-network
       # Pairs are split on ";" because CORS_ORIGINS has commas and JOBS_INVOKER has an "@".
       - --set-env-vars=^;^NODE_ENV=production;RUXSTAR_ENV=${_RUXSTAR_ENV};MONGODB_DB=${_MONGODB_DB};GCS_BUCKET=${_GCS_BUCKET};GCS_MEDIA_BUCKET=${_GCS_MEDIA_BUCKET};LOG_LEVEL=info;CORS_ORIGINS=${_CORS_ORIGINS};OTP_PROVIDER=msg91;CASHFREE_ENV=${_CASHFREE_ENV};CASHFREE_PG_ENV=${_CASHFREE_PG_ENV};GCS_PRINT_BUCKET=${_GCS_PRINT_BUCKET};GCS_CHAT_BUCKET=${_GCS_CHAT_BUCKET};API_URL=${_API_URL};JOBS_INVOKER=${_JOBS_INVOKER}
       - --set-secrets=MONGODB_URI=mongodb-uri:latest,JWT_SECRET=jwt-secret:latest,MSG91_AUTH_KEY=msg91-auth-key:latest,MSG91_TEMPLATE_ID=msg91-template-id:latest,MSG91_SENDER_ID=msg91-sender-id:latest,CASHFREE_CLIENT_ID=${_CASHFREE_ID_SECRET}:latest,CASHFREE_CLIENT_SECRET=${_CASHFREE_KEY_SECRET}:latest,PAYOUT_ENCRYPTION_KEY=payout-encryption-key:latest,CASHFREE_PG_CLIENT_ID=${_CASHFREE_PG_ID_SECRET}:latest,CASHFREE_PG_SECRET=${_CASHFREE_PG_KEY_SECRET}:latest
