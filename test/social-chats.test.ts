@@ -421,6 +421,24 @@ describe("live chat", () => {
     await say(stranger, request.id, "Hi");
     expect((await call("GET", `/social/chats/${request.id}`, stranger)).json().data.activeAt).toBeNull();
   });
+
+  it("hides activity both ways while either person has activity status off", async () => {
+    const { asha, ravi, chat } = await pair("Hidden");
+    await call("GET", "/social/chats/unread", asha);
+    await call("GET", "/social/chats/unread", ravi);
+
+    const off = await call("PATCH", "/account/me", asha, { showActivity: false });
+    expect(off.statusCode).toBe(200);
+    expect(off.json().data.showActivity).toBe(false);
+    await call("GET", "/social/chats/unread", asha);
+    expect((await call("GET", `/social/chats/${chat.id}`, ravi)).json().data.activeAt).toBeNull();
+    expect((await call("GET", `/social/chats/${chat.id}`, asha)).json().data.activeAt).toBeNull();
+
+    expect((await call("PATCH", "/account/me", asha, { showActivity: true })).json().data.showActivity).toBe(true);
+    await call("GET", "/social/chats/unread", asha);
+    expect((await call("GET", `/social/chats/${chat.id}`, asha)).json().data.activeAt).not.toBeNull();
+    expect((await call("GET", `/social/chats/${chat.id}`, ravi)).json().data.activeAt).not.toBeNull();
+  });
 });
 
 describe("account deletion", () => {

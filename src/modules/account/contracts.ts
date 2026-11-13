@@ -50,6 +50,9 @@ export const User = Strict({
   }),
   card: Nullable(Strict({ id: Type.String({ description: "For example RUX-1A2B-3C4D. The full card is at GET /v1/kyc/card" }) })),
   stats: Stats,
+  showActivity: Type.Boolean({
+    description: "Activity status: people they chat with see when they were last active. Off, they don't see anyone else's either.",
+  }),
   createdAt: DateTime,
 });
 export type User = Static<typeof User>;
@@ -133,6 +136,7 @@ export const MePatch = Strict(
     dob: Type.Optional(Nullable(Type.String({ format: "date" }))),
     gender: Type.Optional(Nullable(Gender)),
     city: Type.Optional(Nullable(Type.String({ minLength: 2, maxLength: 60 }))),
+    showActivity: Type.Optional(Type.Boolean({ description: "Off forgets when they were last active and hides everyone else's from them" })),
   },
   { minProperties: 1 },
 );

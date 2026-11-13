@@ -62,6 +62,8 @@ export interface UserDoc extends Stamped {
   suspension?: { by: ObjectId; at: Date; reason: string };
   /** When they last had the app or website open, to the minute. People they chat with see "Active 5m ago". */
   activeAt?: Date;
+  /** Activity status off: `activeAt` isn't kept, and they don't see anyone else's either. */
+  hideActivity?: boolean;
 }
 
 export type KycTrack = "base" | "vendor";

@@ -944,6 +944,7 @@
                             "kyc",
                             "card",
                             "stats",
+                            "showActivity",
                             "createdAt"
                           ],
                           "properties": {
@@ -1135,6 +1136,10 @@
                                 }
                               },
                               "additionalProperties": false
+                            },
+                            "showActivity": {
+                              "type": "boolean",
+                              "description": "Activity status: people they chat with see when they were last active. Off, they don't see anyone else's either."
                             },
                             "createdAt": {
                               "type": "string",
@@ -1299,6 +1304,7 @@
                             "kyc",
                             "card",
                             "stats",
+                            "showActivity",
                             "createdAt"
                           ],
                           "properties": {
@@ -1490,6 +1496,10 @@
                                 }
                               },
                               "additionalProperties": false
+                            },
+                            "showActivity": {
+                              "type": "boolean",
+                              "description": "Activity status: people they chat with see when they were last active. Off, they don't see anyone else's either."
                             },
                             "createdAt": {
                               "type": "string",
@@ -1654,6 +1664,7 @@
                             "kyc",
                             "card",
                             "stats",
+                            "showActivity",
                             "createdAt"
                           ],
                           "properties": {
@@ -1845,6 +1856,10 @@
                                 }
                               },
                               "additionalProperties": false
+                            },
+                            "showActivity": {
+                              "type": "boolean",
+                              "description": "Activity status: people they chat with see when they were last active. Off, they don't see anyone else's either."
                             },
                             "createdAt": {
                               "type": "string",
@@ -2385,6 +2400,7 @@
                         "kyc",
                         "card",
                         "stats",
+                        "showActivity",
                         "createdAt"
                       ],
                       "properties": {
@@ -2577,6 +2593,10 @@
                           },
                           "additionalProperties": false
                         },
+                        "showActivity": {
+                          "type": "boolean",
+                          "description": "Activity status: people they chat with see when they were last active. Off, they don't see anyone else's either."
+                        },
                         "createdAt": {
                           "type": "string",
                           "format": "date-time"
@@ -2625,7 +2645,7 @@
         }
       },
       "patch": {
-        "summary": "Update name, username, email, bio, date of birth, gender or city",
+        "summary": "Update name, username, email, bio, date of birth, gender, city or activity status",
         "tags": [
           "account"
         ],
@@ -2721,6 +2741,10 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "showActivity": {
+                    "type": "boolean",
+                    "description": "Off forgets when they were last active and hides everyone else's from them"
                   }
                 },
                 "additionalProperties": false,
@@ -2767,6 +2791,7 @@
                         "kyc",
                         "card",
                         "stats",
+                        "showActivity",
                         "createdAt"
                       ],
                       "properties": {
@@ -2958,6 +2983,10 @@
                             }
                           },
                           "additionalProperties": false
+                        },
+                        "showActivity": {
+                          "type": "boolean",
+                          "description": "Activity status: people they chat with see when they were last active. Off, they don't see anyone else's either."
                         },
                         "createdAt": {
                           "type": "string",
@@ -3155,6 +3184,7 @@
                         "kyc",
                         "card",
                         "stats",
+                        "showActivity",
                         "createdAt"
                       ],
                       "properties": {
@@ -3346,6 +3376,10 @@
                             }
                           },
                           "additionalProperties": false
+                        },
+                        "showActivity": {
+                          "type": "boolean",
+                          "description": "Activity status: people they chat with see when they were last active. Off, they don't see anyone else's either."
                         },
                         "createdAt": {
                           "type": "string",
@@ -3437,6 +3471,7 @@
                         "kyc",
                         "card",
                         "stats",
+                        "showActivity",
                         "createdAt"
                       ],
                       "properties": {
@@ -3628,6 +3663,10 @@
                             }
                           },
                           "additionalProperties": false
+                        },
+                        "showActivity": {
+                          "type": "boolean",
+                          "description": "Activity status: people they chat with see when they were last active. Off, they don't see anyone else's either."
                         },
                         "createdAt": {
                           "type": "string",
@@ -4239,6 +4278,7 @@
                         "kyc",
                         "card",
                         "stats",
+                        "showActivity",
                         "createdAt"
                       ],
                       "properties": {
@@ -4430,6 +4470,10 @@
                             }
                           },
                           "additionalProperties": false
+                        },
+                        "showActivity": {
+                          "type": "boolean",
+                          "description": "Activity status: people they chat with see when they were last active. Off, they don't see anyone else's either."
                         },
                         "createdAt": {
                           "type": "string",

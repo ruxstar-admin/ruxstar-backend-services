@@ -127,6 +127,7 @@ const view = (user: UserDoc): User => ({
   kyc: { base: user.kyc.base ?? "none", vendor: user.kyc.vendor ?? "none" },
   card: user.card ? { id: user.card.id } : null,
   stats: statsOf(user),
+  showActivity: !user.hideActivity,
   createdAt: user.createdAt.toISOString(),
 });
 
@@ -566,7 +567,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: requireAuth,
       schema: {
         tags: ["account"],
-        summary: "Update name, username, email, bio, date of birth, gender or city",
+        summary: "Update name, username, email, bio, date of birth, gender, city or activity status",
         body: MePatch,
         response: { 200: MeResult, ...Errors },
         security: [{ bearer: [] }, { cookie: [] }],
@@ -574,7 +575,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const db = requireDatabase(app.db);
-      const { name, username, email, bio, dob, gender, city } = request.body;
+      const { name, username, email, bio, dob, gender, city, showActivity } = request.body;
       checkName(name);
       checkDob(dob);
       if (username && isReserved(username)) {
@@ -599,6 +600,12 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       if (dob !== undefined) set.dob = dob;
       if (gender !== undefined) set.gender = gender;
       if (city !== undefined) set["home.city"] = city?.trim() ?? null;
+      if (showActivity === false) {
+        set.hideActivity = true;
+        unset.activeAt = "";
+      } else if (showActivity === true) {
+        unset.hideActivity = "";
+      }
       const user = await db.users
         .findOneAndUpdate(
           { _id: request.auth!.userId },

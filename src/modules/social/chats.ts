@@ -98,20 +98,28 @@ const mediaKeys = (m: Pick<ChatMessageDoc, "photo" | "voice">) => [m.photo?.key,
 const HAS_MEDIA = { $or: [{ photo: { $ne: null } }, { voice: { $ne: null } }] };
 const MEDIA_PROJECTION = { projection: { photo: 1, voice: 1 } };
 
-/** Marks the person active, at most once a minute. */
+/** Marks the person active, at most once a minute, unless they turned activity status off. */
 async function touchActive(d: Database, userId: ObjectId): Promise<void> {
   const now = new Date();
   await d.users.updateOne(
-    { _id: userId, $or: [{ activeAt: { $exists: false } }, { activeAt: { $lt: new Date(now.getTime() - ACTIVE_STEP_MS) } }] },
+    {
+      _id: userId,
+      hideActivity: { $ne: true },
+      $or: [{ activeAt: { $exists: false } }, { activeAt: { $lt: new Date(now.getTime() - ACTIVE_STEP_MS) } }],
+    },
     { $set: { activeAt: now } },
   );
 }
 
-/** Like Seen, the other person's activity shows only once they've accepted the chat. */
-async function activeAtOf(d: Database, peerSide: Pick<ChatMemberDoc, "state" | "userId"> | null | undefined): Promise<string | null> {
+/**
+ * Like Seen, the other person's activity shows only once they've accepted the chat. As on Instagram, it's
+ * hidden both ways when either of them turned activity status off.
+ */
+async function activeAtOf(d: Database, viewer: ObjectId, peerSide: Pick<ChatMemberDoc, "state" | "userId"> | null | undefined): Promise<string | null> {
   if (peerSide?.state !== "active") return null;
-  const user = await d.users.findOne({ _id: peerSide.userId }, { projection: { activeAt: 1 } });
-  return user?.activeAt?.toISOString() ?? null;
+  const both = await d.users.find({ _id: { $in: [viewer, peerSide.userId] } }, { projection: { activeAt: 1, hideActivity: 1 } }).toArray();
+  if (both.some((u) => u.hideActivity)) return null;
+  return both.find((u) => u._id.equals(peerSide.userId))?.activeAt?.toISOString() ?? null;
 }
 
 /** People who can be messaged: signed up, with a username, not deleted or on hold. */
@@ -337,7 +345,7 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
       })
       .sort((a, b) => Number(b.me) - Number(a.me));
     const peerSide = conversation.kind === "dm" ? members.find((m) => !m.userId.equals(viewer)) : undefined;
-    return { ...chat, people, seenAt: seenBy(peerSide), activeAt: await activeAtOf(d, peerSide) };
+    return { ...chat, people, seenAt: seenBy(peerSide), activeAt: await activeAtOf(d, viewer, peerSide) };
   }
 
   /** What a reply shows of the message it answers. */
@@ -766,7 +774,7 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
         messageViews(request, messages),
         messageViews(request, updated),
         authorsOf(d, typing.map((t) => t.userId)),
-        activeAtOf(d, peerSide),
+        activeAtOf(d, viewer, peerSide),
       ]);
       return ok(request, {
         messages: messageList,
