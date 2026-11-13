@@ -1,7 +1,13 @@
-import { randomInt } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
+import type { ChatPhotoStore } from "../src/adapters/chat-photos.js";
+import type { EmailSender } from "../src/adapters/email.js";
 import type { Geocoder } from "../src/adapters/geocoder.js";
+import type { PhotoStore } from "../src/adapters/photos.js";
+import type { PrintFileStore } from "../src/adapters/print-files.js";
+import type { PushMessage, PushSender } from "../src/adapters/push.js";
 import type { SmsSender } from "../src/adapters/sms.js";
+import { FakeVerifier, type Verifier } from "../src/adapters/verification.js";
 import { ObjectId } from "mongodb";
 import { buildApp, type App } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
@@ -10,6 +16,9 @@ import { createDatabase, stamp, type Database, type UserRoles } from "../src/pla
 import { AppError } from "../src/platform/errors.js";
 import { ensurePlatformIndexes, seedModuleSettings } from "../src/platform/indexes.js";
 
+/** Stands in for Cloud Scheduler's Google ID token on /jobs routes. */
+export const JOB_TOKEN = "test-job-token";
+
 export interface Stack {
   app: App;
   db: Database;
@@ -17,11 +26,29 @@ export interface Stack {
   texts: Map<string, string>;
   /** Every text sent, and a switch that makes the next send fail like a provider outage. */
   sms: { sent: number; failNext: boolean };
+  /** The last code emailed to each address. */
+  emails: Map<string, string>;
+  /** Saved photos by object key; deleted keys are removed. */
+  photos: Map<string, Buffer>;
+  /** Saved post photos by object key, in their own bucket. */
+  media: Map<string, Buffer>;
+  /** Customers' print files by key, and the keys whose 30-day countdown started. */
+  printFiles: { objects: Map<string, Buffer>; expiring: Set<string> };
+  /** Photos sent in chats by key, in their private bucket. */
+  chatPhotos: Map<string, Buffer>;
+  /** Phone notifications sent, and tokens that answer as removed apps. */
+  pushes: { sent: PushMessage[]; uninstalled: Set<string> };
   stop: () => Promise<void>;
 }
 
-/** A real replica set, because transactions need one. */
-export async function startStack(extend?: (app: App) => void, { rateLimit = false } = {}): Promise<Stack> {
+/**
+ * A real replica set, because transactions need one. Sessions are checked on every request unless
+ * `authCacheSeconds` is given, since most tests change the database directly between requests.
+ */
+export async function startStack(
+  extend?: (app: App) => void,
+  { rateLimit = false, authCacheSeconds = 0, verifier }: { rateLimit?: boolean; authCacheSeconds?: number; verifier?: Verifier } = {},
+): Promise<Stack> {
   const replSet = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: "wiredTiger" } });
   const config = loadConfig({
     RUXSTAR_ENV: "dev",
@@ -29,6 +56,8 @@ export async function startStack(extend?: (app: App) => void, { rateLimit = fals
     MONGODB_URI: replSet.getUri(),
     MONGODB_DB: "ruxstar_test",
     MIN_APP_VERSION: "2.0.0",
+    AUTH_CACHE_SECONDS: String(authCacheSeconds),
+    PAYOUT_ENCRYPTION_KEY: randomBytes(32).toString("base64"),
   });
   const db = createDatabase(config.mongo!.uri, config.mongo!.db);
   await db.client.connect();
@@ -48,8 +77,67 @@ export async function startStack(extend?: (app: App) => void, { rateLimit = fals
       texts.set(phone, code);
     },
   };
+  const emails = new Map<string, string>();
+  const email: EmailSender = { sendCode: async (to, code) => void emails.set(to, code) };
   const geocoder: Geocoder = { cityAt: async () => "Hyderabad" };
-  const app = await buildApp({ config, db, logger: false, sms, geocoder, rateLimit });
+  const fakeBucket = (host: string) => {
+    const objects = new Map<string, Buffer>();
+    const store: PhotoStore = {
+      save: async (key, data) => {
+        objects.set(key, data);
+        return `https://${host}/${key}`;
+      },
+      remove: async (key) => void objects.delete(key),
+    };
+    return { objects, store };
+  };
+  const profilePhotos = fakeBucket("photos.test");
+  const postMedia = fakeBucket("media.test");
+  const printFiles = { objects: new Map<string, Buffer>(), expiring: new Set<string>() };
+  const printStore: PrintFileStore = {
+    save: async (key, data) => void printFiles.objects.set(key, data),
+    read: async (key) => {
+      const data = printFiles.objects.get(key);
+      if (!data) throw new AppError("FILES_UNAVAILABLE");
+      return data;
+    },
+    expire: async (key) => void printFiles.expiring.add(key),
+    remove: async (key) => void printFiles.objects.delete(key),
+  };
+  const chatPhotos = new Map<string, Buffer>();
+  const chatStore: ChatPhotoStore = {
+    save: async (key, data) => void chatPhotos.set(key, data),
+    read: async (key) => {
+      const data = chatPhotos.get(key);
+      if (!data) throw new AppError("PHOTO_UNAVAILABLE");
+      return data;
+    },
+    remove: async (key) => void chatPhotos.delete(key),
+  };
+  /** Phone notifications "sent"; tokens in `uninstalled` answer as removed apps. */
+  const pushes = { sent: [] as PushMessage[], uninstalled: new Set<string>() };
+  const push: PushSender = {
+    send: async (messages) => {
+      pushes.sent.push(...messages);
+      return messages.map((m) => m.to).filter((to) => pushes.uninstalled.has(to));
+    },
+  };
+  const app = await buildApp({
+    config,
+    db,
+    logger: false,
+    sms,
+    email,
+    geocoder,
+    photos: profilePhotos.store,
+    media: postMedia.store,
+    printFiles: printStore,
+    chatPhotos: chatStore,
+    push,
+    jobAuth: async (token) => token === JOB_TOKEN,
+    rateLimit,
+    verifier: verifier ?? new FakeVerifier(),
+  });
   extend?.(app);
   await app.ready();
 
@@ -58,6 +146,12 @@ export async function startStack(extend?: (app: App) => void, { rateLimit = fals
     db,
     texts,
     sms: smsLog,
+    emails,
+    photos: profilePhotos.objects,
+    media: postMedia.objects,
+    printFiles,
+    chatPhotos,
+    pushes,
     stop: async () => {
       await app.close();
       await replSet.stop();

@@ -1,13 +1,20 @@
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 import account from "./account/index.js";
+import employment from "./employment/index.js";
+import kyc from "./kyc/index.js";
+import notifications from "./notifications/index.js";
+import pod from "./pod/index.js";
 import ruxstar from "./ruxstar/index.js";
+import social from "./social/index.js";
+import vendor from "./vendor/index.js";
 
-/** The 13 resources, each mounted at `/v1/<name>`. A module is added here once it has routes. */
+/** The 14 resources, each mounted at `/v1/<name>`. A module is added here once it has routes. */
 export const RESOURCES = [
   "account",
   "kyc",
   "social",
   "notifications",
+  "vendor",
   "pod",
   "events",
   "coaching",
@@ -23,6 +30,12 @@ export type Resource = (typeof RESOURCES)[number];
 
 const MODULES: Partial<Record<Resource, FastifyPluginAsync>> = {
   account,
+  kyc,
+  social,
+  notifications,
+  vendor,
+  pod,
+  employment,
   ruxstar,
 };
 

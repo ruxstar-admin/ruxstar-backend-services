@@ -20,26 +20,51 @@ const app = await buildApp({ config, db });
 if (!db) app.log.warn("MONGODB_URI and MONGODB_DB are not set. Only /health works until they are.");
 if (!config.jwtSecret) app.log.warn("JWT_SECRET is not set. Every signed-in route will return 401.");
 
-/** Keeps trying with backoff. A failed first connect must not leave the instance unready forever. */
-async function setUpDatabase(database: NonNullable<typeof db>) {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await database.client.connect();
-      await Promise.all([ensurePlatformIndexes(database), seedModuleSettings(database)]);
-      database.ready = true;
-      app.log.info({ db: config.mongo!.db, attempt }, "Database ready");
-      return;
-    } catch (err) {
-      const wait = Math.min(30, 2 ** attempt);
-      const { name, message } = err as Error;
-      app.log.error({ attempt, error: name }, `Database setup failed: ${message}. Retrying in ${wait}s`);
-      await new Promise((resolve) => setTimeout(resolve, wait * 1000).unref());
-    }
+type ServerSeen = { type: string; roundTripTime?: number; error?: { message?: string } | null };
+
+/** What the driver last saw of each server when selection gave up, so a failed start says why. */
+function serversOf(err: unknown) {
+  const servers = (err as { reason?: { servers?: Map<string, ServerSeen> } }).reason?.servers;
+  return servers ? [...servers].map(([address, s]) => ({ address, type: s.type, rttMs: Math.round(s.roundTripTime ?? -1), error: s.error?.message })) : undefined;
+}
+
+/** Connects and builds the indexes once. A failed client is swapped for a new one before the next try. */
+async function setUpDatabase(database: NonNullable<typeof db>, attempt: number): Promise<boolean> {
+  const started = Date.now();
+  let step = "connect";
+  try {
+    await database.client.connect();
+    // The unique index on module must exist before seeding, or two instances starting together can insert twins.
+    step = "indexes";
+    await ensurePlatformIndexes(database);
+    step = "seed";
+    await seedModuleSettings(database);
+    database.ready = true;
+    app.log.info({ db: config.mongo!.db, attempt, ms: Date.now() - started }, "Database ready");
+    return true;
+  } catch (err) {
+    const { name, message } = err as Error;
+    const cause = (err as { cause?: Error }).cause;
+    app.log.error(
+      { attempt, error: name, step, ms: Date.now() - started, servers: serversOf(err), cause: cause ? `${cause.name}: ${cause.message}` : undefined },
+      `Database setup failed: ${message}. Retrying with a new connection`,
+    );
+    database.renew();
+    return false;
   }
 }
 
-// Start serving straight away; /ready reports the database until it answers.
-if (db) void setUpDatabase(db);
+/** Keeps trying with backoff. A failed first connect must not leave the instance unready forever. */
+async function keepSettingUp(database: NonNullable<typeof db>) {
+  for (let attempt = 2; ; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, Math.min(30, 2 ** (attempt - 1)) * 1000).unref());
+    if (await setUpDatabase(database, attempt)) return;
+  }
+}
+
+// Cloud Run gives the container full CPU only until the port opens, then throttles it between requests,
+// which starves a background TLS handshake. So the first try runs before listening; later ones run behind /ready.
+if (db && !(await setUpDatabase(db, 1))) void keepSettingUp(db);
 
 await app.listen({ port: config.port, host: "0.0.0.0" });
 

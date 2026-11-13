@@ -35,6 +35,35 @@ export const ERROR_CODES = {
   PASSWORD_REUSED: { status: 422, message: "Choose a password you have not used recently." },
   SMS_UNAVAILABLE: { status: 503, message: "We cannot send codes right now. Try again shortly." },
   LOCATION_UNAVAILABLE: { status: 503, message: "We could not find your city right now. Type it instead." },
+  EMAIL_TAKEN: { status: 409, message: "This email is on another account." },
+  EMAIL_UNAVAILABLE: { status: 503, message: "We cannot send emails right now. Try again shortly." },
+  PHOTO_INVALID: { status: 422, message: "Choose a JPEG, PNG or WebP photo." },
+  PHOTO_UNAVAILABLE: { status: 503, message: "We cannot save photos right now. Try again shortly." },
+  // KYC
+  KYC_CHECK_FAILED: { status: 422, message: "We could not verify this. Check it and try again." },
+  KYC_STEP_ORDER: { status: 409, message: "Finish the earlier verification steps first." },
+  KYC_LOCKED: { status: 423, message: "Verification is on hold. Contact support to continue." },
+  KYC_UNAVAILABLE: { status: 503, message: "Verification is not available right now. Try again shortly." },
+  // Vendor
+  SIGNUPS_CLOSED: { status: 403, message: "This service isn't taking new businesses right now." },
+  BUSINESS_INCOMPLETE: { status: 422, message: "Finish the business details first." },
+  BUSINESS_SUSPENDED: { status: 423, message: "This business is on hold. Contact support to continue." },
+  PAYOUTS_UNAVAILABLE: { status: 503, message: "Payout accounts can't be added right now. Try again later." },
+  PAYOUT_METHOD_REQUIRED: { status: 409, message: "Add where you get paid first." },
+  PAYOUT_TOO_SMALL: { status: 422, message: "There isn't enough available to withdraw yet." },
+  PAYOUT_IN_PROGRESS: { status: 409, message: "A payout is already on the way. Wait for it to arrive." },
+  // Orders and payments
+  FILE_INVALID: { status: 422, message: "Choose a PDF, JPEG or PNG file." },
+  FILES_UNAVAILABLE: { status: 503, message: "We cannot take files right now. Try again shortly." },
+  ORDER_INVALID: { status: 422, message: "This order can't be placed as it is. Check it and try again." },
+  SHOP_CLOSED: { status: 409, message: "This shop is closed right now. Try again when it opens." },
+  COUPON_INVALID: { status: 422, message: "This coupon can't be used on this order." },
+  ORDER_STATE: { status: 409, message: "This order has moved on. Refresh to see where it is." },
+  REPORT_CLOSED: { status: 409, message: "Problems can be reported up to 48 hours after delivery, or while an order is late." },
+  PAYMENTS_UNAVAILABLE: { status: 503, message: "Payments are not available right now. Try again shortly." },
+  // Chats
+  CHAT_REQUEST_PENDING: { status: 409, message: "Wait until they accept your message request." },
+  CHAT_GROUP_FULL: { status: 422, message: "A group can have up to 50 people." },
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CODES;

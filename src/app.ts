@@ -5,12 +5,24 @@ import rateLimit from "@fastify/rate-limit";
 import swagger from "@fastify/swagger";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import Fastify, { type FastifyServerOptions } from "fastify";
+import { createChatPhotoStore, type ChatPhotoStore } from "./adapters/chat-photos.js";
+import { createEmailSender, type EmailSender } from "./adapters/email.js";
 import { createGeocoder, type Geocoder } from "./adapters/geocoder.js";
+import { createPaymentGateway, type PaymentGateway } from "./adapters/payments.js";
+import { createPayoutGateway, type PayoutGateway } from "./adapters/payouts.js";
+import { createMediaStore, createPhotoStore, type PhotoStore } from "./adapters/photos.js";
+import { createPrintFileStore, type PrintFileStore } from "./adapters/print-files.js";
+import { createPushSender, type PushSender } from "./adapters/push.js";
 import { createSmsSender, type SmsSender } from "./adapters/sms.js";
+import { createVerifier, type Verifier } from "./adapters/verification.js";
 import type { Config } from "./config.js";
 import { ErrorEnvelope } from "./contracts/common.js";
 import { registerModules } from "./modules/index.js";
 import health from "./modules/health.js";
+import { usePush } from "./modules/notifications/push.js";
+import { googleJobAuth, jobs, type JobAuth } from "./modules/jobs.js";
+import checkout from "./modules/pod/checkout.js";
+import chatPhotoLinks from "./modules/social/chat-photo-links.js";
 import { registerAuth } from "./platform/auth.js";
 import { registerClientCheck } from "./platform/client.js";
 import "./platform/context.js";
@@ -40,6 +52,8 @@ const loggerOptions = (config: Config): FastifyServerOptions["logger"] => ({
       "*.refreshToken",
       "*.verificationToken",
       "*.pushToken",
+      "*.pan",
+      "*.gstin",
     ],
     censor: "[redacted]",
   },
@@ -51,12 +65,41 @@ export interface AppOptions {
   logger?: boolean;
   /** Tests pass a sender that records codes instead of texting them. */
   sms?: SmsSender;
+  email?: EmailSender;
   geocoder?: Geocoder;
+  photos?: PhotoStore;
+  media?: PhotoStore;
+  verifier?: Verifier;
+  payments?: PaymentGateway;
+  payouts?: PayoutGateway;
+  printFiles?: PrintFileStore;
+  chatPhotos?: ChatPhotoStore;
+  /** Tests record phone notifications instead of sending them. */
+  push?: PushSender;
+  /** Tests accept their own token for the scheduler's routes. */
+  jobAuth?: JobAuth;
   /** Tests send every request from one address, so most of them switch per-IP limits off. */
   rateLimit?: boolean;
 }
 
-export async function buildApp({ config, db, logger = true, sms, geocoder, rateLimit: limitByIp = true }: AppOptions) {
+export async function buildApp({
+  config,
+  db,
+  logger = true,
+  sms,
+  email,
+  geocoder,
+  photos,
+  media,
+  verifier,
+  payments,
+  payouts,
+  printFiles,
+  chatPhotos,
+  push,
+  jobAuth,
+  rateLimit: limitByIp = true,
+}: AppOptions) {
   const app = Fastify({
     logger: logger ? loggerOptions(config) : false,
     // Trust only Cloud Run's front end (hop 0). `true` would let a client fake its IP through X-Forwarded-For and
@@ -74,7 +117,17 @@ export async function buildApp({ config, db, logger = true, sms, geocoder, rateL
   app.decorate("db", db);
   app.decorate("events", new EventBus(app.log));
   app.decorate("sms", sms ?? createSmsSender(config, app.log));
+  app.decorate("email", email ?? createEmailSender(config, app.log));
   app.decorate("geocoder", geocoder ?? createGeocoder(app.log));
+  app.decorate("photos", photos ?? createPhotoStore(config, app.log));
+  app.decorate("media", media ?? createMediaStore(config, app.log));
+  app.decorate("verifier", verifier ?? createVerifier(config, app.log));
+  app.decorate("payments", payments ?? createPaymentGateway(config, app.log));
+  app.decorate("payouts", payouts ?? createPayoutGateway(config, app.log));
+  app.decorate("printFiles", printFiles ?? createPrintFileStore(config, app.log));
+  app.decorate("chatPhotos", chatPhotos ?? createChatPhotoStore(config, app.log));
+  app.decorate("push", push ?? createPushSender(config.push, app.log));
+  if (db) usePush(db, app.push, app.log);
 
   app.addHook("onRequest", async (request, reply) => {
     reply.header("x-request-id", request.id);
@@ -102,7 +155,7 @@ export async function buildApp({ config, db, logger = true, sms, geocoder, rateL
     origin: config.corsOrigins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "X-Client", "X-App-Version", "X-Request-Id"],
+    allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "X-Client", "X-App-Version", "X-Request-Id", "X-File-Name"],
     exposedHeaders: ["X-Request-Id", "Idempotent-Replayed"],
     maxAge: 600,
   });
@@ -124,6 +177,9 @@ export async function buildApp({ config, db, logger = true, sms, geocoder, rateL
   app.addSchema(ErrorEnvelope);
   await app.register(health);
   await registerModules(app);
+  await app.register(checkout);
+  await app.register(chatPhotoLinks);
+  await app.register(jobs(jobAuth ?? googleJobAuth(config)));
 
   if (config.env !== "prod") {
     app.get("/openapi.json", { schema: { hide: true } }, async () => app.swagger());
