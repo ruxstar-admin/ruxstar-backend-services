@@ -1,5 +1,5 @@
 import { Type, type Static, type TSchema } from "typebox";
-import { DateTime, Envelope, ListEnvelope, ObjectIdString, Paise, Strict } from "../../contracts/common.js";
+import { DateTime, Envelope, ListEnvelope, ModuleName, ObjectIdString, PageQuery, Paise, Strict } from "../../contracts/common.js";
 import { GSTIN_PATTERN } from "../kyc/contracts.js";
 import { BUSINESS_TYPES, MAX_POD_CITIES, MAX_PRICE_TIERS, MAX_TURNAROUND_DAYS, POD_PRODUCTS } from "./catalog.js";
 
@@ -249,3 +249,25 @@ export const Payments = Envelope(
     payouts: Type.Array(Payout, { description: "The latest 20" }),
   }),
 );
+
+export const StatementQuery = Strict({ ...PageQuery });
+
+const StatementLine = Strict({
+  id: ObjectIdString,
+  kind: Type.Union([Type.Literal("paid"), Type.Literal("available"), Type.Literal("refund")], {
+    description:
+      "paid: an order's share arrived, pending until its hold ends. available: the hold ended and it can be withdrawn. " +
+      "refund: money went back to the customer out of your share.",
+  }),
+  amount: Type.Integer({ description: "Paise; negative for refunds" }),
+  at: DateTime,
+  module: ModuleName,
+  order: Strict({
+    id: ObjectIdString,
+    orderNo: Type.Integer(),
+    business: Nullable(Strict({ id: ObjectIdString, name: Type.String() })),
+  }),
+});
+export type StatementLine = Static<typeof StatementLine>;
+
+export const Statement = ListEnvelope(StatementLine);

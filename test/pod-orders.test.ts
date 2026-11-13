@@ -459,6 +459,21 @@ describe("print orders", () => {
     expect((await refund(1_000)).json().error.code).toBe("ORDER_STATE");
     const entries = await stack.db.ledgerEntries.find({}).toArray();
     expect(entries.reduce((sum, e) => sum + e.signedPaise, 0)).toBe(0);
+
+    const statement = (query = "") => call("GET", `/vendor/payments/statement${query}`, owner.token);
+    const lines = (await statement()).json();
+    const ref = { id: order.id, orderNo: order.orderNo, business: { name: expect.any(String) } };
+    expect(lines.data).toMatchObject([
+      { kind: "available", amount: 274_000, module: "pod", order: ref },
+      { kind: "refund", amount: -50_000, order: ref },
+      { kind: "paid", amount: 324_000, order: ref },
+    ]);
+    const first = (await statement("?limit=2")).json();
+    expect(first.data.map((l: { kind: string }) => l.kind)).toEqual(["available", "refund"]);
+    const rest = (await statement(`?limit=2&cursor=${first.meta.nextCursor}`)).json();
+    expect(rest.data.map((l: { kind: string }) => l.kind)).toEqual(["paid"]);
+    expect(rest.meta.nextCursor).toBeNull();
+    expect((await call("GET", "/vendor/payments/statement", customer.token)).statusCode).toBe(403);
   });
 
   it("takes a problem report with photos, holds the shop's share, and Ruxstar settles it", async () => {

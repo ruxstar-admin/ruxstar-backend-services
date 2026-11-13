@@ -4,14 +4,15 @@ import { Errors } from "../../contracts/common.js";
 import { actorOf, writeAudit } from "../../platform/audit.js";
 import { requireDatabase } from "../../platform/context.js";
 import type { PayoutMethodDoc, Stamped } from "../../platform/db.js";
-import { ok } from "../../platform/envelope.js";
+import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
+import { findPage } from "../../platform/pagination.js";
 import { seal } from "../../platform/sealed.js";
 import { loadCase, NAME_MATCHES, verificationId } from "../kyc/cases.js";
 import { releaseShare } from "../pod/order-rules.js";
 import { shopShareLeft } from "../pod/orders.js";
 import { payoutMethodView, requireVendor } from "./businesses.js";
-import { PayoutMethodBody, PayoutMethodResult, Payments } from "./contracts.js";
+import { PayoutMethodBody, PayoutMethodResult, Payments, Statement, StatementQuery, type StatementLine } from "./contracts.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 /** UPI answers MATCH where bank checks grade the name. */
@@ -82,6 +83,55 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           createdAt: p.createdAt.toISOString(),
         })),
       });
+    },
+  );
+
+  app.get(
+    "/payments/statement",
+    {
+      preHandler: requireVendor,
+      schema: {
+        tags: ["vendor"],
+        summary: "Every change to your earnings, newest first",
+        description:
+          "One line per money movement on your orders: the share arriving (pending), the hold ending (available), and refunds " +
+          "out of your share. Payouts are listed with the balance.",
+        querystring: StatementQuery,
+        response: { 200: Statement, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const database = db();
+      const { items, nextCursor } = await findPage(database.ledgerEntries, {
+        // A release moves money from pending to available; its pending side would only repeat the line.
+        filter: { accountId: `vendor:${request.auth!.userId.toHexString()}`, $nor: [{ kind: "release", bucket: "pending" }] },
+        sortField: "at",
+        cursor: request.query.cursor,
+        limit: request.query.limit,
+      });
+      const orders = await database.podOrders
+        .find({ _id: { $in: [...new Set(items.map((e) => e.source.id.toHexString()))].map((id) => new ObjectId(id)) } }, { projection: { orderNo: 1, shopId: 1 } })
+        .toArray();
+      const shops = await database.businesses
+        .find({ _id: { $in: orders.map((o) => o.shopId) } }, { projection: { name: 1 } })
+        .toArray();
+      const lines = items.flatMap((entry): StatementLine[] => {
+        const order = orders.find((o) => o._id.equals(entry.source.id));
+        if (!order) return [];
+        const shop = shops.find((s) => s._id.equals(order.shopId));
+        return [
+          {
+            id: entry._id.toHexString(),
+            kind: entry.kind === "payment" ? "paid" : entry.kind === "release" ? "available" : "refund",
+            amount: entry.signedPaise,
+            at: entry.at.toISOString(),
+            module: "pod",
+            order: { id: order._id.toHexString(), orderNo: order.orderNo, business: shop ? { id: shop._id.toHexString(), name: shop.name } : null },
+          },
+        ];
+      });
+      return page(request, lines, nextCursor);
     },
   );
 

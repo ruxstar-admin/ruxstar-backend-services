@@ -101,6 +101,7 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     // One entry per account and bucket in a transaction, so a money move can't be written twice.
     db.ledgerEntries.createIndex({ txnId: 1, accountId: 1, bucket: 1 }, { unique: true }),
     db.ledgerEntries.createIndex({ accountId: 1, bucket: 1 }),
+    db.ledgerEntries.createIndex({ accountId: 1, at: -1, _id: -1 }),
   ]);
 }
 
