@@ -63,6 +63,10 @@ const tidy = (text: string) =>
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
+/** Someone reading a request doesn't tell the sender: Seen starts once they accept. */
+const seenBy = (peerSide: Pick<ChatMemberDoc, "state" | "readAt"> | null | undefined) =>
+  peerSide?.state === "active" ? (peerSide.readAt?.toISOString() ?? null) : null;
+
 /** "Ravi", "Ravi and Kiran", "Ravi, Kiran and 3 others". */
 function namesLine(names: string[]): string {
   if (names.length <= 2) return names.join(" and ");
@@ -297,7 +301,7 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
       })
       .sort((a, b) => Number(b.me) - Number(a.me));
     const peerSide = conversation.kind === "dm" ? members.find((m) => !m.userId.equals(viewer)) : undefined;
-    return { ...chat, people, seenAt: peerSide?.readAt?.toISOString() ?? null };
+    return { ...chat, people, seenAt: seenBy(peerSide) };
   }
 
   async function messageViews(request: FastifyRequest, messages: WithId<ChatMessageDoc>[]): Promise<Message[]> {
@@ -651,12 +655,12 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
       const [messages, unsent, peerSide] = await Promise.all([
         d.chatMessages.find({ conversationId: conversation._id, status: "live", createdAt: { $gt: from } }).sort({ createdAt: 1, _id: 1 }).limit(POLL_MAX).toArray(),
         d.chatMessages.find({ conversationId: conversation._id, status: "unsent", unsentAt: { $gt: from } }, { projection: { _id: 1 } }).toArray(),
-        conversation.kind === "dm" ? d.chatMembers.findOne({ conversationId: conversation._id, userId: { $ne: mine.userId } }, { projection: { readAt: 1 } }) : null,
+        conversation.kind === "dm" ? d.chatMembers.findOne({ conversationId: conversation._id, userId: { $ne: mine.userId } }, { projection: { readAt: 1, state: 1 } }) : null,
       ]);
       return ok(request, {
         messages: await messageViews(request, messages),
         unsent: unsent.map((m) => m._id.toHexString()),
-        seenAt: peerSide?.readAt?.toISOString() ?? null,
+        seenAt: seenBy(peerSide),
         changed: (conversation.changedAt ?? conversation.createdAt) > since,
         now: now.toISOString(),
       });

@@ -58,15 +58,17 @@ describe("1:1 chats and requests", () => {
     expect(await list(asha)).toEqual([]);
     expect(await list(asha, "requests")).toEqual([expect.objectContaining({ id: chat.id, title: ravi.name, unread: 1, last: expect.objectContaining({ text: "Hi Asha" }) })]);
     expect(await unread(asha)).toEqual({ unread: 0, requests: 1 });
+    // Reading a request isn't Seen.
+    await call("POST", `/social/chats/${chat.id}/read`, asha);
+    expect((await call("GET", `/social/chats/${chat.id}`, ravi)).json().data.seenAt).toBeNull();
 
     const accepted = await call("POST", `/social/chats/${chat.id}/accept`, asha);
     expect(accepted.json().data.state).toBe("active");
-    expect(await unread(asha)).toEqual({ unread: 1, requests: 0 });
+    expect(await unread(asha)).toEqual({ unread: 0, requests: 0 });
     expect((await say(ravi, chat.id, "Great")).statusCode).toBe(201);
-    expect(await unread(asha)).toEqual({ unread: 2, requests: 0 });
+    expect(await unread(asha)).toEqual({ unread: 1, requests: 0 });
 
     // Seen: Ravi sees when Asha read it.
-    expect((await call("GET", `/social/chats/${chat.id}`, ravi)).json().data.seenAt).toBeNull();
     await call("POST", `/social/chats/${chat.id}/read`, asha);
     expect(await unread(asha)).toEqual({ unread: 0, requests: 0 });
     expect((await call("GET", `/social/chats/${chat.id}`, ravi)).json().data.seenAt).not.toBeNull();
