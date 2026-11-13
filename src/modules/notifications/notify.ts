@@ -219,6 +219,32 @@ export async function notifyTeam(
   }
 }
 
+/**
+ * Review news: a new review to the shop (`reviews`, or `work_reviews` for its team), a reply or Ruxstar's removal to the customer
+ * (`order`). Logged, never thrown: the review is already saved.
+ */
+export async function notifyReview(
+  db: Database,
+  log: FastifyBaseLogger,
+  event: { to: ObjectId; actor: ObjectId; type: "review.posted" | "review.replied" | "review.removed"; title: string; body: string; link: NotificationDoc["link"] },
+): Promise<void> {
+  try {
+    await save(db, {
+      _id: new ObjectId(),
+      userId: event.to,
+      type: event.type,
+      actorId: event.actor,
+      title: clip(event.title, 60),
+      body: clip(event.body, 140),
+      link: event.link,
+      readAt: null,
+      createdAt: new Date(),
+    });
+  } catch (err) {
+    log.warn({ err: (err as Error).message, type: event.type }, "Notification not saved");
+  }
+}
+
 /** Tells a user their verification was decided. Logged, never thrown: the decision is already saved. */
 export async function notifyKycDecision(
   db: Database,

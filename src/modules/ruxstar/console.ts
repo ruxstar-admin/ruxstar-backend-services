@@ -56,7 +56,7 @@ const consoleHome: FastifyPluginAsyncTypebox = async (app) => {
       const [kyc, reports, users, businesses, modules, orders, staff] = await Promise.all([
         when(can("kyc.view"), async () => ({ waiting: await d.kycCases.countDocuments({ status: "submitted", track: "base" }) })),
         when(can("reports.view"), async () => {
-          const [[row], people] = await Promise.all([
+          const [[row], people, reviews] = await Promise.all([
             d.reports
               .aggregate<{ posts: number; reports: number }>([
                 { $match: { status: "open" } },
@@ -65,8 +65,9 @@ const consoleHome: FastifyPluginAsyncTypebox = async (app) => {
               ])
               .toArray(),
             d.userReports.distinct("userId", { status: "open" }),
+            d.reviewReports.distinct("reviewId", { status: "open" }),
           ]);
-          return { posts: row?.posts ?? 0, reports: row?.reports ?? 0, people: people.length };
+          return { posts: row?.posts ?? 0, reports: row?.reports ?? 0, people: people.length, reviews: reviews.length };
         }),
         when(can("users.view"), async () => {
           const [total, newThisWeek, suspended] = await Promise.all([

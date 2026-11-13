@@ -19,6 +19,7 @@ import orderProblems from "./order-problems.js";
 import payouts from "./payouts.js";
 import peopleReports from "./people-reports.js";
 import reports from "./reports.js";
+import reviewReports from "./review-reports.js";
 import staff from "./staff.js";
 import teams from "./teams.js";
 import users from "./users.js";
@@ -42,6 +43,7 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(kycReview);
   await app.register(reports);
   await app.register(peopleReports);
+  await app.register(reviewReports);
   await app.register(orderProblems);
   await app.register(payouts);
   await app.register(coupons);

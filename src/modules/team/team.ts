@@ -21,6 +21,7 @@ export const PERMISSIONS: { key: TeamPermission; label: string; hint: string | n
   { key: "shop.details", label: "Edit details and photos", hint: "Name, phone, address, description and photos", needs: null },
   { key: "coupons.manage", label: "Make and change coupons", hint: "For this shop. The discount comes out of the shop's share", needs: null },
   { key: "posts.create", label: "Post as the business", hint: null, needs: null },
+  { key: "reviews.reply", label: "Reply to reviews", hint: "Answer customers' reviews for the shop", needs: null },
 ];
 
 /** In catalog order, with whatever each one needs added. */

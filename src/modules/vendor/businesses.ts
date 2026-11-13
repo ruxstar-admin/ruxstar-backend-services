@@ -4,6 +4,7 @@ import type { Static } from "typebox";
 import { requireAuth } from "../../platform/auth.js";
 import type { BusinessDoc, BusinessLocation, BusinessPhoto, Database, PayoutMethodDoc, PodPrice, PodSetup } from "../../platform/db.js";
 import { AppError } from "../../platform/errors.js";
+import { ratingOf } from "../reviews/reviews.js";
 import { productOf, type PodProduct } from "./catalog.js";
 import type { Business, Location, PayoutMethod, PodPriceBody, PodSetupBody } from "./contracts.js";
 import { INDIAN_STATES } from "./india.js";
@@ -56,6 +57,7 @@ export function businessView(doc: BusinessDoc, moduleLive: boolean): Business {
     moduleLive,
     missing: missingOf(doc),
     suspension: doc.suspension ? { reason: doc.suspension.reason, at: doc.suspension.at.toISOString() } : null,
+    rating: ratingOf(doc),
     publishedAt: doc.publishedAt?.toISOString() ?? null,
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),

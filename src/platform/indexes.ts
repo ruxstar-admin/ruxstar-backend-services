@@ -117,6 +117,11 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.employments.createIndex({ businessId: 1, userId: 1 }, { name: "one_place_per_business", unique: true, partialFilterExpression: { current: true } }),
     db.employments.createIndex({ businessId: 1, current: 1, invitedAt: 1 }),
     db.employments.createIndex({ userId: 1, current: 1, invitedAt: -1 }),
+    // Reviews: one per order, and a shop's live reviews newest first. Review reports: one open per person, and the console's queue.
+    db.podReviews.createIndex({ orderId: 1 }, { unique: true }),
+    db.podReviews.createIndex({ shopId: 1, status: 1, createdAt: -1, _id: -1 }),
+    db.reviewReports.createIndex({ reviewId: 1, reporterId: 1, status: 1 }),
+    db.reviewReports.createIndex({ status: 1, createdAt: -1 }),
     // One entry per account and bucket in a transaction, so a money move can't be written twice.
     db.ledgerEntries.createIndex({ txnId: 1, accountId: 1, bucket: 1 }, { unique: true }),
     db.ledgerEntries.createIndex({ accountId: 1, bucket: 1 }),

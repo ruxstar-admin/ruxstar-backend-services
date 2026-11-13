@@ -1,5 +1,6 @@
 import type { Filter } from "mongodb";
 import type { BusinessDoc, PodPrice, PostPhoto } from "../../platform/db.js";
+import { ratingOf } from "../reviews/reviews.js";
 import { unpricedOf } from "../vendor/businesses.js";
 import { PRODUCTS, typeOf } from "../vendor/catalog.js";
 import type { Shop, ShopCard } from "./contracts.js";
@@ -49,6 +50,7 @@ export function shopCard(doc: BusinessDoc): ShopCard {
     fromUnit: from?.unit ?? null,
     turnaroundDays: pod.turnaroundDays,
     products: PRODUCTS.map((p) => p.id).filter((id) => pod.products.includes(id)),
+    rating: ratingOf(doc),
   };
 }
 

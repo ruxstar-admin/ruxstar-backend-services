@@ -83,7 +83,14 @@ export const OverviewResult = Envelope(
   Strict(
     {
       kyc: Nullable(Strict({ waiting: Count })),
-      reports: Nullable(Strict({ posts: Count, reports: Count, people: Type.Integer({ minimum: 0, description: "People with open reports" }) })),
+      reports: Nullable(
+        Strict({
+          posts: Count,
+          reports: Count,
+          people: Type.Integer({ minimum: 0, description: "People with open reports" }),
+          reviews: Type.Integer({ minimum: 0, description: "Shop reviews with open reports" }),
+        }),
+      ),
       users: Nullable(Strict({ total: Count, newThisWeek: Count, suspended: Count })),
       businesses: Nullable(Strict({ total: Count, live: Count, suspended: Count })),
       modules: Nullable(Type.Array(Strict({ module: ModuleName, live: Type.Boolean() }))),

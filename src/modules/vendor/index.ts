@@ -34,6 +34,7 @@ import coupons from "./coupons.js";
 import { INDIA } from "./india.js";
 import orders from "./orders.js";
 import payments from "./payments.js";
+import reviews from "./reviews.js";
 import team from "./team.js";
 import { endPlacesFor } from "../team/team.js";
 
@@ -50,6 +51,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(coupons);
   await app.register(team);
   await app.register(activity);
+  await app.register(reviews);
 
   const db = () => requireDatabase(app.db);
 

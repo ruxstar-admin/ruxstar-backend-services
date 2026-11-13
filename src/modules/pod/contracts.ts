@@ -1,6 +1,7 @@
 import { Type, type Static, type TSchema } from "typebox";
 import { DateTime, Envelope, ListEnvelope, ObjectIdString, PageQuery, Paise, Strict } from "../../contracts/common.js";
 import { AppliedCoupon, Offer } from "../coupons/contracts.js";
+import { Rating } from "../reviews/contracts.js";
 import { Photo } from "../social/contracts.js";
 import { TeamPermission } from "../team/contracts.js";
 import { BusinessTypeId, PodProductId } from "../vendor/contracts.js";
@@ -25,6 +26,7 @@ export const ShopCard = Strict({
   fromUnit: Nullable(Unit),
   turnaroundDays: Type.Integer({ description: "Usual days to get an order ready; 0 is the same day" }),
   products: Type.Array(PodProductId),
+  rating: Rating,
 });
 export type ShopCard = Static<typeof ShopCard>;
 
@@ -227,6 +229,9 @@ const OrderCore = {
   deliveredAt: Nullable(DateTime),
   canReport: Type.Boolean({ description: "The customer can report a problem now" }),
   reportUntil: Nullable(DateTime, { description: "The last moment to report a problem after delivery" }),
+  reviewUntil: Nullable(DateTime, {
+    description: "The last moment the customer can write or change a review: 30 days after delivery. Null when it can't be reviewed now",
+  }),
   problem: Nullable(Problem),
   createdAt: DateTime,
   updatedAt: DateTime,

@@ -199,6 +199,8 @@ export interface BusinessDoc extends Stamped {
   publishedAt: Date | null;
   /** Set while the Ruxstar team holds the business; customers can't see it. Removed on restore. */
   suspension?: { by: ObjectId; at: Date; reason: string };
+  /** Live reviews, counted again on every change to one (decision 55). Missing before the first. */
+  rating?: { count: number; sum: number };
 }
 
 /** Where a vendor is paid. One per vendor, checked with Cashfree before it is saved. */
@@ -438,7 +440,10 @@ export type NotificationType =
   | "payout.updated"
   | "team.invited"
   | "team.joined"
-  | "team.ended";
+  | "team.ended"
+  | "review.posted"
+  | "review.replied"
+  | "review.removed";
 
 export interface NotificationDoc {
   _id: ObjectId;
@@ -452,9 +457,13 @@ export interface NotificationDoc {
    * `verification` opens the KYC screen (its id is the track); `business` opens a business in the vendor portal;
    * `order` opens a customer's print order and `shop_order` the same order in the vendor portal; `profile` opens a person (its id is theirs);
    * `payments` opens the vendor's Payments (its id is the payout); `work` opens the Work area (its id is the place on the team);
-   * `team` opens a business's Team in the vendor portal (its id is the business).
+   * `team` opens a business's Team in the vendor portal (its id is the business); `reviews` a business's reviews there, and
+   * `work_reviews` the same reviews in the Work area (its id is the place on the team).
    */
-  link: { screen: "post" | "verification" | "business" | "order" | "shop_order" | "profile" | "payments" | "work" | "team" | "work_order"; id: string };
+  link: {
+    screen: "post" | "verification" | "business" | "order" | "shop_order" | "profile" | "payments" | "work" | "team" | "work_order" | "reviews" | "work_reviews";
+    id: string;
+  };
   readAt: Date | null;
   createdAt: Date;
 }
@@ -695,7 +704,44 @@ export type TeamPermission =
   | "shop.catalog"
   | "shop.details"
   | "coupons.manage"
-  | "posts.create";
+  | "posts.create"
+  | "reviews.reply";
+
+/**
+ * A customer's review of one delivered print order (decision 55): 1 to 5 stars and an optional note, written or changed within
+ * 30 days of delivery. The shop replies once and can change or remove the reply. `removed` when the Ruxstar team took it down.
+ */
+export interface PodReviewDoc extends Stamped {
+  _id: ObjectId;
+  orderId: ObjectId;
+  orderNo: number;
+  shopId: ObjectId;
+  vendorId: ObjectId;
+  customerId: ObjectId;
+  productLabel: string;
+  rating: number;
+  text: string | null;
+  status: "live" | "removed";
+  editedAt: Date | null;
+  reply: { text: string; by: ObjectId; at: Date; editedAt: Date | null } | null;
+  removal?: { by: ObjectId; reason: string; at: Date };
+}
+
+export type ReviewReportReason = "spam" | "fake" | "abuse" | "other";
+
+/** One open report per person and review. Closed when the Ruxstar team keeps or removes the review. */
+export interface ReviewReportDoc {
+  _id?: ObjectId;
+  reviewId: ObjectId;
+  reporterId: ObjectId;
+  reason: ReviewReportReason;
+  note: string | null;
+  status: "open" | "closed";
+  createdAt: Date;
+  outcome?: "kept" | "removed";
+  closedBy?: ObjectId;
+  closedAt?: Date;
+}
 
 /**
  * Someone on a business's team (decision 54). `invited` until they accept or the invite expires; `active` after, though nothing
@@ -877,6 +923,12 @@ export class Database {
   }
   get employments() {
     return this.db.collection<EmploymentDoc>("employments");
+  }
+  get podReviews() {
+    return this.db.collection<PodReviewDoc>("pod_reviews");
+  }
+  get reviewReports() {
+    return this.db.collection<ReviewReportDoc>("review_reports");
   }
   get ledgerEntries() {
     return this.db.collection<LedgerEntryDoc>("ledger_entries");

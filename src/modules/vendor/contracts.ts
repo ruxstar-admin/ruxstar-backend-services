@@ -1,6 +1,7 @@
 import { Type, type Static, type TSchema } from "typebox";
 import { DateTime, Envelope, ListEnvelope, ModuleName, ObjectIdString, PageQuery, Paise, Strict } from "../../contracts/common.js";
 import { GSTIN_PATTERN } from "../kyc/contracts.js";
+import { Rating } from "../reviews/contracts.js";
 import { BUSINESS_TYPES, MAX_POD_CITIES, MAX_PRICE_TIERS, MAX_TURNAROUND_DAYS, POD_PRODUCTS } from "./catalog.js";
 
 const Nullable = <T extends TSchema>(schema: T, options: { description?: string } = {}) => Type.Union([schema, Type.Null()], options);
@@ -123,6 +124,7 @@ export const Business = Strict({
   moduleLive: Type.Boolean({ description: "False while the Ruxstar team has paused this module" }),
   missing: Type.Array(Missing, { description: "What is still needed before it can be published" }),
   suspension: Nullable(Strict({ reason: Type.String(), at: DateTime })),
+  rating: Rating,
   publishedAt: Nullable(DateTime),
   createdAt: DateTime,
   updatedAt: DateTime,

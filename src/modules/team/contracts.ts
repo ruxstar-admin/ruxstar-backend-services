@@ -17,6 +17,7 @@ export const TeamPermission = Type.Union(
     Type.Literal("shop.details"),
     Type.Literal("coupons.manage"),
     Type.Literal("posts.create"),
+    Type.Literal("reviews.reply"),
   ],
   { description: "What the owner lets this person do at the business" },
 );

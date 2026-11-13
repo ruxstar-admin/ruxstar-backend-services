@@ -17,6 +17,7 @@ import { AppError } from "../../platform/errors.js";
 import { isModuleLive } from "../../platform/module-switch.js";
 import { appliedView, giveBack, redeem } from "../coupons/coupons.js";
 import { notifyOrder } from "../notifications/notify.js";
+import { reviewUntil } from "../reviews/reviews.js";
 import { unpricedOf } from "../vendor/businesses.js";
 import { productOf, type PodProduct } from "../vendor/catalog.js";
 import type { Order, ShopOrder } from "./contracts.js";
@@ -283,7 +284,7 @@ const CUSTOMER_NEWS: Partial<Record<PodOrderStatus, [string, string]>> = {
   printing: ["Being printed", "The shop is printing your order."],
   ready: ["Order ready", "Your order is ready and will be on its way soon."],
   out_for_delivery: ["On the way", "The shop is delivering your order."],
-  delivered: ["Delivered", "Your order was delivered. If something's wrong with it, report a problem within 48 hours."],
+  delivered: ["Delivered", "Your order was delivered. Rate the shop, or report a problem within 48 hours if something's wrong."],
 };
 
 /**
@@ -422,7 +423,7 @@ export async function moveOrder(
       type: "order.updated",
       forShop: false,
       title: `Marked delivered: ${no}`,
-      body: "It's a week past its ready date. If it didn't arrive, report a problem within 48 hours.",
+      body: "It's a week past its ready date. If it didn't arrive, report a problem within 48 hours; if it did, rate the shop.",
     });
     await notifyOrder(db, app.log, {
       to: moved.vendorId,
@@ -640,6 +641,7 @@ const core = (doc: PodOrderDoc, links: PhotoLinks) => ({
   deliveredAt: iso(doc.deliveredAt),
   canReport: canReport(doc),
   reportUntil: doc.status === "delivered" && doc.deliveredAt && !doc.problem ? new Date(doc.deliveredAt.getTime() + HOLD_MS).toISOString() : null,
+  reviewUntil: iso(reviewUntil(doc)),
   problem: problemView(doc, links),
   createdAt: doc.createdAt.toISOString(),
   updatedAt: doc.updatedAt.toISOString(),
