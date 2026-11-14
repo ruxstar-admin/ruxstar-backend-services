@@ -453,6 +453,15 @@ export async function moveOrder(
       title: `New order ${no}`,
       body: `${moved.productLabel} × ${moved.quantity} for ${moved.address.city}. ${rupees(shopShare(moved))} to you.`,
     });
+    await notifyOrder(db, app.log, {
+      to: moved.customerId,
+      actor,
+      orderId: moved._id,
+      type: "order.updated",
+      forShop: false,
+      title: `Order placed: ${no}`,
+      body: `Waiting for ${moved.shopName} to accept it. If they don't within ${ACCEPT_WINDOW_MS / HOUR_MS} hours, you're refunded.`,
+    });
     for (const place of await teamToTell(db, moved.shopId)) {
       await notifyOrder(db, app.log, {
         to: place.userId,
@@ -464,6 +473,16 @@ export async function moveOrder(
         body: `${moved.productLabel} × ${moved.quantity} for ${moved.address.city}.${place.permissions.includes("earnings.view") ? ` ${rupees(shopShare(moved))} to the shop.` : ""}`,
       });
     }
+  } else if (to === "cancelled" && order.status === "awaiting_payment" && by.kind === "system") {
+    await notifyOrder(db, app.log, {
+      to: moved.customerId,
+      actor,
+      orderId: moved._id,
+      type: "order.updated",
+      forShop: false,
+      title: `Payment not completed: ${no}`,
+      body: `The payment didn't go through, so order ${no} was cancelled. Place it again whenever you like.`,
+    });
   } else if (to === "cancelled" && refunding) {
     const late = by.kind === "system";
     await notifyOrder(db, app.log, {

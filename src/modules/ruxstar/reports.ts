@@ -10,6 +10,7 @@ import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { DEFAULT_LIMIT, MAX_LIMIT, decodeCursor, encodeCursor } from "../../platform/pagination.js";
 import { notifyPostRemoved } from "../notifications/notify.js";
+import { notifyReportResolved } from "../notifications/notify-posts.js";
 import { clearPost } from "../social/takedown.js";
 import { RemoveBody, ReportList, ReportOne, ReportParams, ReportsQuery, type ReportCase } from "./contracts.js";
 
@@ -143,8 +144,9 @@ const reports: FastifyPluginAsyncTypebox = async (app) => {
       const database = db();
       const postId = new ObjectId(request.params.postId);
       const actor = actorOf(request);
-      await database.transaction(async (session) => {
+      const reporters = await database.transaction(async (session) => {
         const now = new Date();
+        const open = await database.reports.find({ "target.id": postId, status: "open" }, { session, projection: { userId: 1 } }).toArray();
         const { modifiedCount } = await database.reports.updateMany(
           { "target.id": postId, status: "open" },
           { $set: { status: "closed", outcome: "kept", closedBy: request.auth!.userId, closedAt: now } },
@@ -156,7 +158,9 @@ const reports: FastifyPluginAsyncTypebox = async (app) => {
           { actor, scope: { module: "social" }, action: "report.keep", target: { type: "post", id: postId }, diff: { openReports: { from: modifiedCount, to: 0 } }, ip: request.ip },
           session,
         );
+        return open.map((r) => r.userId);
       });
+      await notifyReportResolved(database, app.log, { to: reporters, moderator: request.auth!.userId, postId, outcome: "kept" });
       return ok(request, (await closedCase(postId))!);
     },
   );
@@ -182,7 +186,7 @@ const reports: FastifyPluginAsyncTypebox = async (app) => {
       const actor = actorOf(request);
       const me = request.auth!.userId;
 
-      const gone = await database.transaction(async (session) => {
+      const removed = await database.transaction(async (session) => {
         const now = new Date();
         const before = await database.posts.findOneAndUpdate(
           { _id: postId, status: "live" },
@@ -193,6 +197,7 @@ const reports: FastifyPluginAsyncTypebox = async (app) => {
           const exists = await database.posts.findOne({ _id: postId }, { session, projection: { _id: 1 } });
           throw exists ? new AppError("CONFLICT", "This post is no longer up.") : new AppError("NOT_FOUND", "Post not found.");
         }
+        const open = await database.reports.find({ "target.id": postId, status: "open" }, { session, projection: { userId: 1 } }).toArray();
         await database.reports.updateMany(
           { "target.id": postId, status: "open" },
           { $set: { status: "closed", outcome: "removed", closedBy: me, closedAt: now } },
@@ -210,11 +215,13 @@ const reports: FastifyPluginAsyncTypebox = async (app) => {
           },
           session,
         );
-        return before;
+        return { before, reporters: open.map((r) => r.userId) };
       });
 
+      const gone = removed.before;
       await clearPost(app, database, gone);
       await notifyPostRemoved(database, app.log, { to: gone.authorId, moderator: me, postId, reason });
+      await notifyReportResolved(database, app.log, { to: removed.reporters, moderator: me, postId, outcome: "removed" });
       const decided = await closedCase(postId);
       if (decided) return ok(request, decided);
       // Taken down without being reported: a closed case with no reports.

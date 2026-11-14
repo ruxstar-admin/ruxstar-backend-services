@@ -128,6 +128,10 @@ describe("team orders", () => {
     ]);
     expect(await tells(unverified)).toEqual([]);
     expect(await tells(shopOnly)).toEqual([]);
+    const placed = await stack.db.notifications.find({ userId: customer.userId, type: "order.updated" }).toArray();
+    expect(placed.map((x) => [x.title, x.body, x.link])).toEqual([
+      [`Order placed: #${order.orderNo}`, "Waiting for Rao Prints to accept it. If they don't within 6 hours, you're refunded.", { screen: "order", id: order.id }],
+    ]);
 
     const list = await call("GET", `/employment/${viewerPlace}/orders?view=new`, viewer.token);
     expect(list.statusCode).toBe(200);
@@ -178,6 +182,12 @@ describe("team orders", () => {
 
     const rejected = await move(rejecter, second.id, { status: "rejected", reason: "We're out of medium shirts." });
     expect(rejected.json().data).toMatchObject({ status: "rejected", reason: "We're out of medium shirts." });
+    const ownerHears = await stack.db.notifications.find({ userId: owner.userId, type: "order.updated" }).sort({ createdAt: 1, _id: 1 }).toArray();
+    expect(ownerHears.map((x) => [x.title, x.body, x.link])).toEqual([
+      [`Order #${first.orderNo} updated`, "Mover accepted.", { screen: "shop_order", id: first.id }],
+      [`Order #${first.orderNo} updated`, "Mover started printing.", { screen: "shop_order", id: first.id }],
+      [`Order #${second.orderNo} turned down`, "Rejecter turned it down.", { screen: "shop_order", id: second.id }],
+    ]);
 
     const refund = (u: User) => call("POST", `/employment/orders/${first.id}/refund`, u.token, { amount: 25_000, reason: "One shirt was misprinted" });
     expect((await refund(mover)).statusCode).toBe(403);

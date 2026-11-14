@@ -452,6 +452,8 @@ export type NotificationType =
   | "post.like"
   | "post.comment"
   | "post.removed"
+  | "post.mention"
+  | "report.resolved"
   | "kyc.approved"
   | "kyc.rejected"
   | "business.suspended"

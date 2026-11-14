@@ -12,6 +12,7 @@ import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { findPage } from "../../platform/pagination.js";
 import { notifyPostEvent } from "../notifications/notify.js";
+import { notifyFollowersOfPost, notifyMentions } from "../notifications/notify-posts.js";
 import { teamAccess } from "../team/team.js";
 import {
   CommentCreate,
@@ -429,6 +430,9 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
           ip: request.ip,
         });
       }
+      // After the answer: people mentioned hear about it on their notifications screen, and then the followers who were not already told.
+      void notifyMentions(db, app.log, { text, actor: { id: authorId }, postId })
+        .then((told) => notifyFollowersOfPost(db, app.log, { authorId, businessId, postId, text, hasPhotos: media.length > 0, skip: told }));
       return reply.status(201).send(ok(request, post!));
     },
   );
@@ -596,6 +600,7 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
         presentComments(db, [doc], userId),
       ]);
       void notifyPostEvent(db, app.log, { type: "post.comment", to: post.authorId, actor: { id: userId, name: comment!.author.name }, postId: post._id, excerpt: text });
+      void notifyMentions(db, app.log, { text, actor: { id: userId, name: comment!.author.name }, postId: post._id, skip: [post.authorId] });
       return reply.status(201).send(ok(request, comment!));
     },
   );

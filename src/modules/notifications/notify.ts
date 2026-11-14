@@ -13,10 +13,10 @@ interface PostEvent {
   excerpt?: string;
 }
 
-const clip = (text: string, max = 80) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
+export const clip = (text: string, max = 80) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
 
 /** Saves a notification for the notifications screen and sends it to the person's phones too. */
-async function save(db: Database, doc: NotificationDoc): Promise<void> {
+export async function save(db: Database, doc: NotificationDoc): Promise<void> {
   await db.notifications.insertOne(doc);
   announce(doc);
 }
@@ -164,6 +164,39 @@ export async function notifyOrder(
       link: { screen: event.forShop === "team" ? "work_order" : event.forShop ? "shop_order" : "order", id: event.orderId.toHexString() },
       readAt: null,
       createdAt: new Date(),
+    });
+  } catch (err) {
+    log.warn({ err: (err as Error).message, type: "order" }, "Notification not saved");
+  }
+}
+
+const TEAM_MOVES: Record<string, string> = {
+  accepted: "accepted",
+  printing: "started printing",
+  ready: "marked it ready",
+  out_for_delivery: "sent it out for delivery",
+  delivered: "marked it delivered",
+  rejected: "turned it down",
+};
+
+/** Tells a shop's owner that someone on the team moved an order, so the owner isn't surprised by it. Logged, never thrown. */
+export async function notifyTeamMove(
+  db: Database,
+  log: FastifyBaseLogger,
+  event: { owner: ObjectId; member: ObjectId; orderId: ObjectId; orderNo: number; status: string },
+): Promise<void> {
+  const did = TEAM_MOVES[event.status];
+  if (!did || event.owner.equals(event.member)) return;
+  try {
+    const member = await db.users.findOne({ _id: event.member }, { projection: { name: 1 } });
+    await notifyOrder(db, log, {
+      to: event.owner,
+      actor: event.member,
+      orderId: event.orderId,
+      type: "order.updated",
+      forShop: true,
+      title: `Order #${event.orderNo} ${event.status === "rejected" ? "turned down" : "updated"}`,
+      body: `${member?.name || "Someone on your team"} ${did}.`,
     });
   } catch (err) {
     log.warn({ err: (err as Error).message, type: "order" }, "Notification not saved");

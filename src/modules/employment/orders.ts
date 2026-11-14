@@ -21,6 +21,7 @@ import {
   TeamOrdersQuery,
   type TeamOrder,
 } from "../pod/contracts.js";
+import { notifyTeamMove } from "../notifications/notify.js";
 import { applyDue, dueApplied, refundPart } from "../pod/order-rules.js";
 import { fileLink, moveOrder, photoLinks, shopCanMove, shopOrderView, signingKey, type PhotoLinks } from "../pod/orders.js";
 import { AssignBody, DeliveryOptions } from "../delivery/contracts.js";
@@ -129,6 +130,7 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
         throw new AppError("VALIDATION_FAILED", "Tell the customer why.", [{ path: "body/reason", message: "Tell the customer why." }]);
       }
       const moved = await moveOrder(app, db(), doc, status, { kind: "vendor", actor: actorOf(request), ip: request.ip }, { reason: reason?.trim() ?? null });
+      await notifyTeamMove(db(), app.log, { owner: moved.vendorId, member: request.auth!.userId, orderId: moved._id, orderNo: moved.orderNo, status });
       return ok(request, teamOrderView(moved, photoLinks(app, request), place));
     },
   );

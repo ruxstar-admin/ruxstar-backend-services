@@ -14,6 +14,8 @@ const Notification = Strict({
     Type.Literal("post.like"),
     Type.Literal("post.comment"),
     Type.Literal("post.removed"),
+    Type.Literal("post.mention"),
+    Type.Literal("report.resolved"),
     Type.Literal("kyc.approved"),
     Type.Literal("kyc.rejected"),
     Type.Literal("business.suspended"),
@@ -90,7 +92,7 @@ const notifications: FastifyPluginAsyncTypebox = async (app) => {
         request,
         items.map((n) => ({
           id: n._id.toHexString(),
-          kind: n.type === "post.like" || n.type === "post.comment" ? ("social" as const) : ("account" as const),
+          kind: n.type === "post.like" || n.type === "post.comment" || n.type === "post.mention" ? ("social" as const) : ("account" as const),
           type: n.type,
           title: n.title,
           body: n.body,

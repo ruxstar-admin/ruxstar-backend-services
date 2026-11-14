@@ -90,9 +90,11 @@ describe("ruxstar console", () => {
     it("groups reports by post and keeps a post up", async () => {
       const author = await person("Post Author");
       const postId = await livePost(author);
+      const reporters: User[] = [];
       for (const reason of ["spam", "abuse"]) {
         const reporter = await person("Reporter");
         expect((await call("POST", `/social/posts/${postId}/report`, reporter.token, { reason })).statusCode).toBe(200);
+        reporters.push(reporter);
       }
 
       const open = (await call("GET", "/ruxstar/reports", admin.token)).json().data;
@@ -109,6 +111,11 @@ describe("ruxstar console", () => {
       expect((await call("POST", `/ruxstar/reports/${postId}/keep`, admin.token)).statusCode).toBe(409);
       expect((await call("GET", "/ruxstar/reports", admin.token)).json().data.some((r: { postId: string }) => r.postId === postId)).toBe(false);
       expect(await stack.db.auditLogs.findOne({ action: "report.keep", "target.id": new ObjectId(postId) })).not.toBeNull();
+      for (const reporter of reporters) {
+        const told = await stack.db.notifications.find({ userId: reporter.userId, type: "report.resolved" }).toArray();
+        expect(told.map((n) => [n.title, n.link])).toEqual([["We reviewed your report", { screen: "post", id: postId }]]);
+      }
+      expect(await stack.db.notifications.countDocuments({ userId: author.userId, type: "report.resolved" })).toBe(0);
     });
 
     it("removes a post, clears it and tells the author", async () => {
@@ -127,6 +134,8 @@ describe("ruxstar console", () => {
       expect(user?.social).toEqual({ posts: 0, engagements: 0 });
       const note = await stack.db.notifications.findOne({ userId: author.userId, type: "post.removed" });
       expect(note?.link).toEqual({ screen: "post", id: postId });
+      const thanked = await stack.db.notifications.findOne({ userId: reporter.userId, type: "report.resolved" });
+      expect(thanked).toMatchObject({ title: "Thanks for your report", body: "We reviewed the post you reported and took it down." });
       expect((await call("POST", `/ruxstar/reports/${postId}/remove`, admin.token, { reason: "Again, again" })).statusCode).toBe(409);
 
       const closed = (await call("GET", "/ruxstar/reports?status=closed", admin.token)).json().data;

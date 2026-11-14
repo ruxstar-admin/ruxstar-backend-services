@@ -1,5 +1,8 @@
+import { randomUUID } from "node:crypto";
+import { ObjectId } from "mongodb";
 import sharp from "sharp";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { mentionsIn } from "../src/modules/notifications/notify-posts.js";
 import type { UserRoles } from "../src/platform/db.js";
 import { signIn, startStack, web, type Stack } from "./helpers.js";
 
@@ -206,6 +209,55 @@ describe("likes, saves, comments and reports", () => {
     for (let i = 0; i < 2; i++) expect((await call("POST", `/social/posts/${post.id}/report`, reporter, { reason: "spam" })).statusCode).toBe(200);
     expect(await stack.db.reports.countDocuments({ "target.id": { $exists: true }, userId: reporter.userId })).toBe(1);
     expect((await call("POST", `/social/posts/${post.id}/report`, reporter, { reason: "rude" })).statusCode).toBe(400);
+  });
+});
+
+describe("mentions and new posts", () => {
+  async function onPhone(who: Person) {
+    const pushToken = randomUUID();
+    await stack.db.sessions.insertOne({
+      _id: new ObjectId(),
+      userId: who.userId,
+      client: "app",
+      pushToken,
+      expiresAt: new Date(Date.now() + 86_400_000),
+      revokedAt: null,
+      schemaVersion: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    return pushToken;
+  }
+  const mentions = async (who: Person) =>
+    (await stack.db.notifications.find({ userId: who.userId, type: "post.mention" }).toArray()).map((n) => [n.title, n.body, n.link]);
+
+  it("finds each @username once, not inside emails, and drops a trailing dot", () => {
+    expect(mentionsIn("Thanks @Asha.Rao and @asha.rao. Mail me at sam@shop.in, @ab is too short, @ravi_k.")).toEqual(["asha.rao", "ravi_k"]);
+  });
+
+  it("tells the people mentioned, never the author or anyone blocked, and pushes new posts to the other followers", async () => {
+    const author = await person("Mira Shah");
+    const friend = await person("Neel Das");
+    const blocked = await person("Kabir Sen");
+    const follower = await person("Lata Rao");
+    for (const who of [friend, blocked, follower]) await stack.db.follows.insertOne({ followerId: who.userId, followeeId: author.userId, createdAt: new Date() });
+    await stack.db.blocks.insertOne({ blockerId: blocked.userId, blockedId: author.userId, createdAt: new Date() });
+    const [friendPhone, blockedPhone, followerPhone] = await Promise.all([onPhone(friend), onPhone(blocked), onPhone(follower)]);
+
+    const text = `Hi @${friend.username} @${blocked.username} @${author.username}`;
+    const post = await makePost(author, { text });
+    await vi.waitFor(() => expect(stack.pushes.sent.filter((p) => p.to === followerPhone || p.to === friendPhone)).toHaveLength(2));
+    expect(await mentions(friend)).toEqual([["You were mentioned", `Mira Shah: ${text}`, { screen: "post", id: post.id }]]);
+    expect(await mentions(blocked)).toEqual([]);
+    expect(await mentions(author)).toEqual([]);
+    const sent = (token: string) => stack.pushes.sent.filter((p) => p.to === token).map((p) => p.title);
+    expect(sent(friendPhone)).toEqual(["You were mentioned"]);
+    expect(sent(followerPhone)).toEqual(["Mira Shah posted"]);
+    expect(sent(blockedPhone)).toEqual([]);
+
+    await call("POST", `/social/posts/${post.id}/comments`, friend, { text: `@${author.username} @${follower.username} look` });
+    await vi.waitFor(async () => expect(await mentions(follower)).toHaveLength(1));
+    expect(await mentions(author)).toEqual([]);
   });
 });
 

@@ -22372,6 +22372,18 @@
                               {
                                 "type": "string",
                                 "enum": [
+                                  "post.mention"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "report.resolved"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
                                   "kyc.approved"
                                 ]
                               },
