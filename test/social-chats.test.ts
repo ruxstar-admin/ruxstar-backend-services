@@ -150,6 +150,38 @@ describe("messages", () => {
     expect((await call("GET", `/social/chats/${chat.id}/messages`, asha)).json().data.map((m: { text: string }) => m.text)).toEqual(["One"]);
   });
 
+  it("catches up on more than 100 new messages over a few polls, without skipping any", async () => {
+    const asha = await person("Asha Catchup");
+    const ravi = await person("Ravi Catchup");
+    await follow(asha, ravi);
+    const chat = await dm(ravi, asha);
+    await say(ravi, chat.id, "Hi");
+    const start = Date.now() - 60 * 60_000;
+    await stack.db.chatMembers.updateMany({ conversationId: new ObjectId(chat.id) }, { $set: { joinedAt: new Date(start - 120_000) } });
+    await stack.db.chatMessages.insertMany(
+      Array.from({ length: 120 }, (_, i) => ({
+        _id: new ObjectId(),
+        conversationId: new ObjectId(chat.id),
+        senderId: ravi.userId,
+        kind: "text" as const,
+        text: `m${i}`,
+        postId: null,
+        photo: null,
+        status: "live" as const,
+        createdAt: new Date(start + i * 1000),
+        unsentAt: null,
+      })),
+    );
+
+    const first = (await call("GET", `/social/chats/${chat.id}/updates?since=${new Date(start - 60_000).toISOString()}`, asha)).json().data;
+    expect(first.messages).toHaveLength(100);
+    expect(new Date(first.now).getTime()).toBeLessThan(start + 105_000);
+    const second = (await call("GET", `/social/chats/${chat.id}/updates?since=${first.now}`, asha)).json().data;
+    const seen = new Set([...first.messages, ...second.messages].map((m: { text: string }) => m.text));
+    expect(Array.from({ length: 120 }, (_, i) => `m${i}`).every((t) => seen.has(t))).toBe(true);
+    expect(seen.has("Hi")).toBe(true);
+  });
+
   it("leaves muted chats out of the badge", async () => {
     const asha = await person("Asha Mute");
     const ravi = await person("Ravi Mute");

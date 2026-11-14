@@ -108,14 +108,16 @@ export const MessageList = ListEnvelope(Message);
 
 export const ChatUpdates = Envelope(
   Strict({
-    messages: Type.Array(Message, { description: "Sent since `since`, oldest first. Includes a few seconds before it, so merge by id." }),
+    messages: Type.Array(Message, {
+      description: "Sent since `since`, oldest first, up to 100. Includes a few seconds before it, so merge by id. When 100 come back, `now` is set so the next call picks up the rest.",
+    }),
     updated: Type.Array(Message, { description: "Older messages whose reactions changed since `since`. Replace the ones you have." }),
     unsent: Type.Array(ObjectIdString, { description: "Messages unsent since `since`. Remove them." }),
     seenAt: Type.Union([DateTime, Type.Null()]),
     activeAt: Type.Union([DateTime, Type.Null()], { description: "1:1 chats: when the other person last had Ruxstar open" }),
     typing: Type.Array(Author, { description: "Others typing right now. Hide each after about 6 seconds unless the next answer still has them." }),
     changed: Type.Boolean({ description: "The chat's name, people or admins changed. Fetch it again." }),
-    now: DateTime,
+    now: Type.String({ format: "date-time", description: "Send it as the next call's `since`." }),
   }),
 );
 

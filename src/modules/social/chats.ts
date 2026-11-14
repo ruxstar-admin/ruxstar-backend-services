@@ -801,6 +801,9 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
         conversation.kind === "dm" ? d.chatMembers.findOne({ conversationId: id, userId: { $ne: viewer } }, { projection: { readAt: 1, state: 1, userId: 1 } }) : null,
         d.chatMembers.find({ conversationId: id, userId: { $ne: viewer }, state: "active", typingUntil: { $gt: now } }, { projection: { userId: 1 } }).toArray(),
       ]);
+      // A long catch-up comes in pages: when this one is full, the next starts just before its last message, not now.
+      const last = messages.length === POLL_MAX ? messages.at(-1)! : null;
+      const next = last ? new Date(Math.min(now.getTime(), last.createdAt.getTime() + POLL_OVERLAP_MS - 1)) : now;
       const [messageList, updatedList, typists, activeAt] = await Promise.all([
         messageViews(request, messages),
         messageViews(request, updated),
@@ -815,7 +818,7 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
         activeAt,
         typing: [...typists.values()],
         changed: (conversation.changedAt ?? conversation.createdAt) > since,
-        now: now.toISOString(),
+        now: next.toISOString(),
       });
     },
   );

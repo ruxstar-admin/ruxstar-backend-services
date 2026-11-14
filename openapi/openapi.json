@@ -14689,7 +14689,7 @@
                             },
                             "additionalProperties": false
                           },
-                          "description": "Sent since `since`, oldest first. Includes a few seconds before it, so merge by id."
+                          "description": "Sent since `since`, oldest first, up to 100. Includes a few seconds before it, so merge by id. When 100 come back, `now` is set so the next call picks up the rest."
                         },
                         "updated": {
                           "type": "array",
@@ -15159,7 +15159,8 @@
                         },
                         "now": {
                           "type": "string",
-                          "format": "date-time"
+                          "format": "date-time",
+                          "description": "Send it as the next call's `since`."
                         }
                       },
                       "additionalProperties": false
