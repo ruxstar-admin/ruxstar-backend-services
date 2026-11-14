@@ -26,6 +26,8 @@ import teams from "./teams.js";
 import users from "./users.js";
 
 const ORDER = ["pod", "events", "coaching", "stays", "delivery", "ledger"];
+/** Vendors' withdrawals are set on the ledger module, delivery partners' on the delivery module. */
+const PAYOUT_MODULES: string[] = ["ledger", "delivery"];
 
 const view = (doc: ModuleSettingsDoc): ModuleSettings => ({
   module: doc.module,
@@ -33,7 +35,7 @@ const view = (doc: ModuleSettingsDoc): ModuleSettings => ({
   signupsOpen: doc.signupsOpen,
   commissionBps: doc.commissionBps,
   platformFee: doc.platformFee ?? 0,
-  payouts: doc.module === "ledger" ? { fee: doc.payoutFee ?? DEFAULT_PAYOUT_FEE, minimum: doc.minPayout ?? DEFAULT_MIN_PAYOUT } : null,
+  payouts: PAYOUT_MODULES.includes(doc.module) ? { fee: doc.payoutFee ?? DEFAULT_PAYOUT_FEE, minimum: doc.minPayout ?? DEFAULT_MIN_PAYOUT } : null,
   deliveryEnabled: doc.deliveryEnabled,
   gstinRequired: BUSINESS_MODULES.includes(doc.module) ? Boolean(doc.gstinRequired) : null,
   delivery:
@@ -86,7 +88,8 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: [requireRuxstar("modules.manage"), idempotent],
       schema: {
         tags: ["ruxstar"],
-        summary: "Switch a module on or off, or change its signups, commission, platform fee or delivery; on the ledger, the payout fee and minimum",
+        summary:
+          "Switch a module on or off, or change its signups, commission, platform fee or delivery; the payout fee and minimum on the ledger (vendors) and delivery (partners)",
         params: ModuleParams,
         body: ModuleSettingsPatch,
         response: { 200: ModuleSettingsOne, ...Errors },
@@ -103,9 +106,9 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
         const before = await db.moduleSettings.findOne({ module }, { session });
         if (!before) throw new AppError("NOT_FOUND", "Module not found.");
         const payoutsChanged = changes.payoutFee !== undefined || changes.minPayout !== undefined;
-        if (payoutsChanged && module !== "ledger") {
-          throw new AppError("VALIDATION_FAILED", "The payout fee and minimum are set on the ledger module.", [
-            { path: "body/payoutFee", message: "Ledger only" },
+        if (payoutsChanged && !PAYOUT_MODULES.includes(module)) {
+          throw new AppError("VALIDATION_FAILED", "The payout fee and minimum are set on the ledger module, or the delivery module for partners.", [
+            { path: "body/payoutFee", message: "Ledger or delivery only" },
           ]);
         }
         if (changes.gstinRequired !== undefined && !BUSINESS_MODULES.includes(module)) {

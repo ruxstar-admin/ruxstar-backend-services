@@ -3,6 +3,7 @@ import { ObjectId } from "mongodb";
 import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import type { FakePayouts } from "../src/adapters/payouts.js";
 import { DEFAULT_RIDER_RATE, rateFor, roadKm } from "../src/modules/delivery/rates.js";
 import { stamp } from "../src/platform/db.js";
 import { forgetModuleState } from "../src/platform/module-switch.js";
@@ -40,12 +41,17 @@ describe("delivery", () => {
       stack.db.deliveryJobs.deleteMany({}),
       stack.db.riderStates.deleteMany({}),
       stack.db.kycCases.deleteMany({}),
+      stack.db.payouts.deleteMany({}),
+      stack.db.riderPayoutMethods.deleteMany({}),
     ]);
     await stack.db.moduleSettings.updateOne(
       { module: "pod" },
       { $set: { live: true, signupsOpen: true, commissionBps: 1000, platformFee: 500, deliveryEnabled: true }, $unset: { gstinRequired: "" } },
     );
-    await stack.db.moduleSettings.updateOne({ module: "delivery" }, { $set: { live: true }, $unset: { riderRate: "", shopFeeMax: "", offerMinutes: "" } });
+    await stack.db.moduleSettings.updateOne(
+      { module: "delivery" },
+      { $set: { live: true }, $unset: { riderRate: "", shopFeeMax: "", offerMinutes: "", payoutFee: "", minPayout: "" } },
+    );
     forgetModuleState();
   });
 
@@ -350,7 +356,7 @@ describe("delivery", () => {
     const ledger = await stack.db.ledgerEntries.find({ txnId: `rider_pay:${order.id}` }).toArray();
     expect(ledger.map((e) => [e.accountId, e.bucket, e.signedPaise]).sort()).toEqual(
       [
-        [`rider:${asha.userId.toHexString()}`, "withdrawable", pay],
+        [`rider:${asha.userId.toHexString()}`, "pending", pay],
         [`vendor:${owner.userId.toHexString()}`, "pending", -pay],
       ].sort(),
     );
@@ -359,8 +365,99 @@ describe("delivery", () => {
     expect(shopSide.delivery).toMatchObject({ status: "delivered", rider: { name: "Asha" } });
     expect(await sent(owner, "order.updated")).toContain(`Order #${order.orderNo} delivered`);
     const earnings = (await call("GET", "/delivery/earnings", asha.token)).json().data;
-    expect(earnings).toMatchObject({ balance: pay, today: pay, week: pay, trips: 1, withdrawals: false });
+    expect(earnings).toMatchObject({
+      balance: { available: 0, pending: pay, paidOut: 0 },
+      today: pay,
+      week: pay,
+      trips: 1,
+      upcoming: [{ orderId: order.id, orderNo: order.orderNo, amount: pay, held: false }],
+      withdrawal: { minimum: 10_000, fee: 590 },
+      payoutMethod: null,
+      payouts: [],
+    });
   }, 90_000);
+
+  /** A ready order offered to Ruxstar partners, taken by `rider` and delivered. */
+  async function partnerDelivers(owner: User, shopId: string, customer: User, rider: User) {
+    const order = await paid(customer, shopId);
+    await ready(owner, order.id);
+    expect((await call("POST", `/vendor/orders/${order.id}/delivery`, owner.token, { carrier: "partner" })).statusCode).toBe(200);
+    const jobId = (await stack.db.podOrders.findOne({ _id: new ObjectId(order.id) }))!.delivery!.jobId.toHexString();
+    await step(rider, jobId, "accept");
+    await step(rider, jobId, "pickup");
+    await putPhoto(`/delivery/jobs/${jobId}/photo`, rider.token);
+    expect((await step(rider, jobId, "deliver", { code: await codeOf(order.id) })).json().data.status).toBe("delivered");
+    return order;
+  }
+
+  it("holds a partner's pay for 48 hours, longer only while a 'not received' report is open, then lets them withdraw it", async () => {
+    const owner = await person({ vendor: true, verified: true });
+    const shopId = await teeShop(owner);
+    const customer = await signIn(stack);
+    const asha = await partner("Asha");
+    const pay = rateFor(DEFAULT_RIDER_RATE, roadKm(SHOP_POINT, DROP_POINT));
+    const first = await partnerDelivers(owner, shopId, customer, asha);
+    const second = await partnerDelivers(owner, shopId, customer, asha);
+    const fake = stack.app.payouts as FakePayouts;
+    fake.next = "paid";
+    const earnings = async () => (await call("GET", "/delivery/earnings", asha.token)).json().data;
+    const sweep = () => stack.app.inject({ method: "POST", url: "/jobs/orders", headers: { authorization: `Bearer ${JOB_TOKEN}` } });
+    const holdOver = (id: string) =>
+      stack.db.podOrders.updateOne({ _id: new ObjectId(id) }, { $set: { "delivery.releaseAt": new Date(Date.now() - 60_000) } });
+
+    expect((await call("POST", `/pod/orders/${second.id}/problem`, customer.token, { kind: "not_received", note: "Nothing arrived" })).statusCode).toBe(200);
+    await holdOver(first.id);
+    await holdOver(second.id);
+    expect((await sweep()).json().riderPay).toBe(1);
+    const now = await earnings();
+    expect(now.balance).toEqual({ available: pay, pending: pay, paidOut: 0 });
+    expect(now.upcoming).toEqual([expect.objectContaining({ orderId: second.id, held: true })]);
+
+    const staff = (await call("GET", "/ruxstar/held-orders", admin.token)).json().data;
+    expect(staff.find((o: { id: string }) => o.id === second.id).partner).toMatchObject({ rider: { name: "Asha" }, amount: pay, held: true });
+    expect(staff.find((o: { id: string }) => o.id === first.id).partner).toBeNull();
+
+    // Ruxstar settles it without a refund: the partner keeps their pay and it is released on the next look.
+    await stack.db.podOrders.updateOne({ _id: new ObjectId(second.id) }, { $set: { "problem.status": "resolved" } });
+    expect((await earnings()).balance).toEqual({ available: 2 * pay, pending: 0, paidOut: 0 });
+
+    expect((await call("POST", "/delivery/payouts", asha.token)).json().error.code).toBe("PAYOUT_METHOD_REQUIRED");
+    const method = await stack.app.inject({
+      method: "PUT",
+      url: "/v1/delivery/payout-method",
+      headers: web(asha.token),
+      payload: { kind: "upi", vpa: "Asha@OKHDFC" },
+    });
+    expect(method.json().data).toMatchObject({ kind: "upi", label: "asha@okhdfc" });
+    expect(await stack.db.payoutMethods.countDocuments({ userId: asha.userId })).toBe(0);
+    expect((await call("GET", "/delivery/payout-method", asha.token)).json().data).toMatchObject({ label: "asha@okhdfc" });
+
+    await call("PATCH", "/ruxstar/modules/delivery", admin.token, { payoutFee: 500, minPayout: 2 * pay + 1 });
+    expect((await call("POST", "/delivery/payouts", asha.token)).json().error.code).toBe("PAYOUT_TOO_SMALL");
+    const rules = await call("PATCH", "/ruxstar/modules/delivery", admin.token, { minPayout: 1_000 });
+    expect(rules.json().data.payouts).toEqual({ fee: 500, minimum: 1_000 });
+    const payout = (await call("POST", "/delivery/payouts", asha.token)).json().data;
+    expect(payout).toMatchObject({ amount: 2 * pay, fee: 500, status: "paid", to: "asha@okhdfc" });
+    expect([...fake.transfers.values()].at(-1)).toMatchObject({ amount: 2 * pay - 500, to: { kind: "upi", vpa: "asha@okhdfc" } });
+
+    const after = await earnings();
+    expect(after.balance).toEqual({ available: 0, pending: 0, paidOut: 2 * pay });
+    expect(after.payouts).toEqual([expect.objectContaining({ id: payout.id, status: "paid" })]);
+    const lines = (await call("GET", "/delivery/earnings/statement", asha.token)).json().data;
+    expect(lines.map((l: { kind: string; amount: number }) => [l.kind, l.amount])).toEqual([
+      ["withdrawal", -2 * pay],
+      ["available", pay],
+      ["available", pay],
+      ["earned", pay],
+      ["earned", pay],
+    ]);
+    expect(await stack.db.notifications.findOne({ userId: asha.userId, type: "payout.updated", "link.screen": "delivery_earnings" })).not.toBeNull();
+
+    // The console lists it with vendors' withdrawals, marked as a partner's; the shop's own Payments doesn't show it.
+    const listed = (await call("GET", "/ruxstar/payouts?status=paid", admin.token)).json().data;
+    expect(listed.find((p: { id: string }) => p.id === payout.id)).toMatchObject({ payee: "partner", vendor: { name: "Asha" } });
+    expect((await call("GET", "/vendor/payments", owner.token)).json().data.payouts).toEqual([]);
+  }, 120_000);
 
   it("sends the order back to the shop when an offer runs out, the shop cancels, or the rider gives it up", async () => {
     const owner = await person({ vendor: true, verified: true });

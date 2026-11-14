@@ -3,6 +3,7 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { Config } from "../config.js";
 import { requireDatabase } from "../platform/context.js";
 import { AppError } from "../platform/errors.js";
+import { sweepRiderPay } from "./delivery/pay.js";
 import { sweepOffers } from "./delivery/trips.js";
 import { sweepOrders } from "./pod/order-rules.js";
 import { sweepPayouts } from "./vendor/payouts.js";
@@ -41,9 +42,10 @@ export function jobs(auth: JobAuth | null): FastifyPluginAsync {
       const db = requireDatabase(app.db);
       const offers = await sweepOffers(app, db);
       const counts = await sweepOrders(app, db);
+      const riderPay = await sweepRiderPay(db);
       const payouts = await sweepPayouts(app, db);
-      request.log.info({ job: "orders", ...counts, payouts, offers }, "Order timers, delivery offers and payouts swept");
-      return { ok: true, ...counts, payouts, offers };
+      request.log.info({ job: "orders", ...counts, riderPay, payouts, offers }, "Order timers, delivery offers, partners' pay and payouts swept");
+      return { ok: true, ...counts, riderPay, payouts, offers };
     });
   };
 }
