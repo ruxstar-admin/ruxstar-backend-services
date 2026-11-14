@@ -52,6 +52,18 @@ const CATALOGS: Partial<Record<BusinessDoc["module"], PermissionInfo[]>> = {
       needs: "tickets.scan",
     },
   ].map(info),
+  coaching: [
+    { key: "classes.view", label: "See their batches and students", hint: "Only the batches you assign them to, with the class list", needs: null },
+    { key: "classes.attendance", label: "Mark attendance", hint: "Tick who came to each class", needs: "classes.view" },
+    { key: "classes.message", label: "Message students and parents", hint: "Send a message to everyone in their batches", needs: "classes.view" },
+    { key: "classes.materials", label: "Upload materials", hint: "Notes, worksheets and links for their batches", needs: "classes.view" },
+    {
+      key: "classes.reschedule",
+      label: "Cancel or move a class",
+      hint: "Everyone in the batch is told. Nothing is refunded. They can also add an extra class",
+      needs: "classes.view",
+    },
+  ].map(info),
 };
 
 /** Every permission once, for labelling places at any kind of business. */

@@ -14,6 +14,7 @@ import { findPage } from "../../platform/pagination.js";
 import { signingKey } from "../pod/orders.js";
 import { requireVendor } from "../vendor/businesses.js";
 import { POD_PRODUCTS } from "../vendor/catalog.js";
+import { COURSE_CATEGORIES } from "../coaching/rules.js";
 import { INDIAN_STATES } from "../vendor/india.js";
 import {
   GstModuleOne,
@@ -236,7 +237,7 @@ export const vendorInvoices: FastifyPluginAsyncTypebox = async (app) => {
 const ITEM_KEYS: Partial<Record<GstModule, readonly string[]>> = {
   pod: POD_PRODUCTS,
   events: ["show", "sports", "meetup"],
-  coaching: ["coaching"],
+  coaching: COURSE_CATEGORIES,
   stays: ["pg", "hostel"],
 };
 

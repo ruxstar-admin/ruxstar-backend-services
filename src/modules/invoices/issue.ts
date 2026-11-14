@@ -1,6 +1,7 @@
 import { ObjectId, type ClientSession } from "mongodb";
 import type {
   BusinessDoc,
+  CoachingOrderDoc,
   Database,
   EventOrderDoc,
   GstModule,
@@ -139,6 +140,7 @@ async function remember(db: Database, type: SourceType, id: ObjectId, refs: Invo
   if (!refs.length) return;
   const update = { $push: { invoices: { $each: refs } } };
   if (type === "pod_order") await db.podOrders.updateOne({ _id: id }, update, { session });
+  else if (type === "coaching_order") await db.coachingOrders.updateOne({ _id: id }, update, { session });
   else await db.eventOrders.updateOne({ _id: id }, update, { session });
 }
 
@@ -332,6 +334,49 @@ export async function invoiceEventOrder(db: Database, order: EventOrderDoc, sess
       },
       platformFee: order.price.platformFee,
       ruxstarDiscount: 0,
+    },
+    session,
+  );
+}
+
+export async function invoiceCoachingOrder(db: Database, order: CoachingOrderDoc, session: ClientSession): Promise<InvoiceRefDoc[]> {
+  const business = await db.businesses.findOne({ _id: order.businessId }, { session });
+  const course = await db.coachingCourses.findOne({ _id: order.courseId }, { session, projection: { category: 1, venue: 1 } });
+  const customer = await db.users.findOne({ _id: order.customerId }, { session, projection: { name: 1 } });
+  // Classes are supplied where they're taught; online ones where the institute is.
+  const state = course?.venue ? (stateOfPlace(course.venue.city) ?? business?.location?.state ?? null) : null;
+  const discount = order.price.discount ?? 0;
+  const vendorDiscount = order.price.coupon?.fundedBy === "vendor" ? discount : 0;
+  return issue(
+    db,
+    {
+      module: "coaching",
+      source: { type: "coaching_order", id: order._id, orderNo: order.orderNo },
+      business,
+      businessId: order.businessId,
+      businessName: business?.name ?? order.businessName,
+      vendorId: order.vendorId,
+      customerId: order.customerId,
+      buyer: party({ name: customer?.name ?? order.student.name, legalName: null, gstin: null, address: null, state: null }),
+      supplyState: state,
+      feeState: null,
+      lines: (rules) => {
+        const rate = rateFor(rules, course?.category ?? null);
+        return [
+          {
+            description: `${order.kind === "demo" ? "Demo class" : "Batch fee"}: ${order.courseTitle}, ${order.batchName} (${order.student.name})`,
+            code: rate.code,
+            codeKind: rate.codeKind,
+            quantity: 1,
+            unitPrice: order.price.items,
+            discount: vendorDiscount,
+            value: order.price.items - vendorDiscount,
+            rateBps: bpsAt(rate, order.price.items),
+          },
+        ];
+      },
+      platformFee: order.price.platformFee,
+      ruxstarDiscount: order.price.coupon?.fundedBy === "ruxstar" ? discount : 0,
     },
     session,
   );

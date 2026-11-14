@@ -332,6 +332,35 @@ export async function notifyEvent(
   }
 }
 
+/** Enrolments, demo classes, class changes and batch messages, each person with their own link. Logged, never thrown. */
+export async function notifyCoaching(
+  db: Database,
+  log: FastifyBaseLogger,
+  event: { actor: ObjectId; type: "coaching.enrolled" | "coaching.updated"; title: string; body: string; to: { userId: ObjectId; link: NotificationDoc["link"] }[] },
+): Promise<void> {
+  const seen = new Set<string>();
+  const to = event.to.filter(({ userId }) => !seen.has(userId.toHexString()) && seen.add(userId.toHexString()));
+  if (!to.length) return;
+  const now = new Date();
+  const docs: NotificationDoc[] = to.map(({ userId, link }) => ({
+    _id: new ObjectId(),
+    userId,
+    type: event.type,
+    actorId: event.actor,
+    title: clip(event.title, 60),
+    body: clip(event.body, 140),
+    link,
+    readAt: null,
+    createdAt: now,
+  }));
+  try {
+    await db.notifications.insertMany(docs);
+    for (const doc of docs) announce(doc);
+  } catch (err) {
+    log.warn({ err: (err as Error).message, type: event.type }, "Notification not saved");
+  }
+}
+
 /** Tells a customer Ruxstar answered or resolved their help ticket, which `support` opens. Logged, never thrown. */
 export async function notifySupport(
   db: Database,

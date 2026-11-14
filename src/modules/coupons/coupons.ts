@@ -70,19 +70,19 @@ interface History {
 }
 
 async function historyOf(db: Database, customerId: ObjectId, couponIds: ObjectId[]): Promise<History> {
-  const [redemptions, unpaid, orderedFrom] = await Promise.all([
+  const unpaidFilter = { customerId, status: "awaiting_payment" as const, "price.coupon.id": { $in: couponIds }, createdAt: { $gt: new Date(Date.now() - UNPAID_HOLD_MS) } };
+  const [redemptions, unpaid, unpaidClasses, orderedFrom, enrolledAt] = await Promise.all([
     db.couponRedemptions.find({ couponId: { $in: couponIds }, customerId }, { projection: { couponId: 1 } }).toArray(),
-    db.podOrders
-      .find(
-        { customerId, status: "awaiting_payment", "price.coupon.id": { $in: couponIds }, createdAt: { $gt: new Date(Date.now() - UNPAID_HOLD_MS) } },
-        { projection: { "price.coupon.id": 1 } },
-      )
-      .toArray(),
+    db.podOrders.find(unpaidFilter, { projection: { "price.coupon.id": 1 } }).toArray(),
+    db.coachingOrders.find(unpaidFilter, { projection: { "price.coupon.id": 1 } }).toArray(),
     db.podOrders.distinct("shopId", { customerId, status: { $in: PAID } }),
+    db.coachingOrders.distinct("businessId", { customerId, "payment.paidAt": { $type: "date" } }),
   ]);
-  const ids = [...redemptions.map((r) => r.couponId), ...unpaid.map((o) => o.price.coupon!.id)];
-  return { uses: (couponId) => ids.filter((id) => id.equals(couponId)).length, orderedFrom };
+  const ids = [...redemptions.map((r) => r.couponId), ...unpaid.map((o) => o.price.coupon!.id), ...unpaidClasses.map((o) => o.price.coupon!.id)];
+  return { uses: (couponId) => ids.filter((id) => id.equals(couponId)).length, orderedFrom: [...orderedFrom, ...enrolledAt] };
 }
+
+const WHERE: Partial<Record<SwitchableModule, string>> = { pod: "print orders", coaching: "classes" };
 
 function problemOf(coupon: CouponDoc, ctx: CouponContext, history: History, now: Date): Problem | null {
   const state = stateOf(coupon, now);
@@ -90,7 +90,7 @@ function problemOf(coupon: CouponDoc, ctx: CouponContext, history: History, now:
   if (state === "scheduled") return { reason: "scheduled", text: `This coupon starts on ${shortDate(coupon.startsAt!)}.` };
   if (state === "ended") return { reason: "ended", text: "This coupon has ended." };
   if (state === "used_up") return { reason: "used_up", text: "This coupon has been used up." };
-  if (!coupon.modules.includes(ctx.module)) return { reason: "module", text: "This coupon isn't for print orders." };
+  if (!coupon.modules.includes(ctx.module)) return { reason: "module", text: `This coupon isn't for ${WHERE[ctx.module] ?? "this"}.` };
   if (coupon.fundedBy === "vendor" && !coupon.businessIds.some((id) => id.equals(ctx.shop.id))) {
     return { reason: "shop", text: `This coupon doesn't work at ${ctx.shop.name}.` };
   }
@@ -175,8 +175,15 @@ export function withCoupon(price: Omit<PodOrderDoc["price"], "discount" | "coupo
 
 // Uses, counted when the payment goes through and given back on a full refund.
 
+/** A paid order of any module that can carry a coupon. */
+interface CouponOrder {
+  _id: ObjectId;
+  customerId: ObjectId;
+  price: { discount?: number; coupon?: { id: ObjectId } | null };
+}
+
 /** In the payment's transaction. A use that arrives after the limit was reached still counts: the customer has paid that price. */
-export async function redeem(db: Database, order: PodOrderDoc, session: ClientSession): Promise<void> {
+export async function redeem(db: Database, order: CouponOrder, session: ClientSession): Promise<void> {
   const coupon = order.price.coupon;
   if (!coupon) return;
   try {
@@ -191,7 +198,7 @@ export async function redeem(db: Database, order: PodOrderDoc, session: ClientSe
   await db.coupons.updateOne({ _id: coupon.id }, { $inc: { used: 1 } }, { session });
 }
 
-export async function giveBack(db: Database, order: PodOrderDoc, session: ClientSession): Promise<void> {
+export async function giveBack(db: Database, order: CouponOrder, session: ClientSession): Promise<void> {
   const coupon = order.price.coupon;
   if (!coupon) return;
   const removed = await db.couponRedemptions.deleteOne({ orderId: order._id }, { session });
@@ -231,7 +238,7 @@ export async function createCoupon(
     fundedBy: input.fundedBy,
     vendorId: input.vendorId,
     businessIds: input.businessIds,
-    modules: ["pod"],
+    modules: input.fundedBy === "vendor" ? await modulesOf(db, input.businessIds) : (body.modules ?? ["pod"]),
     kind: body.kind,
     value: body.value,
     cap: body.kind === "percent" ? (body.cap ?? null) : null,
@@ -296,7 +303,10 @@ export async function updateCoupon(
   if (body.firstOrderOnly !== undefined) set.firstOrderOnly = body.firstOrderOnly;
   if (body.listed !== undefined) set.listed = body.listed;
   if (body.active !== undefined) set.active = body.active;
-  if (input.businessIds) set.businessIds = input.businessIds;
+  if (input.businessIds) {
+    set.businessIds = input.businessIds;
+    if (coupon.fundedBy === "vendor") set.modules = await modulesOf(db, input.businessIds);
+  }
   checkTerms({ ...coupon, ...set });
 
   const diff: Record<string, { from: unknown; to: unknown }> = {};
@@ -322,12 +332,21 @@ export async function updateCoupon(
   return after;
 }
 
-/** A vendor's own print shops, by id, for the coupon's `businessIds`. */
+/** A vendor's coupon works in the modules of the businesses it's for. */
+async function modulesOf(db: Database, businessIds: ObjectId[]): Promise<SwitchableModule[]> {
+  const modules: string[] = await db.businesses.distinct("module", { _id: { $in: businessIds } });
+  return COUPON_MODULES.filter((m) => modules.includes(m));
+}
+const COUPON_MODULES: SwitchableModule[] = ["pod", "coaching"];
+
+/** A vendor's own print shops and coaching businesses, by id, for the coupon's `businessIds`. */
 export async function vendorShops(db: Database, vendorId: ObjectId, ids: string[]): Promise<ObjectId[]> {
   const objectIds = ids.map((id) => new ObjectId(id));
-  const found = await db.businesses.find({ _id: { $in: objectIds }, ownerId: vendorId, module: "pod" }, { projection: { _id: 1 } }).toArray();
+  const found = await db.businesses
+    .find({ _id: { $in: objectIds }, ownerId: vendorId, module: { $in: ["pod", "coaching"] } }, { projection: { _id: 1 } })
+    .toArray();
   ids.forEach((id, i) => {
-    if (!found.some((b) => b._id.toHexString() === id)) throw invalid(`body/businessIds/${i}`, "Pick one of your print shops.");
+    if (!found.some((b) => b._id.toHexString() === id)) throw invalid(`body/businessIds/${i}`, "Pick one of your print shops or coaching businesses.");
   });
   return objectIds;
 }

@@ -33,6 +33,20 @@ const EventRules = Strict(
   { description: "The events module only" },
 );
 
+const CoachingRules = Strict(
+  {
+    certificatePercent: Type.Integer({ minimum: 1, maximum: 100, description: "The share of classes a student must attend for a certificate, unless a course sets its own" }),
+    minimumHours: Type.Integer({ minimum: 1, maximum: 168, description: "A batch short of its minimum this many hours before the first class is cancelled and refunded" }),
+    maxBatchSize: Type.Integer({ minimum: 1, maximum: 1000 }),
+    maxClasses: Type.Integer({ minimum: 1, maximum: 500, description: "Classes in one batch, extra ones included" }),
+    maxBatches: Type.Integer({ minimum: 1, maximum: 100, description: "Batches running or to come in one course" }),
+    maxDemoFee: Type.Integer({ minimum: 0, maximum: 10_000_00, description: "Paise, the most a demo class can cost" }),
+    maxDemoSeats: Type.Integer({ minimum: 1, maximum: 50, description: "Demo students in one class" }),
+    joinMinutes: Type.Integer({ minimum: 0, maximum: 120, description: "An online class's link shows this many minutes before it starts" }),
+  },
+  { description: "The coaching module only" },
+);
+
 export const ModuleSettings = Strict({
   module: ModuleName,
   live: Type.Boolean(),
@@ -61,6 +75,7 @@ export const ModuleSettings = Strict({
     ),
   ),
   eventRules: Nullable(EventRules),
+  coachingRules: Nullable(CoachingRules),
   permissionCatalog: Type.Array(Type.String()),
   updatedAt: DateTime,
 });
@@ -91,6 +106,9 @@ export const ModuleSettingsPatch = Strict(
     ),
     offerMinutes: Type.Optional(Type.Integer({ minimum: 1, maximum: 120 })),
     eventRules: Type.Optional(Type.Partial(EventRules, { additionalProperties: false, minProperties: 1, description: "Events only. Send only what changes." })),
+    coachingRules: Type.Optional(
+      Type.Partial(CoachingRules, { additionalProperties: false, minProperties: 1, description: "Coaching only. Send only what changes." }),
+    ),
   },
   { minProperties: 1 },
 );

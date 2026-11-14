@@ -21,6 +21,11 @@ export const TeamPermission = Type.Union(
     Type.Literal("orders.deliver"),
     Type.Literal("tickets.scan"),
     Type.Literal("tickets.guests"),
+    Type.Literal("classes.view"),
+    Type.Literal("classes.attendance"),
+    Type.Literal("classes.message"),
+    Type.Literal("classes.materials"),
+    Type.Literal("classes.reschedule"),
   ],
   { description: "What the owner lets this person do at the business. Each kind of business offers its own; GET its team lists them" },
 );

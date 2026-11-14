@@ -474,7 +474,9 @@ export type NotificationType =
   | "support.resolved"
   | "kyc.reopened"
   | "event.ticket"
-  | "event.updated";
+  | "event.updated"
+  | "coaching.enrolled"
+  | "coaching.updated";
 
 export interface NotificationDoc {
   _id: ObjectId;
@@ -491,7 +493,9 @@ export interface NotificationDoc {
    * `team` opens a business's Team in the vendor portal (its id is the business); `reviews` a business's reviews there, and
    * `work_reviews` the same reviews in the Work area (its id is the place on the team). `delivery_job` opens a job in the
    * delivery app. `support` opens one of your help tickets. `event` opens an event's page, `event_order` a customer's tickets
-   * for one (its id is the ticket order), and `vendor_event` an event in the vendor portal.
+   * for one (its id is the ticket order), and `vendor_event` an event in the vendor portal. `coaching_course` opens a course's
+   * page, `coaching_order` a customer's enrolment or demo class, `vendor_course` a course in the vendor portal, and
+   * `coaching_batch` a batch's classes for its owner or coaches.
    */
   link: {
     screen:
@@ -512,7 +516,11 @@ export interface NotificationDoc {
       | "support"
       | "event"
       | "event_order"
-      | "vendor_event";
+      | "vendor_event"
+      | "coaching_course"
+      | "coaching_order"
+      | "vendor_course"
+      | "coaching_batch";
     id: string;
   };
   readAt: Date | null;
@@ -577,6 +585,8 @@ export interface ModuleSettingsDoc extends Stamped {
   offerMinutes?: number;
   /** The events module only. Missing: the defaults in the events module. */
   eventRules?: EventRules;
+  /** The coaching module only. Missing: the defaults in the coaching module. */
+  coachingRules?: CoachingRules;
   deliveryEnabled: boolean;
   permissionCatalog: string[];
   updatedBy: ObjectId | null;
@@ -592,6 +602,25 @@ export interface EventRules {
   maxTicketTypes: number;
   /** Questions an organiser can ask each ticket holder. */
   maxQuestions: number;
+}
+
+/** What Ruxstar sets for coaching. */
+export interface CoachingRules {
+  /** The share of classes a student must attend for a certificate, until a course sets its own. */
+  certificatePercent: number;
+  /** A batch short of its minimum this many hours before its first class is cancelled and refunded. */
+  minimumHours: number;
+  maxBatchSize: number;
+  /** Classes in one batch, extra ones included. */
+  maxClasses: number;
+  /** Batches running or to come in one course. */
+  maxBatches: number;
+  /** Paise, the most a demo class can cost. */
+  maxDemoFee: number;
+  /** Demo students in one class. */
+  maxDemoSeats: number;
+  /** An online class's link shows this many minutes before it starts. */
+  joinMinutes: number;
 }
 
 /** A file a customer uploaded to print. Unused ones are deleted a day later, on the uploader's next upload. */
@@ -800,7 +829,7 @@ export interface LedgerEntryDoc {
   accountId: string;
   bucket: "pending" | "withdrawable";
   signedPaise: number;
-  source: { type: "pod_order" | "event_order" | "payout"; id: ObjectId };
+  source: { type: "pod_order" | "event_order" | "coaching_order" | "payout"; id: ObjectId };
   at: Date;
 }
 
@@ -966,7 +995,7 @@ export interface InvoiceDoc extends Stamped {
   /** `supply`: what was bought; `fee`: Ruxstar's platform fee. */
   role: "supply" | "fee";
   module: GstModule;
-  source: { type: "pod_order" | "event_order"; id: ObjectId; orderNo: number };
+  source: { type: "pod_order" | "event_order" | "coaching_order"; id: ObjectId; orderNo: number };
   businessId: ObjectId;
   businessName: string;
   vendorId: ObjectId;
@@ -1042,6 +1071,206 @@ export interface EventWaitDoc {
   updatedAt: Date;
 }
 
+export type CourseCategory = "tuition" | "exam_prep" | "music" | "dance" | "sports" | "fitness" | "art" | "languages" | "tech" | "other";
+
+/** A course from a coaching business: taught at its venue or online live, in one or more batches. */
+export interface CoachingCourseDoc extends Stamped {
+  _id: ObjectId;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  businessName: string;
+  title: string;
+  description: string | null;
+  category: CourseCategory;
+  mode: "offline" | "online";
+  /** Offline courses only. */
+  venue: { name: string; address: string; city: string; point: { lat: number; lng: number } | null } | null;
+  /** Lower case, for the city filter; null for online courses. */
+  city: string | null;
+  /** One demo class per student per course, in any upcoming class with a demo place. A fee of 0 is free. */
+  demo: { fee: number; seats: number } | null;
+  /** The share of held classes a student must attend for the certificate. */
+  certificatePercent: number;
+  photo: BusinessPhoto | null;
+  /** `removed`: taken down by the Ruxstar team. */
+  status: "draft" | "live" | "removed";
+  publishedAt: Date | null;
+  removal: { actorId: ObjectId; reason: string; at: Date } | null;
+}
+
+/** A weekly class time. `day` is 0 for Sunday to 6 for Saturday; `start` is HH:MM in India. */
+export interface CoachingSlot {
+  day: number;
+  start: string;
+  minutes: number;
+}
+
+/** One group of students on a weekly schedule. The full fee is paid up front. */
+export interface CoachingBatchDoc extends Stamped {
+  _id: ObjectId;
+  courseId: ObjectId;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  name: string;
+  /** Paise for the whole batch. */
+  fee: number;
+  capacity: number;
+  /** Not taken by a paid enrolment or one waiting for payment. */
+  seatsLeft: number;
+  /** Cancelled with full refunds when fewer have enrolled `minimumHours` before the first class. */
+  minStudents: number | null;
+  /** Set once the minimum was checked, whatever the answer. */
+  minimumCheckedAt: Date | null;
+  slots: CoachingSlot[];
+  /** YYYY-MM-DD in India. Classes run from here for `classes` classes, or until `endDate`. */
+  startDate: string;
+  classes: number | null;
+  endDate: string | null;
+  /** Online courses: the meeting link, shown to enrolled students shortly before each class. */
+  onlineLink: string | null;
+  /** Team members who teach it. */
+  coachIds: ObjectId[];
+  /** The first and last classes not cancelled, kept up to date as classes move. */
+  firstAt: Date;
+  firstEndsAt: Date;
+  lastEndsAt: Date;
+  status: "live" | "cancelled";
+  cancellation: { by: "vendor" | "staff" | "system"; actorId: ObjectId | null; reason: string; at: Date } | null;
+  /** When certificates were issued, after the last class. */
+  certificatesAt: Date | null;
+}
+
+/** One class of a batch. Cancelled classes stay, so students see what happened. */
+export interface CoachingSessionDoc extends Stamped {
+  _id: ObjectId;
+  batchId: ObjectId;
+  courseId: ObjectId;
+  businessId: ObjectId;
+  startsAt: Date;
+  endsAt: Date;
+  status: "scheduled" | "cancelled";
+  /** Added by hand, beyond the weekly schedule. */
+  extra: boolean;
+  /** Where it was before it was first moved. */
+  movedFrom: { startsAt: Date; endsAt: Date } | null;
+  cancellation: { by: ObjectId; reason: string; at: Date } | null;
+  /** Demo students booked into it, paid or waiting for payment. */
+  demos: number;
+  markedAt: Date | null;
+}
+
+export type CoachingOrderStatus = "awaiting_payment" | "confirmed" | "cancelled";
+
+/**
+ * One student's place: a batch enrolment, or a demo class. The first class it covers sets both rules: a full refund until it
+ * starts, and the institute's share released once it ends.
+ */
+export interface CoachingOrderDoc extends Stamped {
+  _id: ObjectId;
+  orderNo: number;
+  kind: "batch" | "demo";
+  courseId: ObjectId;
+  batchId: ObjectId;
+  /** Demo classes only. */
+  sessionId: ObjectId | null;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  /** Who pays and sees it: the student, or their parent. */
+  customerId: ObjectId;
+  student: { childId: ObjectId | null; name: string };
+  /** `self:<user>` or `child:<child>`. */
+  studentKey: string;
+  /** One open place per student: `batch:<batch>:<student>` or `demo:<course>:<student>`. Removed when cancelled. */
+  seat?: string;
+  courseTitle: string;
+  batchName: string;
+  businessName: string;
+  firstAt: Date;
+  firstEndsAt: Date;
+  price: {
+    items: number;
+    platformFee: number;
+    total: number;
+    commissionBps: number;
+    commission: number;
+    discount?: number;
+    coupon?: { id: ObjectId; code: string; fundedBy: "ruxstar" | "vendor" } | null;
+  };
+  status: CoachingOrderStatus;
+  timeline: { status: CoachingOrderStatus; at: Date; by: "customer" | "vendor" | "staff" | "system" }[];
+  payment: { gatewayOrderId: string; sessionId: string; paymentId: string | null; paidAt: Date | null } | null;
+  holdUntil: Date | null;
+  refund: { refundId: string; amount: number; reason: string | null; by: "customer" | "vendor" | "staff" | "system"; status: "pending" | "done"; at: Date } | null;
+  reason: string | null;
+  releaseAt: Date | null;
+  releasedAt: Date | null;
+  invoices?: InvoiceRefDoc[];
+}
+
+/** A parent's child, who can be enrolled as a student. */
+export interface CoachingChildDoc extends Stamped {
+  _id: ObjectId;
+  parentId: ObjectId;
+  name: string;
+  birthYear: number | null;
+}
+
+/** Whether a student came to a class. One per class and enrolment or demo. */
+export interface CoachingAttendanceDoc {
+  _id: ObjectId;
+  sessionId: ObjectId;
+  batchId: ObjectId;
+  orderId: ObjectId;
+  present: boolean;
+  by: ObjectId;
+  at: Date;
+}
+
+/** A file or link for a batch's students, or every batch of the course. Files are in the private files bucket. */
+export interface CoachingMaterialDoc {
+  _id: ObjectId;
+  courseId: ObjectId;
+  /** Null: every batch of the course. */
+  batchId: ObjectId | null;
+  businessId: ObjectId;
+  title: string;
+  kind: "file" | "link";
+  file: { key: string; name: string; contentType: "application/pdf" | "image/jpeg" | "image/png"; bytes: number } | null;
+  url: string | null;
+  addedBy: ObjectId;
+  createdAt: Date;
+}
+
+/** A message from the institute to everyone in a batch. */
+export interface CoachingMessageDoc {
+  _id: ObjectId;
+  batchId: ObjectId;
+  courseId: ObjectId;
+  authorId: ObjectId;
+  authorName: string;
+  text: string;
+  at: Date;
+}
+
+/** Issued once a batch ends, to each student who attended enough of its classes. */
+export interface CoachingCertificateDoc {
+  _id: ObjectId;
+  orderId: ObjectId;
+  courseId: ObjectId;
+  batchId: ObjectId;
+  businessId: ObjectId;
+  customerId: ObjectId;
+  /** Eight letters printed on it, to check it with the institute. */
+  code: string;
+  studentName: string;
+  courseTitle: string;
+  batchName: string;
+  businessName: string;
+  attended: number;
+  classes: number;
+  issuedAt: Date;
+}
+
 /**
  * A discount code. Ruxstar's work at every shop and Ruxstar pays for them; a vendor's work at the shops
  * they pick and come out of their share. The code and the discount never change once made.
@@ -1102,7 +1331,12 @@ export type TeamPermission =
   | "reviews.reply"
   | "orders.deliver"
   | "tickets.scan"
-  | "tickets.guests";
+  | "tickets.guests"
+  | "classes.view"
+  | "classes.attendance"
+  | "classes.message"
+  | "classes.materials"
+  | "classes.reschedule";
 
 /**
  * A customer's review of one delivered print order (decision 55): 1 to 5 stars and an optional note, written or changed within
@@ -1411,6 +1645,33 @@ export class Database {
   }
   get invoices() {
     return this.db.collection<InvoiceDoc>("invoices");
+  }
+  get coachingCourses() {
+    return this.db.collection<CoachingCourseDoc>("coaching_courses");
+  }
+  get coachingBatches() {
+    return this.db.collection<CoachingBatchDoc>("coaching_batches");
+  }
+  get coachingSessions() {
+    return this.db.collection<CoachingSessionDoc>("coaching_sessions");
+  }
+  get coachingOrders() {
+    return this.db.collection<CoachingOrderDoc>("coaching_orders");
+  }
+  get coachingChildren() {
+    return this.db.collection<CoachingChildDoc>("coaching_children");
+  }
+  get coachingAttendance() {
+    return this.db.collection<CoachingAttendanceDoc>("coaching_attendance");
+  }
+  get coachingMaterials() {
+    return this.db.collection<CoachingMaterialDoc>("coaching_materials");
+  }
+  get coachingMessages() {
+    return this.db.collection<CoachingMessageDoc>("coaching_messages");
+  }
+  get coachingCertificates() {
+    return this.db.collection<CoachingCertificateDoc>("coaching_certificates");
   }
 
   /** Runs `work` in a majority-committed transaction, retrying transient errors. */

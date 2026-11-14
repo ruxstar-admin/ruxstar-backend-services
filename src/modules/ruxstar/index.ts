@@ -11,11 +11,13 @@ import { forgetModuleState } from "../../platform/module-switch.js";
 import { BUSINESS_MODULES, DEFAULT_OFFER_MINUTES, DEFAULT_RIDER_RATE, DEFAULT_SHOP_FEE_MAX } from "../delivery/rates.js";
 import { DEFAULT_MIN_PAYOUT, DEFAULT_PAYOUT_FEE } from "../vendor/payouts.js";
 import { DEFAULT_EVENT_RULES } from "../events/rules.js";
+import { DEFAULT_COACHING_RULES } from "../coaching/rules.js";
 import { consoleInvoices } from "../invoices/routes.js";
 import { ModuleParams, ModuleSettingsList, ModuleSettingsOne, ModuleSettingsPatch, type ModuleSettings } from "./contracts.js";
 import auditLog from "./audit-log.js";
 import businesses from "./businesses.js";
 import consoleHome from "./console.js";
+import coaching from "./coaching.js";
 import coupons from "./coupons.js";
 import events from "./events.js";
 import kycReview from "./kyc.js";
@@ -51,6 +53,7 @@ const view = (doc: ModuleSettingsDoc): ModuleSettings => ({
         }
       : null,
   eventRules: doc.module === "events" ? { ...DEFAULT_EVENT_RULES, ...doc.eventRules } : null,
+  coachingRules: doc.module === "coaching" ? { ...DEFAULT_COACHING_RULES, ...doc.coachingRules } : null,
   permissionCatalog: doc.permissionCatalog,
   updatedAt: doc.updatedAt.toISOString(),
 });
@@ -70,6 +73,7 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(teams);
   await app.register(supportDesk);
   await app.register(events);
+  await app.register(coaching);
   await app.register(consoleInvoices);
   await app.register(auditLog);
 
@@ -131,6 +135,9 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
         if (changes.eventRules !== undefined && module !== "events") {
           throw new AppError("VALIDATION_FAILED", "Event rules are set on the events module.", [{ path: "body/eventRules", message: "Events only" }]);
         }
+        if (changes.coachingRules !== undefined && module !== "coaching") {
+          throw new AppError("VALIDATION_FAILED", "Coaching rules are set on the coaching module.", [{ path: "body/coachingRules", message: "Coaching only" }]);
+        }
         const fee = changes.payoutFee ?? before.payoutFee ?? DEFAULT_PAYOUT_FEE;
         const minimum = changes.minPayout ?? before.minPayout ?? DEFAULT_MIN_PAYOUT;
         if (payoutsChanged && minimum < fee + 100) {
@@ -138,8 +145,12 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
             { path: "body/minPayout", message: "At least ₹1 more than the fee" },
           ]);
         }
-        const { eventRules, ...rest } = changes;
-        const next = eventRules ? { ...rest, eventRules: { ...DEFAULT_EVENT_RULES, ...before.eventRules, ...eventRules } } : rest;
+        const { eventRules, coachingRules, ...rest } = changes;
+        const next = {
+          ...rest,
+          ...(eventRules ? { eventRules: { ...DEFAULT_EVENT_RULES, ...before.eventRules, ...eventRules } } : {}),
+          ...(coachingRules ? { coachingRules: { ...DEFAULT_COACHING_RULES, ...before.coachingRules, ...coachingRules } } : {}),
+        };
         const diff = diffOf(before, next);
         changed = Object.keys(diff);
         if (!changed.length) return before;

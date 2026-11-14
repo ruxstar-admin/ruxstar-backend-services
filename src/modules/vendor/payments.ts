@@ -12,6 +12,8 @@ import { idempotent } from "../../platform/idempotency.js";
 import { findPage } from "../../platform/pagination.js";
 import { seal } from "../../platform/sealed.js";
 import { loadCase, NAME_MATCHES, verificationId } from "../kyc/cases.js";
+import { releaseCoachingShares } from "../coaching/orders.js";
+import { vendorShare as coachingShare } from "../coaching/rules.js";
 import { releaseEventShares } from "../events/orders.js";
 import { invoiceRefs } from "../invoices/views.js";
 import { vendorShare } from "../events/rules.js";
@@ -146,8 +148,9 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
         .toArray();
       for (const order of due) await releaseShare(app, db(), order, now);
       await releaseEventShares(app, db(), { vendorId }, now);
+      await releaseCoachingShares(app, db(), { vendorId }, now);
       await settleDue(app, db(), vendorId, now);
-      const [method, payouts, paid, ledger, holding, tickets, rules] = await Promise.all([
+      const [method, payouts, paid, ledger, holding, tickets, places, rules] = await Promise.all([
         db().payoutMethods.findOne({ userId: vendorId }),
         db()
           .payouts.find({ vendorId, ...payeeFilter("vendor") })
@@ -172,6 +175,11 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           .sort({ releaseAt: 1 })
           .limit(20)
           .toArray(),
+        db()
+          .coachingOrders.find({ vendorId, status: "confirmed", releasedAt: null, releaseAt: { $ne: null } }, { projection: { orderNo: 1, price: 1, releaseAt: 1 } })
+          .sort({ releaseAt: 1 })
+          .limit(20)
+          .toArray(),
         payoutRules(db()),
       ]);
       const sum = (bucket: "pending" | "withdrawable") => ledger.find((row) => row._id === bucket)?.total ?? 0;
@@ -190,6 +198,9 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           ...tickets
             .filter((o) => vendorShare(o) > 0)
             .map((o) => ({ orderId: o._id.toHexString(), orderNo: o.orderNo, amount: vendorShare(o), availableAt: o.releaseAt!.toISOString(), held: false })),
+          ...places
+            .filter((o) => coachingShare(o) > 0)
+            .map((o) => ({ orderId: o._id.toHexString(), orderNo: o.orderNo, amount: coachingShare(o), availableAt: o.releaseAt!.toISOString(), held: false })),
         ]
           .sort((a, b) => a.availableAt.localeCompare(b.availableAt))
           .slice(0, 20),
@@ -246,8 +257,8 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
         cursor: request.query.cursor,
         limit: request.query.limit,
       });
-      const ids = (type: "pod_order" | "event_order" | "payout") => items.filter((e) => e.source.type === type).map((e) => e.source.id);
-      const [orders, payouts, eventOrders] = await Promise.all([
+      const ids = (type: "pod_order" | "event_order" | "coaching_order" | "payout") => items.filter((e) => e.source.type === type).map((e) => e.source.id);
+      const [orders, payouts, eventOrders, coachingOrders] = await Promise.all([
         database.podOrders
           .find(
             { _id: { $in: ids("pod_order") } },
@@ -259,6 +270,14 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           .find(
             { _id: { $in: ids("event_order") } },
             { projection: { orderNo: 1, businessId: 1, businessName: 1, eventTitle: 1, lines: 1, "price.total": 1, payment: 1, refund: 1, invoices: 1 } },
+          )
+          .toArray(),
+        database.coachingOrders
+          .find(
+            { _id: { $in: ids("coaching_order") } },
+            {
+              projection: { orderNo: 1, kind: 1, businessId: 1, businessName: 1, courseTitle: 1, batchName: 1, student: 1, "price.total": 1, payment: 1, refund: 1, invoices: 1 },
+            },
           )
           .toArray(),
       ]);
@@ -302,6 +321,31 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
                 business: { id: order.businessId.toHexString(), name: order.businessName },
                 label: `${order.eventTitle}, ${count} ${count === 1 ? "ticket" : "tickets"}`,
                 customer: holders.find((h) => h.orderId.equals(order._id))?.holder.name ?? "",
+                total: order.price.total,
+                paymentId: order.payment?.paymentId ?? null,
+                paidAt: order.payment?.paidAt?.toISOString() ?? null,
+              },
+              refund: kind === "refund" && order.refund ? { id: order.refund.refundId, reason: order.refund.reason, by: order.refund.by } : null,
+              payout: null,
+              invoice: invoiceOf(order.invoices, kind, order.refund?.refundId ?? null),
+            },
+          ];
+        }
+        if (entry.source.type === "coaching_order") {
+          const order = coachingOrders.find((o) => o._id.equals(entry.source.id));
+          if (!order) return [];
+          const kind = entry.kind === "payment" ? "paid" : entry.kind === "release" ? "available" : "refund";
+          return [
+            {
+              ...base,
+              kind,
+              module: "coaching",
+              order: {
+                id: order._id.toHexString(),
+                orderNo: order.orderNo,
+                business: { id: order.businessId.toHexString(), name: order.businessName },
+                label: `${order.courseTitle}, ${order.kind === "demo" ? "demo class" : order.batchName}`,
+                customer: order.student.name,
                 total: order.price.total,
                 paymentId: order.payment?.paymentId ?? null,
                 paidAt: order.payment?.paidAt?.toISOString() ?? null,

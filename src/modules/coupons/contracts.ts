@@ -66,11 +66,26 @@ const Discount = {
   cap: Type.Optional(Nullable(Type.Integer({ minimum: 100, maximum: MAX_FLAT, description: "Percent only: the most it takes off, in paise" }))),
 };
 
-export const StaffCreateCouponBody = Strict({ ...Discount, ...Terms });
+export const StaffCreateCouponBody = Strict({
+  ...Discount,
+  ...Terms,
+  modules: Type.Optional(
+    Type.Array(Type.Union([Type.Literal("pod"), Type.Literal("coaching")]), {
+      minItems: 1,
+      uniqueItems: true,
+      description: "Where it works: print orders, coaching enrolments or both. Print only when left out",
+    }),
+  ),
+});
 export const VendorCreateCouponBody = Strict({
   ...Discount,
   ...Terms,
-  businessIds: Type.Array(ObjectIdString, { minItems: 1, maxItems: 20, uniqueItems: true, description: "Your print shops it works at" }),
+  businessIds: Type.Array(ObjectIdString, {
+    minItems: 1,
+    maxItems: 20,
+    uniqueItems: true,
+    description: "Your print shops and coaching businesses it works at",
+  }),
 });
 export type CreateCouponBody = Static<typeof StaffCreateCouponBody> & { businessIds?: string[] };
 
