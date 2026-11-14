@@ -1,7 +1,7 @@
 import { Type, type Static, type TSchema } from "typebox";
 import { DateTime, Envelope, ListEnvelope, ObjectIdString, PageQuery, Paise, Strict } from "../../contracts/common.js";
 import { DeliveryStatus, Vehicle } from "../pod/contracts.js";
-import { Point } from "../vendor/contracts.js";
+import { Payout, PayoutMethod, Point } from "../vendor/contracts.js";
 
 const Nullable = <T extends TSchema>(schema: T, options?: { description: string }) => Type.Union([schema, Type.Null()], options);
 const Carrier = Type.Union([Type.Literal("team"), Type.Literal("partner")], {
@@ -100,11 +100,47 @@ export const RiderCancelBody = Strict({ reason: Type.String({ minLength: 5, maxL
 
 export const Earnings = Envelope(
   Strict({
-    balance: Paise,
+    balance: Strict({
+      available: Type.Integer({ minimum: 0, description: "Paise you can withdraw now" }),
+      pending: Type.Integer({ minimum: 0, description: "Paise on hold: each delivery's pay can be withdrawn 48 hours after it" }),
+      paidOut: Type.Integer({ minimum: 0, description: "Paise withdrawn to your account so far" }),
+    }),
     today: Paise,
     week: Paise,
     trips: Type.Integer({ minimum: 0 }),
     recent: Type.Array(Strict({ jobId: ObjectIdString, orderNo: Type.Integer(), pay: Paise, at: DateTime }), { description: "Newest first, up to 20" }),
-    withdrawals: Type.Boolean({ description: "False until withdrawals open for delivery partners" }),
+    upcoming: Type.Array(
+      Strict({
+        orderId: ObjectIdString,
+        orderNo: Type.Integer(),
+        amount: Paise,
+        availableAt: DateTime,
+        held: Type.Boolean({ description: "The customer said it never arrived; it waits until Ruxstar settles that" }),
+      }),
+      { description: "Pay still on hold, soonest first, up to 20" },
+    ),
+    withdrawal: Strict(
+      { minimum: Paise, fee: Paise },
+      { description: "The least that can be withdrawn and the fee taken from each withdrawal, both set by Ruxstar on the delivery module" },
+    ),
+    payoutMethod: Nullable(PayoutMethod),
+    payouts: Type.Array(Payout, { description: "Your latest 20 withdrawals" }),
   }),
 );
+
+export const RiderStatementQuery = Strict({ ...PageQuery });
+
+const RiderStatementLine = Strict({
+  id: ObjectIdString,
+  kind: Type.Union([Type.Literal("earned"), Type.Literal("available"), Type.Literal("withdrawal"), Type.Literal("returned")], {
+    description:
+      "earned: pay for a delivery, on hold for 48 hours. available: the hold ended and it can be withdrawn. " +
+      "withdrawal: you withdrew it. returned: a withdrawal failed and came back.",
+  }),
+  amount: Type.Integer({ description: "Paise; negative for withdrawals" }),
+  at: DateTime,
+  order: Nullable(Strict({ id: ObjectIdString, orderNo: Type.Integer() }), { description: "Set on delivery lines" }),
+  payout: Nullable(Strict({ id: ObjectIdString, to: Type.String() }), { description: "Set on withdrawal lines" }),
+});
+export type RiderStatementLine = Static<typeof RiderStatementLine>;
+export const RiderStatement = ListEnvelope(RiderStatementLine);

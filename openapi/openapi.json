@@ -22559,9 +22559,15 @@
                                     "enum": [
                                       "delivery_job"
                                     ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "delivery_earnings"
+                                    ]
                                   }
                                 ],
-                                "description": "`verification` opens the KYC screen (`id` is the track: base or delivery), `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team), `team` a business's Team in the vendor portal (`id` is the business), `work_order` an order to a shop you work at, in the Work area, `reviews` a business's reviews in the vendor portal (`id` is the business), `work_reviews` the reviews of a shop you work at (`id` is the place on the team) and `delivery_job` a delivery in the Ruxstar Delivery app; `id` says which"
+                                "description": "`verification` opens the KYC screen (`id` is the track: base or delivery), `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team), `team` a business's Team in the vendor portal (`id` is the business), `work_order` an order to a shop you work at, in the Work area, `reviews` a business's reviews in the vendor portal (`id` is the business), `work_reviews` the reviews of a shop you work at (`id` is the place on the team), `delivery_job` a delivery in the Ruxstar Delivery app and `delivery_earnings` Earnings in the Ruxstar Delivery app (`id` is the payout); `id` says which"
                               },
                               "id": {
                                 "type": "string"
@@ -75671,11 +75677,11 @@
     },
     "/v1/delivery/earnings": {
       "get": {
-        "summary": "What you earned as a Ruxstar partner",
+        "summary": "What you earned as a Ruxstar partner, and your withdrawals",
         "tags": [
           "delivery"
         ],
-        "description": "Pay for each delivery is added when it is delivered. Withdrawals open later; shops pay their own team outside Ruxstar.",
+        "description": "Pay for each delivery is added when it is delivered and can be withdrawn 48 hours later. It waits longer only while the customer's report that it never arrived is open. Shops pay their own team outside Ruxstar.",
         "security": [
           {
             "bearer": []
@@ -75704,13 +75710,37 @@
                         "week",
                         "trips",
                         "recent",
-                        "withdrawals"
+                        "upcoming",
+                        "withdrawal",
+                        "payoutMethod",
+                        "payouts"
                       ],
                       "properties": {
                         "balance": {
-                          "type": "integer",
-                          "minimum": 0,
-                          "description": "Amount in paise"
+                          "type": "object",
+                          "required": [
+                            "available",
+                            "pending",
+                            "paidOut"
+                          ],
+                          "properties": {
+                            "available": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Paise you can withdraw now"
+                            },
+                            "pending": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Paise on hold: each delivery's pay can be withdrawn 48 hours after it"
+                            },
+                            "paidOut": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Paise withdrawn to your account so far"
+                            }
+                          },
+                          "additionalProperties": false
                         },
                         "today": {
                           "type": "integer",
@@ -75759,12 +75789,925 @@
                           },
                           "description": "Newest first, up to 20"
                         },
-                        "withdrawals": {
-                          "type": "boolean",
-                          "description": "False until withdrawals open for delivery partners"
+                        "upcoming": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "orderId",
+                              "orderNo",
+                              "amount",
+                              "availableAt",
+                              "held"
+                            ],
+                            "properties": {
+                              "orderId": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "orderNo": {
+                                "type": "integer"
+                              },
+                              "amount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise"
+                              },
+                              "availableAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "held": {
+                                "type": "boolean",
+                                "description": "The customer said it never arrived; it waits until Ruxstar settles that"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Pay still on hold, soonest first, up to 20"
+                        },
+                        "withdrawal": {
+                          "type": "object",
+                          "required": [
+                            "minimum",
+                            "fee"
+                          ],
+                          "properties": {
+                            "minimum": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            },
+                            "fee": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "The least that can be withdrawn and the fee taken from each withdrawal, both set by Ruxstar on the delivery module"
+                        },
+                        "payoutMethod": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "kind",
+                                "label",
+                                "holderName",
+                                "ifsc",
+                                "verifiedAt"
+                              ],
+                              "properties": {
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "bank"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "upi"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "label": {
+                                  "type": "string",
+                                  "description": "For example YES BANK ••1191, or asha@upi"
+                                },
+                                "holderName": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "description": "The name the bank has for the account"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "ifsc": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "verifiedAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "payouts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "amount",
+                              "fee",
+                              "status",
+                              "to",
+                              "utr",
+                              "paidAt",
+                              "failure",
+                              "createdAt"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "amount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise"
+                              },
+                              "fee": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Paise taken from the amount; the bank gets amount - fee"
+                              },
+                              "status": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "pending"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "paid"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "failed"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "to": {
+                                "type": "string"
+                              },
+                              "utr": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "description": "The bank's reference once paid"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "paidAt": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "failure": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "description": "Why it failed, for the vendor; the amount is back in their balance"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "Your latest 20 withdrawals"
                         }
                       },
                       "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/delivery/payouts": {
+      "post": {
+        "summary": "Withdraw everything available to your payout account",
+        "tags": [
+          "delivery"
+        ],
+        "description": "Takes the whole available balance, at least the minimum, and sends it less the payout fee. One withdrawal at a time, counting one from your shop earnings if you have a shop too. Until Cashfree confirms it, it shows as pending; if it fails, the amount is back in your balance. Send an Idempotency-Key.",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "amount",
+                        "fee",
+                        "status",
+                        "to",
+                        "utr",
+                        "paidAt",
+                        "failure",
+                        "createdAt"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{24}$",
+                          "description": "MongoDB ObjectId as hex"
+                        },
+                        "amount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise"
+                        },
+                        "fee": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Paise taken from the amount; the bank gets amount - fee"
+                        },
+                        "status": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "pending"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "paid"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "failed"
+                              ]
+                            }
+                          ]
+                        },
+                        "to": {
+                          "type": "string"
+                        },
+                        "utr": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "The bank's reference once paid"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "paidAt": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "failure": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "description": "Why it failed, for the vendor; the amount is back in their balance"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/delivery/earnings/statement": {
+      "get": {
+        "summary": "Every change to your delivery earnings, newest first",
+        "tags": [
+          "delivery"
+        ],
+        "description": "One line per money movement: a delivery's pay arriving (on hold), its hold ending, withdrawals, and failed withdrawals coming back.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "kind",
+                          "amount",
+                          "at",
+                          "order",
+                          "payout"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "kind": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "earned"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "available"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "withdrawal"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "returned"
+                                ]
+                              }
+                            ],
+                            "description": "earned: pay for a delivery, on hold for 48 hours. available: the hold ended and it can be withdrawn. withdrawal: you withdrew it. returned: a withdrawal failed and came back."
+                          },
+                          "amount": {
+                            "type": "integer",
+                            "description": "Paise; negative for withdrawals"
+                          },
+                          "at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "order": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "orderNo"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "orderNo": {
+                                    "type": "integer"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Set on delivery lines"
+                          },
+                          "payout": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "to"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "to": {
+                                    "type": "string"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Set on withdrawal lines"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/delivery/payout-method": {
+      "get": {
+        "summary": "Where your delivery earnings are paid",
+        "tags": [
+          "delivery"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "kind",
+                            "label",
+                            "holderName",
+                            "ifsc",
+                            "verifiedAt"
+                          ],
+                          "properties": {
+                            "kind": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "bank"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "upi"
+                                  ]
+                                }
+                              ]
+                            },
+                            "label": {
+                              "type": "string",
+                              "description": "For example YES BANK ••1191, or asha@upi"
+                            },
+                            "holderName": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "description": "The name the bank has for the account"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "ifsc": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "verifiedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Set the bank account or UPI ID your delivery earnings are paid to",
+        "tags": [
+          "delivery"
+        ],
+        "description": "Checked with Cashfree before it is saved, and it must be in the name on your Aadhaar. Replaces the one you had; the account your shop is paid to doesn't change. Only the last 4 digits of a bank account are ever shown again.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "kind",
+                      "accountNumber",
+                      "ifsc"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "bank"
+                        ]
+                      },
+                      "accountNumber": {
+                        "type": "string",
+                        "pattern": "^[0-9]{9,18}$"
+                      },
+                      "ifsc": {
+                        "type": "string",
+                        "pattern": "^[A-Z]{4}0[A-Z0-9]{6}$",
+                        "description": "11 characters, like YESB0000262"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "kind",
+                      "vpa"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "upi"
+                        ]
+                      },
+                      "vpa": {
+                        "type": "string",
+                        "pattern": "^[a-zA-Z0-9._-]{2,256}@[a-zA-Z][a-zA-Z0-9.-]{1,64}$",
+                        "description": "For example asha@okhdfc"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "kind",
+                            "label",
+                            "holderName",
+                            "ifsc",
+                            "verifiedAt"
+                          ],
+                          "properties": {
+                            "kind": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "bank"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "upi"
+                                  ]
+                                }
+                              ]
+                            },
+                            "label": {
+                              "type": "string",
+                              "description": "For example YES BANK ••1191, or asha@upi"
+                            },
+                            "holderName": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "description": "The name the bank has for the account"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "ifsc": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "verifiedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "meta": {
                       "type": "object",
@@ -85035,11 +85978,11 @@
     },
     "/v1/ruxstar/payouts": {
       "get": {
-        "summary": "Vendors' withdrawals, newest first",
+        "summary": "Vendors' and delivery partners' withdrawals, newest first",
         "tags": [
           "ruxstar"
         ],
-        "description": "`pending` is on the way, `failed` came back to the vendor's balance, `paid` reached their account.",
+        "description": "`pending` is on the way, `failed` came back to the payee's balance, `paid` reached their account. `payee` says whose it is.",
         "parameters": [
           {
             "schema": {
@@ -85116,6 +86059,7 @@
                         "type": "object",
                         "required": [
                           "id",
+                          "payee",
                           "vendor",
                           "amount",
                           "fee",
@@ -85134,6 +86078,23 @@
                             "type": "string",
                             "pattern": "^[a-f0-9]{24}$",
                             "description": "MongoDB ObjectId as hex"
+                          },
+                          "payee": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "vendor"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "partner"
+                                ]
+                              }
+                            ],
+                            "description": "`partner` is a Ruxstar delivery partner's withdrawal"
                           },
                           "vendor": {
                             "type": "object",
@@ -85156,7 +86117,7 @@
                           "amount": {
                             "type": "integer",
                             "minimum": 0,
-                            "description": "Paise taken from the vendor's balance"
+                            "description": "Paise taken from the payee's balance"
                           },
                           "fee": {
                             "type": "integer",
@@ -85216,7 +86177,7 @@
                                   },
                                   "text": {
                                     "type": "string",
-                                    "description": "What the vendor was told"
+                                    "description": "What the payee was told"
                                   }
                                 },
                                 "additionalProperties": false
@@ -85356,6 +86317,7 @@
                       "type": "object",
                       "required": [
                         "id",
+                        "payee",
                         "vendor",
                         "amount",
                         "fee",
@@ -85374,6 +86336,23 @@
                           "type": "string",
                           "pattern": "^[a-f0-9]{24}$",
                           "description": "MongoDB ObjectId as hex"
+                        },
+                        "payee": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "vendor"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "partner"
+                              ]
+                            }
+                          ],
+                          "description": "`partner` is a Ruxstar delivery partner's withdrawal"
                         },
                         "vendor": {
                           "type": "object",
@@ -85396,7 +86375,7 @@
                         "amount": {
                           "type": "integer",
                           "minimum": 0,
-                          "description": "Paise taken from the vendor's balance"
+                          "description": "Paise taken from the payee's balance"
                         },
                         "fee": {
                           "type": "integer",
@@ -85456,7 +86435,7 @@
                                 },
                                 "text": {
                                   "type": "string",
-                                  "description": "What the vendor was told"
+                                  "description": "What the payee was told"
                                 }
                               },
                               "additionalProperties": false
@@ -85547,7 +86526,7 @@
         "tags": [
           "ruxstar"
         ],
-        "description": "Print orders wait 48 hours after delivery, and while a reported problem is open.",
+        "description": "Print orders wait 48 hours after delivery, and while a reported problem is open. A Ruxstar partner's pay for the delivery waits 48 hours too, and longer only while a report that it never arrived is open.",
         "parameters": [
           {
             "schema": {
@@ -85613,7 +86592,8 @@
                           "amount",
                           "deliveredAt",
                           "releaseAt",
-                          "problemOpen"
+                          "problemOpen",
+                          "partner"
                         ],
                         "properties": {
                           "id": {
@@ -85730,6 +86710,57 @@
                           "problemOpen": {
                             "type": "boolean",
                             "description": "A customer's reported problem waits for a decision; it can't be released until then"
+                          },
+                          "partner": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "rider",
+                                  "amount",
+                                  "releaseAt",
+                                  "held"
+                                ],
+                                "properties": {
+                                  "rider": {
+                                    "type": "object",
+                                    "required": [
+                                      "id",
+                                      "name"
+                                    ],
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "pattern": "^[a-f0-9]{24}$",
+                                        "description": "MongoDB ObjectId as hex"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  },
+                                  "amount": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Paise, the partner's pay; already out of the shop's share"
+                                  },
+                                  "releaseAt": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  "held": {
+                                    "type": "boolean",
+                                    "description": "The customer said it never arrived; the pay waits until that is settled"
+                                  }
+                                },
+                                "additionalProperties": false,
+                                "description": "Set when a Ruxstar partner delivered it and their pay is still on hold"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "additionalProperties": false
@@ -95188,15 +96219,16 @@
                                   "fee": {
                                     "type": "integer",
                                     "minimum": 0,
-                                    "description": "Paise taken from each vendor withdrawal"
+                                    "description": "Paise taken from each withdrawal"
                                   },
                                   "minimum": {
                                     "type": "integer",
                                     "minimum": 0,
-                                    "description": "Paise, the least a vendor can withdraw"
+                                    "description": "Paise, the least that can be withdrawn"
                                   }
                                 },
-                                "additionalProperties": false
+                                "additionalProperties": false,
+                                "description": "The ledger module: vendors' withdrawals. The delivery module: Ruxstar partners'. Null on the others."
                               },
                               {
                                 "type": "null"
@@ -95357,7 +96389,7 @@
     },
     "/v1/ruxstar/modules/{module}": {
       "patch": {
-        "summary": "Switch a module on or off, or change its signups, commission, platform fee or delivery; on the ledger, the payout fee and minimum",
+        "summary": "Switch a module on or off, or change its signups, commission, platform fee or delivery; the payout fee and minimum on the ledger (vendors) and delivery (partners)",
         "tags": [
           "ruxstar"
         ],
@@ -95389,13 +96421,13 @@
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 10000,
-                    "description": "Ledger only. Paise taken from each withdrawal, up to ₹100"
+                    "description": "Ledger (vendors) or delivery (partners) only. Paise taken from each withdrawal, up to ₹100"
                   },
                   "minPayout": {
                     "type": "integer",
                     "minimum": 100,
                     "maximum": 10000000,
-                    "description": "Ledger only. Paise, at least ₹1 more than the payout fee"
+                    "description": "Ledger (vendors) or delivery (partners) only. Paise, at least ₹1 more than the payout fee"
                   },
                   "deliveryEnabled": {
                     "type": "boolean"
@@ -95610,15 +96642,16 @@
                                 "fee": {
                                   "type": "integer",
                                   "minimum": 0,
-                                  "description": "Paise taken from each vendor withdrawal"
+                                  "description": "Paise taken from each withdrawal"
                                 },
                                 "minimum": {
                                   "type": "integer",
                                   "minimum": 0,
-                                  "description": "Paise, the least a vendor can withdraw"
+                                  "description": "Paise, the least that can be withdrawn"
                                 }
                               },
-                              "additionalProperties": false
+                              "additionalProperties": false,
+                              "description": "The ledger module: vendors' withdrawals. The delivery module: Ruxstar partners'. Null on the others."
                             },
                             {
                               "type": "null"

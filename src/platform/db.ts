@@ -218,7 +218,10 @@ export interface BusinessDoc extends Stamped {
   rating?: { count: number; sum: number };
 }
 
-/** Where a vendor is paid. One per vendor, checked with Cashfree before it is saved. */
+/**
+ * Where a vendor is paid, or in `rider_payout_methods` a Ruxstar delivery partner. One each, checked with Cashfree before
+ * it is saved; someone who is both keeps two.
+ */
 export interface PayoutMethodDoc extends Stamped {
   _id: ObjectId;
   userId: ObjectId;
@@ -234,11 +237,14 @@ export interface PayoutMethodDoc extends Stamped {
 
 /**
  * A withdrawal of everything available. `amount` leaves the vendor's balance; `fee` is Ruxstar's and `amount - fee`
- * reaches the bank. A vendor has at most one pending at a time. A failed one puts `amount` back.
+ * reaches the bank. A person has at most one pending at a time, as a vendor or as a partner. A failed one puts `amount` back.
  */
 export interface PayoutDoc extends Stamped {
   _id: ObjectId;
+  /** Who is paid: the vendor, or the delivery partner when `payee` is "rider". */
   vendorId: ObjectId;
+  /** Missing: a vendor's withdrawal. "rider": a Ruxstar delivery partner's, out of `rider:<id>` (decision 59). */
+  payee?: "rider";
   /** Paise. */
   amount: number;
   /** Paise, the payout fee in force when it was asked for. */
@@ -494,7 +500,8 @@ export interface NotificationDoc {
       | "work_order"
       | "reviews"
       | "work_reviews"
-      | "delivery_job";
+      | "delivery_job"
+      | "delivery_earnings";
     id: string;
   };
   readAt: Date | null;
@@ -545,7 +552,10 @@ export interface ModuleSettingsDoc extends Stamped {
   commissionBps: number;
   /** Paise the customer pays Ruxstar on each order, on top of the vendor's prices. Missing on older documents: 0. */
   platformFee?: number;
-  /** The ledger module only, in paise: taken from each withdrawal, and the least a vendor can withdraw. Missing: the defaults. */
+  /**
+   * In paise: taken from each withdrawal, and the least that can be withdrawn. On the ledger module for vendors, on the
+   * delivery module for Ruxstar partners. Missing: the defaults.
+   */
   payoutFee?: number;
   minPayout?: number;
   /** Business modules: publishing needs a verified GSTIN. Missing: not needed. */
@@ -687,8 +697,14 @@ export interface OrderDelivery {
   rider: { id: ObjectId; name: string; phone: string; avatar: string | null; vehicle: { type: VehicleType; number: string } } | null;
   /** Paise to a Ruxstar partner, out of the shop's share; 0 for the shop's own team. */
   pay: number;
-  /** Set once the partner's pay moved to them, at delivery. */
+  /** Set once the partner's pay moved to them, at delivery: pending until `releaseAt`. */
   paidAt: Date | null;
+  /**
+   * 48 hours after delivery the pay becomes withdrawable, unless a "not received" problem is open. Missing on deliveries
+   * before 14 Nov 2026, whose pay was withdrawable at once.
+   */
+  releaseAt?: Date | null;
+  releasedAt?: Date | null;
   /** Shown to the customer only, who gives it to the rider at the door. */
   dropCode: string;
   offerUntil: Date | null;
@@ -753,7 +769,7 @@ export interface LedgerEntryDoc {
    * `payout` takes a withdrawal out of the vendor's available balance; `payout_return` puts a failed one back. `rider_pay` moves a
    * Ruxstar partner's pay out of the shop's pending share at delivery.
    */
-  kind: "payment" | "refund" | "release" | "payout" | "payout_return" | "rider_pay";
+  kind: "payment" | "refund" | "release" | "payout" | "payout_return" | "rider_pay" | "rider_release";
   accountId: string;
   bucket: "pending" | "withdrawable";
   signedPaise: number;
@@ -1024,6 +1040,9 @@ export class Database {
   }
   get payouts() {
     return this.db.collection<PayoutDoc>("payouts");
+  }
+  get riderPayoutMethods() {
+    return this.db.collection<PayoutMethodDoc>("rider_payout_methods");
   }
   get printFiles() {
     return this.db.collection<PrintFileDoc>("print_files");

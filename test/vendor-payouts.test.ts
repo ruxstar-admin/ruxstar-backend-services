@@ -19,6 +19,7 @@ describe("vendor withdrawals", () => {
     await Promise.all([
       stack.db.payouts.deleteMany({}),
       stack.db.payoutMethods.deleteMany({}),
+      stack.db.riderPayoutMethods.deleteMany({}),
       stack.db.ledgerEntries.deleteMany({}),
       stack.db.notifications.deleteMany({}),
       stack.db.idempotencyKeys.deleteMany({}),
@@ -140,6 +141,23 @@ describe("vendor withdrawals", () => {
     expect((await payments(owner)).payouts[0]).toMatchObject({ id: payout.id, status: "paid", paidAt: expect.any(String) });
   });
 
+  it("keeps one withdrawal on the way for someone paid both as a vendor and as a delivery partner", async () => {
+    const owner = await vendor(50_000);
+    await stack.db.users.updateOne({ _id: owner.userId }, { $set: { "roles.delivery": true, "kyc.delivery": "approved" } });
+    const method = (await stack.db.payoutMethods.findOne({ userId: owner.userId }))!;
+    await stack.db.riderPayoutMethods.insertOne({ ...method, _id: new ObjectId() });
+    await stack.db.ledgerEntries.insertMany([
+      { txnId: `rider_release:${randomUUID()}`, kind: "rider_release", accountId: `rider:${owner.userId.toHexString()}`, bucket: "withdrawable", signedPaise: 20_000, source: { type: "pod_order", id: new ObjectId() }, at: new Date() },
+      { txnId: `rider_release:${randomUUID()}`, kind: "rider_release", accountId: `rider:${owner.userId.toHexString()}`, bucket: "pending", signedPaise: -20_000, source: { type: "pod_order", id: new ObjectId() }, at: new Date() },
+    ]);
+    fake().next = "pending";
+    expect((await withdraw(owner)).json().data.status).toBe("pending");
+    const partner = await call("POST", "/delivery/payouts", owner.token);
+    expect(partner.json().error).toMatchObject({ code: "PAYOUT_IN_PROGRESS", message: expect.stringContaining("shop earnings") });
+    expect((await payments(owner)).balance.available).toBe(0);
+    expect((await call("GET", "/delivery/earnings", owner.token)).json().data.balance).toEqual({ available: 20_000, pending: 0, paidOut: 0 });
+  });
+
   it("sends again a withdrawal Cashfree never got, and gives up after three tries", async () => {
     const owner = await vendor(50_000);
     fake().next = "down";
@@ -181,7 +199,7 @@ describe("vendor withdrawals", () => {
     expect((await call("GET", "/ruxstar/payouts", owner.token)).statusCode).toBe(403);
     const queue = (await call("GET", "/ruxstar/payouts", viewer.token)).json().data;
     expect(queue).toEqual([
-      expect.objectContaining({ id: payout.id, vendor: { id: owner.userId.toHexString(), name: "Asha Rao" }, amount: 50_000, fee: 590, status: "pending", attempts: 1, failure: null }),
+      expect.objectContaining({ id: payout.id, payee: "vendor", vendor: { id: owner.userId.toHexString(), name: "Asha Rao" }, amount: 50_000, fee: 590, status: "pending", attempts: 1, failure: null }),
     ]);
     const failed = (await call("GET", "/ruxstar/payouts?status=failed", viewer.token)).json().data;
     expect(failed[0]).toMatchObject({ to: "asha@okhdfc", failure: { code: "BENE_BANK_DECLINED", text: "The bank couldn't complete it. Try again in a while." } });
@@ -205,6 +223,7 @@ describe("vendor withdrawals", () => {
     expect(res.json().data.payouts).toEqual({ fee: 1_000, minimum: 20_000 });
     const listed = (await call("GET", "/ruxstar/modules", admin.token)).json().data;
     expect(listed.find((m: { module: string }) => m.module === "pod").payouts).toBeNull();
+    expect(listed.find((m: { module: string }) => m.module === "delivery").payouts).toEqual({ fee: 590, minimum: 10_000 });
     expect(await stack.db.auditLogs.findOne({ action: "module_settings.update", "scope.module": "ledger" })).not.toBeNull();
 
     const owner = await vendor(19_999);

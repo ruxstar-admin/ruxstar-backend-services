@@ -1,6 +1,7 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import type { ObjectId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
+import { actorOf } from "../../platform/audit.js";
 import { requireDeliveryKyc } from "../../platform/auth.js";
 import { requireDatabase } from "../../platform/context.js";
 import type { DeliveryJobDoc } from "../../platform/db.js";
@@ -9,7 +10,25 @@ import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { findPage } from "../../platform/pagination.js";
 import { PRIVATE_PHOTO_MAX_BYTES } from "../../platform/private-photo.js";
-import { DeliverBody, Earnings, JobList, JobOne, JobParams, JobsQuery, OnlineBody, Rider, RiderCancelBody } from "./contracts.js";
+import { payoutMethodView } from "../vendor/businesses.js";
+import { PayoutMethodBody, PayoutMethodResult, PayoutResult } from "../vendor/contracts.js";
+import { payoutView, setPayoutMethod } from "../vendor/payments.js";
+import { payeeFilter, payoutRules, settleDue, withdraw } from "../vendor/payouts.js";
+import {
+  DeliverBody,
+  Earnings,
+  JobList,
+  JobOne,
+  JobParams,
+  JobsQuery,
+  OnlineBody,
+  Rider,
+  RiderCancelBody,
+  RiderStatement,
+  RiderStatementQuery,
+  type RiderStatementLine,
+} from "./contracts.js";
+import { heldRiderPay, releaseRiderPayFor, riderPayHeld } from "./pay.js";
 import { deliveryRules } from "./rates.js";
 import { acceptJob, addProof, deliver, jobFor, jobView, offersFor, passJob, pickUp, riderCancel, riderProfile } from "./trips.js";
 
@@ -284,34 +303,164 @@ const delivery: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: requireDeliveryKyc,
       schema: {
         tags: ["delivery"],
-        summary: "What you earned as a Ruxstar partner",
-        description: "Pay for each delivery is added when it is delivered. Withdrawals open later; shops pay their own team outside Ruxstar.",
+        summary: "What you earned as a Ruxstar partner, and your withdrawals",
+        description:
+          "Pay for each delivery is added when it is delivered and can be withdrawn 48 hours later. It waits longer only while the " +
+          "customer's report that it never arrived is open. Shops pay their own team outside Ruxstar.",
         response: { 200: Earnings, ...Errors },
         security,
       },
     },
     async (request) => {
       const riderId = request.auth!.userId;
-      const [balanceRows, today, week, trips, recent] = await Promise.all([
+      const now = new Date();
+      await releaseRiderPayFor(db(), riderId, now);
+      await settleDue(app, db(), riderId, now);
+      const [ledger, today, week, trips, recent, holding, rules, method, payouts, paid] = await Promise.all([
         db()
-          .ledgerEntries.aggregate<{ total: number }>([
-            { $match: { accountId: riderAccount(riderId), bucket: "withdrawable" } },
-            { $group: { _id: null, total: { $sum: "$signedPaise" } } },
+          .ledgerEntries.aggregate<{ _id: "pending" | "withdrawable"; total: number }>([
+            { $match: { accountId: riderAccount(riderId) } },
+            { $group: { _id: "$bucket", total: { $sum: "$signedPaise" } } },
           ])
           .toArray(),
         earnedSince(riderId, startOfDay()),
         earnedSince(riderId, startOfDay(6)),
         db().deliveryJobs.countDocuments({ riderId, status: "delivered", carrier: "partner" }),
         db().deliveryJobs.find({ riderId, status: "delivered", carrier: "partner" }).sort({ updatedAt: -1 }).limit(20).toArray(),
+        db().podOrders.find(heldRiderPay(riderId)).sort({ "delivery.releaseAt": 1 }).limit(20).toArray(),
+        payoutRules(db(), "rider"),
+        db().riderPayoutMethods.findOne({ userId: riderId }),
+        db()
+          .payouts.find({ vendorId: riderId, ...payeeFilter("rider") })
+          .sort({ createdAt: -1, _id: -1 })
+          .limit(20)
+          .toArray(),
+        db()
+          .payouts.aggregate<{ total: number }>([
+            { $match: { vendorId: riderId, status: "paid", ...payeeFilter("rider") } },
+            { $group: { _id: null, total: { $sum: "$amount" } } },
+          ])
+          .toArray(),
       ]);
+      const sum = (bucket: "pending" | "withdrawable") => Math.max(0, ledger.find((row) => row._id === bucket)?.total ?? 0);
       return ok(request, {
-        balance: Math.max(0, balanceRows[0]?.total ?? 0),
+        balance: { available: sum("withdrawable"), pending: sum("pending"), paidOut: paid[0]?.total ?? 0 },
         today,
         week,
         trips,
         recent: recent.map((j) => ({ jobId: j._id.toHexString(), orderNo: j.orderNo, pay: j.pay, at: j.updatedAt.toISOString() })),
-        withdrawals: false,
+        upcoming: holding.map((o) => ({
+          orderId: o._id.toHexString(),
+          orderNo: o.orderNo,
+          amount: o.delivery!.pay,
+          availableAt: o.delivery!.releaseAt!.toISOString(),
+          held: riderPayHeld(o),
+        })),
+        withdrawal: rules,
+        payoutMethod: method ? payoutMethodView(method) : null,
+        payouts: payouts.map(payoutView),
       });
+    },
+  );
+
+  app.post(
+    "/payouts",
+    {
+      preHandler: [requireDeliveryKyc, idempotent],
+      config: { rateLimit: { max: 10, timeWindow: 60_000 } },
+      schema: {
+        tags: ["delivery"],
+        summary: "Withdraw everything available to your payout account",
+        description:
+          "Takes the whole available balance, at least the minimum, and sends it less the payout fee. One withdrawal at a time, " +
+          "counting one from your shop earnings if you have a shop too. Until Cashfree confirms it, it shows as pending; if it fails, " +
+          "the amount is back in your balance. Send an Idempotency-Key.",
+        response: { 200: PayoutResult, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const payout = await withdraw(app, db(), request.auth!.userId, actorOf(request), request.ip, "rider");
+      return ok(request, payoutView(payout));
+    },
+  );
+
+  app.get(
+    "/earnings/statement",
+    {
+      preHandler: requireDeliveryKyc,
+      schema: {
+        tags: ["delivery"],
+        summary: "Every change to your delivery earnings, newest first",
+        description: "One line per money movement: a delivery's pay arriving (on hold), its hold ending, withdrawals, and failed withdrawals coming back.",
+        querystring: RiderStatementQuery,
+        response: { 200: RiderStatement, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const database = db();
+      const { items, nextCursor } = await findPage(database.ledgerEntries, {
+        // A release moves pay from on hold to available; its pending side would only repeat the line.
+        filter: { accountId: riderAccount(request.auth!.userId), $nor: [{ kind: "rider_release", bucket: "pending" }] },
+        sortField: "at",
+        cursor: request.query.cursor,
+        limit: request.query.limit,
+      });
+      const ids = (type: "pod_order" | "payout") => items.filter((e) => e.source.type === type).map((e) => e.source.id);
+      const [orders, payouts] = await Promise.all([
+        database.podOrders.find({ _id: { $in: ids("pod_order") } }, { projection: { orderNo: 1 } }).toArray(),
+        database.payouts.find({ _id: { $in: ids("payout") } }, { projection: { to: 1 } }).toArray(),
+      ]);
+      const lines = items.flatMap((entry): RiderStatementLine[] => {
+        const base = { id: entry._id.toHexString(), amount: entry.signedPaise, at: entry.at.toISOString() };
+        if (entry.source.type === "payout") {
+          const payout = payouts.find((p) => p._id.equals(entry.source.id));
+          if (!payout) return [];
+          const kind = entry.kind === "payout" ? "withdrawal" : "returned";
+          return [{ ...base, kind, order: null, payout: { id: payout._id.toHexString(), to: payout.to } }];
+        }
+        const order = orders.find((o) => o._id.equals(entry.source.id));
+        if (!order) return [];
+        // Pay from before the hold arrived straight in the available balance, so it reads as earned too.
+        const kind = entry.kind === "rider_release" ? "available" : "earned";
+        return [{ ...base, kind, order: { id: order._id.toHexString(), orderNo: order.orderNo }, payout: null }];
+      });
+      return page(request, lines, nextCursor);
+    },
+  );
+
+  app.get(
+    "/payout-method",
+    {
+      preHandler: requireDeliveryKyc,
+      schema: { tags: ["delivery"], summary: "Where your delivery earnings are paid", response: { 200: PayoutMethodResult, ...Errors }, security },
+    },
+    async (request) => {
+      const method = await db().riderPayoutMethods.findOne({ userId: request.auth!.userId });
+      return ok(request, method ? payoutMethodView(method) : null);
+    },
+  );
+
+  app.put(
+    "/payout-method",
+    {
+      preHandler: requireDeliveryKyc,
+      config: { rateLimit: { max: 5, timeWindow: 60 * 60_000 } },
+      schema: {
+        tags: ["delivery"],
+        summary: "Set the bank account or UPI ID your delivery earnings are paid to",
+        description:
+          "Checked with Cashfree before it is saved, and it must be in the name on your Aadhaar. Replaces the one you had; " +
+          "the account your shop is paid to doesn't change. Only the last 4 digits of a bank account are ever shown again.",
+        body: PayoutMethodBody,
+        response: { 200: PayoutMethodResult, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const saved = await setPayoutMethod(app, db(), request.auth!.userId, request.body, { actor: actorOf(request), ip: request.ip }, "rider");
+      return ok(request, payoutMethodView(saved));
     },
   );
 };

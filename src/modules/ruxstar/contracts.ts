@@ -30,10 +30,13 @@ export const ModuleSettings = Strict({
   commissionBps: Type.Integer({ minimum: 0, maximum: 10000, description: "Commission in basis points. 1000 = 10%" }),
   platformFee: Type.Integer({ minimum: 0, maximum: MAX_PLATFORM_FEE, description: "Paise the customer pays Ruxstar on each order" }),
   payouts: Nullable(
-    Strict({
-      fee: Type.Integer({ minimum: 0, description: "Paise taken from each vendor withdrawal" }),
-      minimum: Type.Integer({ minimum: 0, description: "Paise, the least a vendor can withdraw" }),
-    }),
+    Strict(
+      {
+        fee: Type.Integer({ minimum: 0, description: "Paise taken from each withdrawal" }),
+        minimum: Type.Integer({ minimum: 0, description: "Paise, the least that can be withdrawn" }),
+      },
+      { description: "The ledger module: vendors' withdrawals. The delivery module: Ruxstar partners'. Null on the others." },
+    ),
   ),
   deliveryEnabled: Type.Boolean(),
   gstinRequired: Nullable(Type.Boolean({ description: "Business modules: publishing needs a verified GSTIN. Null for other modules." })),
@@ -60,8 +63,12 @@ export const ModuleSettingsPatch = Strict(
     signupsOpen: Type.Optional(Type.Boolean()),
     commissionBps: Type.Optional(Type.Integer({ minimum: 0, maximum: 10000 })),
     platformFee: Type.Optional(Type.Integer({ minimum: 0, maximum: MAX_PLATFORM_FEE, description: "Paise, up to ₹500" })),
-    payoutFee: Type.Optional(Type.Integer({ minimum: 0, maximum: MAX_PAYOUT_FEE, description: "Ledger only. Paise taken from each withdrawal, up to ₹100" })),
-    minPayout: Type.Optional(Type.Integer({ minimum: 100, maximum: MAX_MIN_PAYOUT, description: "Ledger only. Paise, at least ₹1 more than the payout fee" })),
+    payoutFee: Type.Optional(
+      Type.Integer({ minimum: 0, maximum: MAX_PAYOUT_FEE, description: "Ledger (vendors) or delivery (partners) only. Paise taken from each withdrawal, up to ₹100" }),
+    ),
+    minPayout: Type.Optional(
+      Type.Integer({ minimum: 100, maximum: MAX_MIN_PAYOUT, description: "Ledger (vendors) or delivery (partners) only. Paise, at least ₹1 more than the payout fee" }),
+    ),
     deliveryEnabled: Type.Optional(Type.Boolean()),
     gstinRequired: Type.Optional(Type.Boolean({ description: "Business modules only. Live businesses without a GSTIN stay live." })),
     riderRate: Type.Optional(DeliveryRate),
@@ -294,14 +301,15 @@ export const PayoutParams = Strict({ id: ObjectIdString });
 
 export const StaffPayout = Strict({
   id: ObjectIdString,
+  payee: Type.Union([Type.Literal("vendor"), Type.Literal("partner")], { description: "`partner` is a Ruxstar delivery partner's withdrawal" }),
   vendor: Party,
-  amount: Type.Integer({ minimum: 0, description: "Paise taken from the vendor's balance" }),
+  amount: Type.Integer({ minimum: 0, description: "Paise taken from the payee's balance" }),
   fee: Type.Integer({ minimum: 0, description: "Paise kept by Ruxstar; the bank gets amount - fee" }),
   status: Type.Union([Type.Literal("pending"), Type.Literal("paid"), Type.Literal("failed")]),
   to: Type.String(),
   transferId: Type.String({ description: "Cashfree's transfer_id" }),
   utr: Nullable(Type.String()),
-  failure: Nullable(Strict({ code: Type.String(), text: Type.String({ description: "What the vendor was told" }) })),
+  failure: Nullable(Strict({ code: Type.String(), text: Type.String({ description: "What the payee was told" }) })),
   attempts: Type.Integer({ minimum: 0, description: "Times it was sent to Cashfree" }),
   checkedAt: Nullable(DateTime),
   paidAt: Nullable(DateTime),
@@ -324,6 +332,17 @@ export const HeldOrder = Strict({
   deliveredAt: Nullable(DateTime),
   releaseAt: DateTime,
   problemOpen: Type.Boolean({ description: "A customer's reported problem waits for a decision; it can't be released until then" }),
+  partner: Nullable(
+    Strict(
+      {
+        rider: Party,
+        amount: Type.Integer({ minimum: 0, description: "Paise, the partner's pay; already out of the shop's share" }),
+        releaseAt: DateTime,
+        held: Type.Boolean({ description: "The customer said it never arrived; the pay waits until that is settled" }),
+      },
+      { description: "Set when a Ruxstar partner delivered it and their pay is still on hold" },
+    ),
+  ),
 });
 export type HeldOrder = Static<typeof HeldOrder>;
 export const HeldList = ListEnvelope(HeldOrder);
