@@ -757,6 +757,8 @@ export interface EmploymentDoc extends Stamped {
   status: "invited" | "active" | "declined" | "expired" | "removed" | "left";
   current?: true;
   permissions: TeamPermission[];
+  /** Pay offered with the invite, in paise. Shown only: the shop pays its team outside Ruxstar. Missing on invites from before it. */
+  pay?: { amount: number; per: "month" | "week" | "day" | "hour" | "order"; note: string | null } | null;
   invitedBy: ObjectId;
   invitedAt: Date;
   expiresAt: Date;

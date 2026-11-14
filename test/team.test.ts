@@ -119,6 +119,41 @@ describe("vendor team", () => {
     expect(actions).toEqual(["team.invite", "team.join", "team.update"]);
   });
 
+  it("shows the pay on offer, lets the owner change it until they accept, then keeps it", async () => {
+    const owner = await person({ vendor: true, verified: true });
+    const kiran = await person({ verified: true });
+    const id = await shop(owner);
+    const invite = (pay: unknown) => call("POST", `/vendor/businesses/${id}/team`, owner.token, { username: kiran.username, permissions: ["orders.view"], pay });
+
+    expect((await invite({ amount: 50, per: "month", note: null })).statusCode).toBe(400);
+    expect((await invite({ amount: 1_500_000, per: "year", note: null })).statusCode).toBe(400);
+    const member = (await invite({ amount: 1_500_000, per: "month", note: "  Plus petrol allowance " })).json().data;
+    expect(member.pay).toEqual({ amount: 1_500_000, per: "month", note: "Plus petrol allowance" });
+
+    const offer = async () => (await call("GET", "/employment", kiran.token)).json().data.invites[0].pay;
+    expect(await offer()).toEqual(member.pay);
+
+    const patch = (body: object) => call("PATCH", `/vendor/businesses/${id}/team/${member.id}`, owner.token, body);
+    expect((await patch({})).statusCode).toBe(400);
+    expect((await patch({ pay: { amount: 80_000, per: "day", note: null } })).json().data.pay).toEqual({ amount: 80_000, per: "day", note: null });
+    expect(await offer()).toEqual({ amount: 80_000, per: "day", note: null });
+
+    await call("POST", `/employment/${member.id}/accept`, kiran.token);
+    const place = (await call("GET", "/employment", kiran.token)).json().data.places[0];
+    expect(place.pay).toEqual({ amount: 80_000, per: "day", note: null });
+    const locked = await patch({ pay: null });
+    expect(locked.statusCode).toBe(409);
+    expect(locked.json().error.details[0].path).toBe("body/pay");
+    expect((await patch({ permissions: ["shop.open"] })).json().data).toMatchObject({ permissions: ["shop.open"], pay: { amount: 80_000 } });
+
+    const lines = (await call("GET", `/vendor/businesses/${id}/activity`, owner.token)).json().data.map((e: { line: string }) => e.line);
+    expect(lines).toEqual(expect.arrayContaining(["Changed the pay offered to Kiran Das", "Changed what Kiran Das can do"]));
+
+    const stranger = await person({ verified: true });
+    const none = (await call("POST", `/vendor/businesses/${id}/team`, owner.token, { username: stranger.username, permissions: ["orders.view"] })).json().data;
+    expect(none.pay).toBeNull();
+  });
+
   it("refuses unknown people, the owner, blocked people, other people's shops and food places", async () => {
     const owner = await person({ vendor: true, verified: true });
     const other = await person({ vendor: true, verified: true });

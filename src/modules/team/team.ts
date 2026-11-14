@@ -6,7 +6,7 @@ import { stamp, type AuditLogDoc, type BusinessDoc, type Database, type Employme
 import { AppError } from "../../platform/errors.js";
 import { notifyTeam } from "../notifications/notify.js";
 import { blockBetween } from "../social/relations.js";
-import { INVITE_DAYS, MAX_TEAM, type TeamMember, type WorkPlace } from "./contracts.js";
+import { INVITE_DAYS, MAX_TEAM, type Pay, type TeamMember, type WorkPlace } from "./contracts.js";
 
 const DAY_MS = 24 * 60 * 60_000;
 
@@ -30,6 +30,10 @@ export function withNeeds(permissions: TeamPermission[]): TeamPermission[] {
   for (const p of PERMISSIONS) if (set.has(p.key) && p.needs) set.add(p.needs);
   return PERMISSIONS.filter((p) => set.has(p.key)).map((p) => p.key);
 }
+
+const cleanPay = (pay: Pay | null | undefined): Pay | null => (pay ? { amount: pay.amount, per: pay.per, note: pay.note?.trim() || null } : null);
+const payOf = (d: Pick<EmploymentDoc, "pay">): Pay | null => d.pay ?? null;
+const samePay = (a: Pay | null, b: Pay | null) => JSON.stringify(a) === JSON.stringify(b);
 
 const nameOf = (user: Pick<UserDoc, "name" | "username"> | null | undefined) => user?.name || (user?.username ? `@${user.username}` : "Someone");
 const verified = (user: Pick<UserDoc, "kyc"> | null | undefined) => user?.kyc?.base === "approved";
@@ -59,6 +63,7 @@ export async function teamOf(db: Database, businessId: ObjectId): Promise<TeamMe
       person: { id: d.userId.toHexString(), name: nameOf(user), username: user?.username ?? null, avatar: user?.avatar ?? null },
       status: d.status === "invited" ? "invited" : verified(user) ? "active" : "waiting",
       permissions: d.permissions,
+      pay: payOf(d),
       invitedAt: d.invitedAt.toISOString(),
       expiresAt: d.status === "invited" ? d.expiresAt.toISOString() : null,
       joinedAt: d.joinedAt?.toISOString() ?? null,
@@ -89,7 +94,12 @@ interface Ctx {
   log: FastifyBaseLogger;
 }
 
-export async function invite(db: Database, business: WithId<BusinessDoc>, input: { username: string; permissions: TeamPermission[] }, ctx: Ctx & { by: ObjectId }) {
+export async function invite(
+  db: Database,
+  business: WithId<BusinessDoc>,
+  input: { username: string; permissions: TeamPermission[]; pay?: Pay | null },
+  ctx: Ctx & { by: ObjectId },
+) {
   assertTeamBusiness(business);
   const username = input.username.trim().replace(/^@/, "").toLowerCase();
   const user = await db.users.findOne({ username, status: "active" }, { projection: { name: 1, username: 1 } });
@@ -118,6 +128,7 @@ export async function invite(db: Database, business: WithId<BusinessDoc>, input:
     status: "invited",
     current: true,
     permissions: withNeeds(input.permissions),
+    pay: cleanPay(input.pay),
     invitedBy: ctx.by,
     invitedAt: now,
     expiresAt: new Date(now.getTime() + INVITE_DAYS * DAY_MS),
@@ -132,7 +143,11 @@ export async function invite(db: Database, business: WithId<BusinessDoc>, input:
     if ((err as { code?: number }).code === 11000) throw new AppError("CONFLICT", `${nameOf(user)} already has an invite.`, field("Already"));
     throw err;
   }
-  await audit(db, doc, "team.invite", ctx.actor, ctx.ip, { person: { from: null, to: user._id }, permissions: { from: [], to: doc.permissions } });
+  await audit(db, doc, "team.invite", ctx.actor, ctx.ip, {
+    person: { from: null, to: user._id },
+    permissions: { from: [], to: doc.permissions },
+    ...(doc.pay ? { pay: { from: null, to: doc.pay } } : {}),
+  });
   const owner = await db.users.findOne({ _id: business.ownerId }, { projection: { name: 1, username: 1 } });
   await notifyTeam(db, ctx.log, {
     to: user._id,
@@ -152,17 +167,27 @@ export async function memberOf(db: Database, businessId: ObjectId, memberId: str
   return doc;
 }
 
-export async function setPermissions(db: Database, member: WithId<EmploymentDoc>, permissions: TeamPermission[], ctx: Ctx) {
-  const next = withNeeds(permissions);
-  if (next.join() === member.permissions.join()) return member;
+/** What a member may do, and while they're invited, the pay on offer. */
+export async function updateMember(db: Database, member: WithId<EmploymentDoc>, input: { permissions?: TeamPermission[]; pay?: Pay | null }, ctx: Ctx) {
+  const permissions = input.permissions ? withNeeds(input.permissions) : member.permissions;
+  const pay = input.pay === undefined ? payOf(member) : cleanPay(input.pay);
+  const payChanged = !samePay(pay, payOf(member));
+  if (payChanged && member.status !== "invited") {
+    throw new AppError("CONFLICT", "Pay is part of the offer, so it can't change once they accept.", [{ path: "body/pay", message: "Accepted" }]);
+  }
+  const permissionsChanged = permissions.join() !== member.permissions.join();
+  if (!permissionsChanged && !payChanged) return member;
   const now = new Date();
   const done = await db.employments.findOneAndUpdate(
     { _id: member._id, current: true, updatedAt: member.updatedAt },
-    { $set: { permissions: next, updatedAt: now } },
+    { $set: { permissions, pay, updatedAt: now } },
     { returnDocument: "after" },
   );
   if (!done) throw new AppError("CONFLICT");
-  await audit(db, member, "team.update", ctx.actor, ctx.ip, { permissions: { from: member.permissions, to: next } });
+  await audit(db, member, "team.update", ctx.actor, ctx.ip, {
+    ...(permissionsChanged ? { permissions: { from: member.permissions, to: permissions } } : {}),
+    ...(payChanged ? { pay: { from: payOf(member), to: pay } } : {}),
+  });
   return done;
 }
 
@@ -281,7 +306,17 @@ export async function workOf(db: Database, auth: Pick<AuthContext, "userId" | "k
   const invites = docs.flatMap((d) => {
     const { business, owner } = of(d);
     if (d.status !== "invited" || !business) return [];
-    return [{ id: d._id.toHexString(), business: workBusiness(business), owner: { name: nameOf(owner) }, permissions: d.permissions, invitedAt: d.invitedAt.toISOString(), expiresAt: d.expiresAt.toISOString() }];
+    return [
+      {
+        id: d._id.toHexString(),
+        business: workBusiness(business),
+        owner: { name: nameOf(owner) },
+        permissions: d.permissions,
+        pay: payOf(d),
+        invitedAt: d.invitedAt.toISOString(),
+        expiresAt: d.expiresAt.toISOString(),
+      },
+    ];
   });
   const places = docs.flatMap((d) => {
     const { business, owner } = of(d);
@@ -297,6 +332,7 @@ export function placeView(d: EmploymentDoc, business: WithId<BusinessDoc>, owner
     business: workBusiness(business),
     owner: { name: nameOf(owner) },
     permissions: d.permissions,
+    pay: payOf(d),
     joinedAt: (d.joinedAt ?? d.invitedAt).toISOString(),
     access: business.suspension ? "on_hold" : isVerified ? "on" : "verify",
   };

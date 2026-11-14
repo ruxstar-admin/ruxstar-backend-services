@@ -118,7 +118,8 @@ export function lineOf(e: Entry, refs: Refs): string {
     case "team.invite":
       return `Invited ${person} to the team`;
     case "team.update":
-      return `Changed what ${person} can do`;
+      if (!d.pay) return `Changed what ${person} can do`;
+      return d.permissions ? `Changed what ${person} can do and the pay on offer` : `Changed the pay offered to ${person}`;
     case "team.remove":
       return d.status?.from === "invited" ? `Cancelled ${person}'s invite` : `Removed ${person} from the team${reason}`;
     case "team.leave":

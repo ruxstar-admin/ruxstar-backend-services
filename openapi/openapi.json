@@ -26670,6 +26670,7 @@
                               "person",
                               "status",
                               "permissions",
+                              "pay",
                               "invitedAt",
                               "expiresAt",
                               "joinedAt"
@@ -26816,6 +26817,78 @@
                                   ],
                                   "description": "What the owner lets this person do at the business"
                                 }
+                              },
+                              "pay": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "amount",
+                                      "per",
+                                      "note"
+                                    ],
+                                    "properties": {
+                                      "amount": {
+                                        "type": "integer",
+                                        "minimum": 100,
+                                        "maximum": 100000000,
+                                        "description": "In paise, at least ₹1"
+                                      },
+                                      "per": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "month"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "week"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "day"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "hour"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "order"
+                                            ]
+                                          }
+                                        ],
+                                        "description": "`order` is per order or delivery"
+                                      },
+                                      "note": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "maxLength": 120
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ],
+                                        "description": "For example: plus petrol allowance"
+                                      }
+                                    },
+                                    "additionalProperties": false,
+                                    "description": "Pay offered with the invite. Null when the owner left it out"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               },
                               "invitedAt": {
                                 "type": "string",
@@ -27079,7 +27152,7 @@
         "tags": [
           "vendor"
         ],
-        "description": "They get a notification and have 7 days to accept. Nothing works for them until their identity verification is approved. A team holds up to 20 people, invites included. Permissions that need \"See orders\" bring it with them. Withdrawals, payment details, publishing, deleting and the team itself stay with the owner.",
+        "description": "They get a notification and have 7 days to accept. Nothing works for them until their identity verification is approved. A team holds up to 20 people, invites included. Permissions that need \"See orders\" bring it with them. Pay is optional and shown to them with the invite, so they can compare offers. Withdrawals, payment details, publishing, deleting and the team itself stay with the owner.",
         "requestBody": {
           "required": true,
           "content": {
@@ -27173,6 +27246,78 @@
                     "minItems": 1,
                     "maxItems": 10,
                     "uniqueItems": true
+                  },
+                  "pay": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "amount",
+                          "per",
+                          "note"
+                        ],
+                        "properties": {
+                          "amount": {
+                            "type": "integer",
+                            "minimum": 100,
+                            "maximum": 100000000,
+                            "description": "In paise, at least ₹1"
+                          },
+                          "per": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "month"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "week"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "day"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "hour"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "order"
+                                ]
+                              }
+                            ],
+                            "description": "`order` is per order or delivery"
+                          },
+                          "note": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 120
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "For example: plus petrol allowance"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Pay offered with the invite. Null when the owner left it out"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "additionalProperties": false
@@ -27219,6 +27364,7 @@
                         "person",
                         "status",
                         "permissions",
+                        "pay",
                         "invitedAt",
                         "expiresAt",
                         "joinedAt"
@@ -27366,6 +27512,78 @@
                             "description": "What the owner lets this person do at the business"
                           }
                         },
+                        "pay": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "amount",
+                                "per",
+                                "note"
+                              ],
+                              "properties": {
+                                "amount": {
+                                  "type": "integer",
+                                  "minimum": 100,
+                                  "maximum": 100000000,
+                                  "description": "In paise, at least ₹1"
+                                },
+                                "per": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "month"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "week"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "day"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "hour"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "order"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "`order` is per order or delivery"
+                                },
+                                "note": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "maxLength": 120
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "For example: plus petrol allowance"
+                                }
+                              },
+                              "additionalProperties": false,
+                              "description": "Pay offered with the invite. Null when the owner left it out"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "invitedAt": {
                           "type": "string",
                           "format": "date-time"
@@ -27439,20 +27657,17 @@
     },
     "/v1/vendor/businesses/{id}/team/{memberId}": {
       "patch": {
-        "summary": "Change what a team member, or someone invited, may do",
+        "summary": "Change what a team member, or someone invited, may do, and the pay on an open invite",
         "tags": [
           "vendor"
         ],
-        "description": "Replaces their permissions. It applies on their next request.",
+        "description": "Replaces what you send: permissions apply on their next request. Pay changes only while they're invited; null takes it off the offer. Ruxstar only shows the pay; the shop pays its team outside Ruxstar.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "permissions"
-                ],
                 "properties": {
                   "permissions": {
                     "type": "array",
@@ -27530,9 +27745,83 @@
                     "minItems": 1,
                     "maxItems": 10,
                     "uniqueItems": true
+                  },
+                  "pay": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "amount",
+                          "per",
+                          "note"
+                        ],
+                        "properties": {
+                          "amount": {
+                            "type": "integer",
+                            "minimum": 100,
+                            "maximum": 100000000,
+                            "description": "In paise, at least ₹1"
+                          },
+                          "per": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "month"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "week"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "day"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "hour"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "order"
+                                ]
+                              }
+                            ],
+                            "description": "`order` is per order or delivery"
+                          },
+                          "note": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 120
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "For example: plus petrol allowance"
+                          }
+                        },
+                        "additionalProperties": false,
+                        "description": "Pay offered with the invite. Null when the owner left it out"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Only while they're invited: the offer can't change once they accept"
                   }
                 },
-                "additionalProperties": false
+                "additionalProperties": false,
+                "minProperties": 1
               }
             }
           }
@@ -27586,6 +27875,7 @@
                         "person",
                         "status",
                         "permissions",
+                        "pay",
                         "invitedAt",
                         "expiresAt",
                         "joinedAt"
@@ -27732,6 +28022,78 @@
                             ],
                             "description": "What the owner lets this person do at the business"
                           }
+                        },
+                        "pay": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "amount",
+                                "per",
+                                "note"
+                              ],
+                              "properties": {
+                                "amount": {
+                                  "type": "integer",
+                                  "minimum": 100,
+                                  "maximum": 100000000,
+                                  "description": "In paise, at least ₹1"
+                                },
+                                "per": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "month"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "week"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "day"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "hour"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "order"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "`order` is per order or delivery"
+                                },
+                                "note": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "maxLength": 120
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "For example: plus petrol allowance"
+                                }
+                              },
+                              "additionalProperties": false,
+                              "description": "Pay offered with the invite. Null when the owner left it out"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "invitedAt": {
                           "type": "string",
@@ -57262,6 +57624,7 @@
                               "business",
                               "owner",
                               "permissions",
+                              "pay",
                               "invitedAt",
                               "expiresAt"
                             ],
@@ -57464,6 +57827,78 @@
                                   "description": "What the owner lets this person do at the business"
                                 }
                               },
+                              "pay": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "amount",
+                                      "per",
+                                      "note"
+                                    ],
+                                    "properties": {
+                                      "amount": {
+                                        "type": "integer",
+                                        "minimum": 100,
+                                        "maximum": 100000000,
+                                        "description": "In paise, at least ₹1"
+                                      },
+                                      "per": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "month"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "week"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "day"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "hour"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "order"
+                                            ]
+                                          }
+                                        ],
+                                        "description": "`order` is per order or delivery"
+                                      },
+                                      "note": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "maxLength": 120
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ],
+                                        "description": "For example: plus petrol allowance"
+                                      }
+                                    },
+                                    "additionalProperties": false,
+                                    "description": "Pay offered with the invite. Null when the owner left it out"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
                               "invitedAt": {
                                 "type": "string",
                                 "format": "date-time"
@@ -57486,6 +57921,7 @@
                               "business",
                               "owner",
                               "permissions",
+                              "pay",
                               "joinedAt",
                               "access"
                             ],
@@ -57687,6 +58123,79 @@
                                   ],
                                   "description": "What the owner lets this person do at the business"
                                 }
+                              },
+                              "pay": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "amount",
+                                      "per",
+                                      "note"
+                                    ],
+                                    "properties": {
+                                      "amount": {
+                                        "type": "integer",
+                                        "minimum": 100,
+                                        "maximum": 100000000,
+                                        "description": "In paise, at least ₹1"
+                                      },
+                                      "per": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "month"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "week"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "day"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "hour"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "order"
+                                            ]
+                                          }
+                                        ],
+                                        "description": "`order` is per order or delivery"
+                                      },
+                                      "note": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "maxLength": 120
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ],
+                                        "description": "For example: plus petrol allowance"
+                                      }
+                                    },
+                                    "additionalProperties": false,
+                                    "description": "Pay offered with the invite. Null when the owner left it out"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "The pay they accepted"
                               },
                               "joinedAt": {
                                 "type": "string",
@@ -57988,6 +58497,7 @@
                         "business",
                         "owner",
                         "permissions",
+                        "pay",
                         "joinedAt",
                         "access"
                       ],
@@ -58189,6 +58699,79 @@
                             ],
                             "description": "What the owner lets this person do at the business"
                           }
+                        },
+                        "pay": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "amount",
+                                "per",
+                                "note"
+                              ],
+                              "properties": {
+                                "amount": {
+                                  "type": "integer",
+                                  "minimum": 100,
+                                  "maximum": 100000000,
+                                  "description": "In paise, at least ₹1"
+                                },
+                                "per": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "month"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "week"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "day"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "hour"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "order"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "`order` is per order or delivery"
+                                },
+                                "note": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "maxLength": 120
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "For example: plus petrol allowance"
+                                }
+                              },
+                              "additionalProperties": false,
+                              "description": "Pay offered with the invite. Null when the owner left it out"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The pay they accepted"
                         },
                         "joinedAt": {
                           "type": "string",
@@ -75598,6 +76181,7 @@
                               "person",
                               "status",
                               "permissions",
+                              "pay",
                               "invitedAt",
                               "expiresAt",
                               "joinedAt"
@@ -75744,6 +76328,78 @@
                                   ],
                                   "description": "What the owner lets this person do at the business"
                                 }
+                              },
+                              "pay": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "required": [
+                                      "amount",
+                                      "per",
+                                      "note"
+                                    ],
+                                    "properties": {
+                                      "amount": {
+                                        "type": "integer",
+                                        "minimum": 100,
+                                        "maximum": 100000000,
+                                        "description": "In paise, at least ₹1"
+                                      },
+                                      "per": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "month"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "week"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "day"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "hour"
+                                            ]
+                                          },
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "order"
+                                            ]
+                                          }
+                                        ],
+                                        "description": "`order` is per order or delivery"
+                                      },
+                                      "note": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "maxLength": 120
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ],
+                                        "description": "For example: plus petrol allowance"
+                                      }
+                                    },
+                                    "additionalProperties": false,
+                                    "description": "Pay offered with the invite. Null when the owner left it out"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               },
                               "invitedAt": {
                                 "type": "string",

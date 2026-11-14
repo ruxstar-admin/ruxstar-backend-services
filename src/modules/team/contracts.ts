@@ -29,6 +29,24 @@ const PermissionInfo = Strict({
   needs: Type.Union([TeamPermission, Type.Null()], { description: "Given with this one, since it can't work without it" }),
 });
 
+export const PAY_NOTE_MAX = 120;
+/** ₹10 lakh, in paise. */
+export const PAY_MAX = 100_000_000;
+
+/** What the owner offers to pay. Ruxstar only shows it; the shop pays its team outside Ruxstar. */
+export const Pay = Strict(
+  {
+    amount: Type.Integer({ minimum: 100, maximum: PAY_MAX, description: "In paise, at least ₹1" }),
+    per: Type.Union([Type.Literal("month"), Type.Literal("week"), Type.Literal("day"), Type.Literal("hour"), Type.Literal("order")], {
+      description: "`order` is per order or delivery",
+    }),
+    note: Type.Union([Type.String({ maxLength: PAY_NOTE_MAX }), Type.Null()], { description: "For example: plus petrol allowance" }),
+  },
+  { description: "Pay offered with the invite. Null when the owner left it out" },
+);
+export type Pay = Static<typeof Pay>;
+const PayOrNull = Type.Union([Pay, Type.Null()]);
+
 const Person = Strict({
   id: ObjectIdString,
   name: Type.String(),
@@ -43,6 +61,7 @@ export const TeamMember = Strict({
     description: "`invited` hasn't accepted yet; `waiting` accepted but isn't verified, so nothing works for them yet",
   }),
   permissions: Type.Array(TeamPermission),
+  pay: PayOrNull,
   invitedAt: DateTime,
   expiresAt: Type.Union([DateTime, Type.Null()], { description: "When the invite runs out; null once accepted" }),
   joinedAt: Type.Union([DateTime, Type.Null()]),
@@ -62,8 +81,15 @@ const Permissions = Type.Array(TeamPermission, { minItems: 1, maxItems: 10, uniq
 export const InviteBody = Strict({
   username: Type.String({ minLength: 3, maxLength: 20, description: "Their Ruxstar username, without the @" }),
   permissions: Permissions,
+  pay: Type.Optional(PayOrNull),
 });
-export const PermissionsBody = Strict({ permissions: Permissions });
+export const PermissionsBody = Strict(
+  {
+    permissions: Type.Optional(Permissions),
+    pay: Type.Optional(Type.Union([Pay, Type.Null()], { description: "Only while they're invited: the offer can't change once they accept" })),
+  },
+  { minProperties: 1 },
+);
 export const TeamParams = Strict({ id: ObjectIdString });
 export const MemberParams = Strict({ id: ObjectIdString, memberId: ObjectIdString });
 export const RemoveBody = Strict({ reason: Type.String({ minLength: 5, maxLength: 300, description: "Kept in the audit log; the owner and the person see it" }) });
@@ -84,6 +110,7 @@ const WorkInvite = Strict({
   business: WorkBusiness,
   owner: Strict({ name: Type.String() }),
   permissions: Type.Array(TeamPermission),
+  pay: PayOrNull,
   invitedAt: DateTime,
   expiresAt: DateTime,
 });
@@ -93,6 +120,7 @@ export const WorkPlace = Strict({
   business: WorkBusiness,
   owner: Strict({ name: Type.String() }),
   permissions: Type.Array(TeamPermission),
+  pay: Type.Union([Pay, Type.Null()], { description: "The pay they accepted" }),
   joinedAt: DateTime,
   access: Type.Union([Type.Literal("on"), Type.Literal("verify"), Type.Literal("on_hold")], {
     description: "`verify`: get verified before anything works; `on_hold`: Ruxstar put the business on hold",

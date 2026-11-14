@@ -8,7 +8,7 @@ import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { Done } from "../social/contracts.js";
 import { InviteBody, MAX_TEAM, MemberParams, PermissionsBody, TeamMemberOne, TeamOne, TeamParams, INVITE_DAYS } from "../team/contracts.js";
-import { endPlace, invite, memberOf, setPermissions, teamOf, teamView } from "../team/team.js";
+import { endPlace, invite, memberOf, teamOf, teamView, updateMember } from "../team/team.js";
 import { ownedBy, requireVendor } from "./businesses.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
@@ -54,6 +54,7 @@ const team: FastifyPluginAsyncTypebox = async (app) => {
         description:
           `They get a notification and have ${INVITE_DAYS} days to accept. Nothing works for them until their identity verification is approved. ` +
           `A team holds up to ${MAX_TEAM} people, invites included. Permissions that need "See orders" bring it with them. ` +
+          "Pay is optional and shown to them with the invite, so they can compare offers. " +
           "Withdrawals, payment details, publishing, deleting and the team itself stay with the owner.",
         params: TeamParams,
         body: InviteBody,
@@ -74,8 +75,10 @@ const team: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: requireVendor,
       schema: {
         tags: ["vendor"],
-        summary: "Change what a team member, or someone invited, may do",
-        description: "Replaces their permissions. It applies on their next request.",
+        summary: "Change what a team member, or someone invited, may do, and the pay on an open invite",
+        description:
+          "Replaces what you send: permissions apply on their next request. Pay changes only while they're invited; null takes it off the offer. " +
+          "Ruxstar only shows the pay; the shop pays its team outside Ruxstar.",
         params: MemberParams,
         body: PermissionsBody,
         response: { 200: TeamMemberOne, ...Errors },
@@ -86,7 +89,7 @@ const team: FastifyPluginAsyncTypebox = async (app) => {
       const business = await owned(request, request.params.id);
       if (business.suspension) throw new AppError("BUSINESS_SUSPENDED");
       const member = await memberOf(db(), business._id, request.params.memberId);
-      const done = await setPermissions(db(), member, request.body.permissions, { actor: actorOf(request), ip: request.ip, log: request.log });
+      const done = await updateMember(db(), member, request.body, { actor: actorOf(request), ip: request.ip, log: request.log });
       return ok(request, await memberView(business._id, done._id));
     },
   );
