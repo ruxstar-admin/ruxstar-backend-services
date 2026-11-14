@@ -349,7 +349,7 @@ export const TeamOrderOne = Envelope(TeamOrder);
 export const TeamOrderList = ListEnvelope(TeamOrder);
 
 export const FileLink = Envelope(
-  Strict({ url: Type.String({ description: "Opens the file without signing in; works for 10 minutes" }), expiresAt: DateTime }),
+  Strict({ url: Type.String({ description: "Opens the file without signing in; works for 10 minutes. Add `download=1` to save it instead" }), expiresAt: DateTime }),
 );
 export const OrderParams = Strict({ id: ObjectIdString });
 export const OrderFileParams = Strict({ id: ObjectIdString, fileId: ObjectIdString });

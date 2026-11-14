@@ -138,12 +138,13 @@ if (!cfg.fake) pay();
       schema: {
         hide: true,
         params: Strict({ id: ObjectIdString, fileId: ObjectIdString }),
-        querystring: Strict({ exp: Type.Integer(), t: Type.String({ maxLength: 100 }) }),
+        querystring: Strict({ exp: Type.Integer(), t: Type.String({ maxLength: 100 }), download: Type.Optional(Type.Literal("1")) }),
       },
       config: { rateLimit: { max: 60, timeWindow: 60_000 } },
     },
     async (request, reply) => {
       const { id, fileId } = request.params;
+      const disposition = request.query.download ? "attachment" : "inline";
       if (!fileLinkValid(key, id, fileId, request.query.exp, request.query.t)) {
         throw new AppError("UNAUTHENTICATED", "This link has expired. Open the order again.");
       }
@@ -154,7 +155,7 @@ if (!cfg.fake) pay();
       const name = file.name.replace(/["\\]/g, "");
       return reply
         .headers({ ...noStore, "Content-Type": file.contentType, "X-Content-Type-Options": "nosniff" })
-        .header("Content-Disposition", `inline; filename="${name.replace(/[^\x20-\x7e]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(name)}`)
+        .header("Content-Disposition", `${disposition}; filename="${name.replace(/[^\x20-\x7e]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(name)}`)
         .send(data);
     },
   );

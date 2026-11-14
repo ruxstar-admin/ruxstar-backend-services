@@ -227,6 +227,9 @@ describe("print orders", () => {
     expect(download.statusCode).toBe(200);
     expect(download.headers["content-type"]).toBe("application/pdf");
     expect(download.rawPayload.equals(pdf3)).toBe(true);
+    expect(download.headers["content-disposition"]).toMatch(/^inline; /);
+    const saved = await stack.app.inject({ method: "GET", url: `${href.pathname}${href.search}&download=1` });
+    expect(saved.headers["content-disposition"]).toMatch(/^attachment; filename="/);
     href.searchParams.set("exp", String(Number(href.searchParams.get("exp")) + 60));
     expect((await stack.app.inject({ method: "GET", url: href.pathname + href.search })).statusCode).toBe(401);
 
@@ -263,6 +266,10 @@ describe("print orders", () => {
     const ruxstar = entries.filter((e) => e.accountId === "ruxstar" && e.bucket === "withdrawable").reduce((s, e) => s + e.signedPaise, 0);
     expect(ruxstar).toBe(36_500);
     expect(stack.printFiles.expiring.size).toBe(1);
+    const reprint = () => call("GET", `/vendor/orders/${order.id}/files/${file.id}`, owner.token);
+    expect((await reprint()).statusCode).toBe(200);
+    await stack.db.podOrders.updateOne({ _id: new ObjectId(order.id) }, { $set: { deliveredAt: new Date(Date.now() - 31 * 24 * 60 * 60_000) } });
+    expect((await reprint()).json().error.message).toBe("Files are kept for 30 days after delivery, so this order's are gone.");
     const customerNews = await stack.db.notifications.find({ userId: customer.userId }).toArray();
     expect(customerNews.map((n) => n.title)).toContain(`Delivered: #${order.orderNo}`);
   });

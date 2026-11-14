@@ -210,6 +210,8 @@ export const ACCEPT_WINDOW_MS = 6 * HOUR_MS;
 export const HOLD_MS = 48 * HOUR_MS;
 /** An order not marked delivered this long after its ready date counts as delivered. */
 export const LATE_LIMIT_MS = 7 * DAY_MS;
+/** The print bucket deletes an order's files 30 days after it ends, so the shop can reprint until then. */
+export const FILES_KEPT_MS = 30 * DAY_MS;
 /** Orders from before the ready-in days were kept. */
 const FALLBACK_TURNAROUND_DAYS = 3;
 
@@ -242,6 +244,15 @@ export const shopRefundable = (order: PodOrderDoc) => Math.max(0, shopShareLeft(
 /** The shop's share hasn't moved to its balance yet, so money can still come back out of it. */
 export const unreleased = (order: PodOrderDoc) =>
   !order.releasedAt && (IN_HAND.includes(order.status) || (order.status === "delivered" && !!order.releaseAt));
+
+/** Why the shop can't open the order's files any more, or null while it can. */
+export function filesGone(order: PodOrderDoc, now = Date.now()): string | null {
+  if (["rejected", "cancelled", "refunded"].includes(order.status)) return "This order was closed, so its files are gone.";
+  if (order.status === "delivered" && order.deliveredAt && now > order.deliveredAt.getTime() + FILES_KEPT_MS) {
+    return "Files are kept for 30 days after delivery, so this order's are gone.";
+  }
+  return null;
+}
 
 /** A customer can report a problem within 48 hours of delivery, or any time after the ready date while it hasn't arrived. */
 export function canReport(order: PodOrderDoc, now = Date.now()): boolean {

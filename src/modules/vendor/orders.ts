@@ -19,7 +19,7 @@ import {
   ShopStatusBody,
 } from "../pod/contracts.js";
 import { applyDue, dueApplied, refundPart } from "../pod/order-rules.js";
-import { fileLink, moveOrder, photoLinks, shopCanMove, shopOrderView, signingKey } from "../pod/orders.js";
+import { fileLink, filesGone, moveOrder, photoLinks, shopCanMove, shopOrderView, signingKey } from "../pod/orders.js";
 import { AssignBody, DeliveryOptions } from "../delivery/contracts.js";
 import { riderHasIt } from "../delivery/stop.js";
 import { assignTrip, cancelTrip, deliveryOptions } from "../delivery/trips.js";
@@ -214,7 +214,8 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const order = await theirs(request.auth!.userId, request.params.id);
-      if (["rejected", "cancelled", "refunded"].includes(order.status)) throw new AppError("NOT_FOUND", "This order was closed, so its files are gone.");
+      const gone = filesGone(order);
+      if (gone) throw new AppError("NOT_FOUND", gone);
       if (!order.files.some((f) => f.id.toHexString() === request.params.fileId)) throw new AppError("NOT_FOUND", "File not found.");
       return ok(request, fileLink(app, signingKey(app), request, request.params.id, request.params.fileId));
     },
