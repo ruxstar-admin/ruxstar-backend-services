@@ -742,6 +742,7 @@ const core = (doc: PodOrderDoc, links: PhotoLinks) => ({
   status: doc.status,
   timeline: doc.timeline.map((t) => ({ status: t.status, at: t.at.toISOString() })),
   paidAt: iso(doc.payment.paidAt),
+  paymentId: doc.payment.paymentId ?? null,
   refunds: refundsOf(doc).map((r) => ({ amount: r.amount, kind: r.kind, reason: r.reason, status: r.status, at: r.at.toISOString() })),
   refunded: sum(refundsOf(doc)),
   reason: doc.reason,

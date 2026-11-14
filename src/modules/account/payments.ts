@@ -1,12 +1,14 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
+import { ObjectId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { requireAuth } from "../../platform/auth.js";
 import { requireDatabase } from "../../platform/context.js";
 import type { PodOrderDoc } from "../../platform/db.js";
-import { page } from "../../platform/envelope.js";
+import { ok, page } from "../../platform/envelope.js";
+import { AppError } from "../../platform/errors.js";
 import { findPage } from "../../platform/pagination.js";
 import { refundsOf } from "../pod/orders.js";
-import { PaymentList, PaymentsQuery, type Payment } from "./contracts.js";
+import { PaymentList, PaymentOne, PaymentParams, PaymentsQuery, type Payment } from "./contracts.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 
@@ -59,6 +61,30 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
         limit: request.query.limit,
       });
       return page(request, items.map(paymentView), nextCursor);
+    },
+  );
+
+  app.get(
+    "/payments/:id",
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ["account"],
+        summary: "One of your payments",
+        description: "A payment has the same ID as the order it paid for.",
+        params: PaymentParams,
+        response: { 200: PaymentOne, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const doc = await db().podOrders.findOne({
+        _id: new ObjectId(request.params.id),
+        customerId: request.auth!.userId,
+        "payment.paidAt": { $ne: null },
+      });
+      if (!doc) throw new AppError("NOT_FOUND", "Payment not found.");
+      return ok(request, paymentView(doc));
     },
   );
 };

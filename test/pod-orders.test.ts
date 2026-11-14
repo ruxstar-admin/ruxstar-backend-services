@@ -208,10 +208,12 @@ describe("print orders", () => {
     const mine = (await call("GET", `/pod/orders/${order.id}`, customer.token)).json().data;
     expect(mine.status).toBe("placed");
     expect(mine.paidAt).not.toBeNull();
+    expect(mine.paymentId).toEqual(expect.any(String));
     expect(mine.price).not.toHaveProperty("commission");
 
     const listed = (await call("GET", "/vendor/orders?view=new", owner.token)).json().data;
     expect(listed).toHaveLength(1);
+    expect(listed[0].paymentId).toBe(mine.paymentId);
     expect(listed[0].price).toMatchObject({ commissionBps: 1000, commission: 36_000, payout: 324_000 });
     expect(listed[0].address).toMatchObject(ADDRESS);
     const bell = await stack.db.notifications.findOne({ userId: owner.userId });
@@ -477,6 +479,8 @@ describe("print orders", () => {
       },
     ]);
     expect((await call("GET", "/account/payments", owner.token)).json().data).toEqual([]);
+    expect((await call("GET", `/account/payments/${order.id}`, customer.token)).json().data).toMatchObject({ id: order.id, status: "part_refunded", refunded: 50_000 });
+    expect((await call("GET", `/account/payments/${order.id}`, owner.token)).statusCode).toBe(404);
 
     await call("POST", `/vendor/orders/${order.id}/status`, owner.token, { status: "delivered" });
     await age(order.id, { releaseAt: 1 });

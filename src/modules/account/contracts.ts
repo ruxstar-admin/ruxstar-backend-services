@@ -235,4 +235,6 @@ export const Payment = Strict({
 });
 export type Payment = Static<typeof Payment>;
 export const PaymentList = ListEnvelope(Payment);
+export const PaymentOne = Envelope(Payment);
 export const PaymentsQuery = Strict({ ...PageQuery });
+export const PaymentParams = Strict({ id: ObjectIdString });

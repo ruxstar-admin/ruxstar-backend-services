@@ -260,6 +260,7 @@ const OrderCore = {
   status: OrderStatus,
   timeline: Type.Array(Strict({ status: OrderStatus, at: DateTime })),
   paidAt: Nullable(DateTime),
+  paymentId: Nullable(Type.String({ description: "The payment gateway's ID for it, once it confirmed the payment" })),
   refunds: Type.Array(Refund, { description: "Oldest first" }),
   refunded: Paise,
   reason: Nullable(Type.String({ description: "Why the shop turned it down, or why it was cancelled" })),
