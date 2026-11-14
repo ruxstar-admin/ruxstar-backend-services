@@ -5,6 +5,7 @@ import { requireDatabase } from "../platform/context.js";
 import { AppError } from "../platform/errors.js";
 import { sweepRiderPay } from "./delivery/pay.js";
 import { sweepOffers } from "./delivery/trips.js";
+import { sweepEvents } from "./events/orders.js";
 import { sweepOrders } from "./pod/order-rules.js";
 import { sweepPayouts } from "./vendor/payouts.js";
 
@@ -43,9 +44,10 @@ export function jobs(auth: JobAuth | null): FastifyPluginAsync {
       const offers = await sweepOffers(app, db);
       const counts = await sweepOrders(app, db);
       const riderPay = await sweepRiderPay(db);
+      const events = await sweepEvents(app, db);
       const payouts = await sweepPayouts(app, db);
-      request.log.info({ job: "orders", ...counts, riderPay, payouts, offers }, "Order timers, delivery offers, partners' pay and payouts swept");
-      return { ok: true, ...counts, riderPay, payouts, offers };
+      request.log.info({ job: "orders", ...counts, ...events, riderPay, payouts, offers }, "Order and ticket timers, delivery offers, partners' pay and payouts swept");
+      return { ok: true, ...counts, ...events, riderPay, payouts, offers };
     });
   };
 }

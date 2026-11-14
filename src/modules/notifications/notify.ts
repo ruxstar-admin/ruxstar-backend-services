@@ -305,6 +305,33 @@ export async function notifyRider(
   }
 }
 
+/** Tickets, waitlist offers and changes to an event, each person with their own link. Logged, never thrown. */
+export async function notifyEvent(
+  db: Database,
+  log: FastifyBaseLogger,
+  event: { actor: ObjectId; type: "event.ticket" | "event.updated"; title: string; body: string; to: { userId: ObjectId; link: NotificationDoc["link"] }[] },
+): Promise<void> {
+  if (!event.to.length) return;
+  const now = new Date();
+  const docs: NotificationDoc[] = event.to.map(({ userId, link }) => ({
+    _id: new ObjectId(),
+    userId,
+    type: event.type,
+    actorId: event.actor,
+    title: clip(event.title, 60),
+    body: clip(event.body, 140),
+    link,
+    readAt: null,
+    createdAt: now,
+  }));
+  try {
+    await db.notifications.insertMany(docs);
+    for (const doc of docs) announce(doc);
+  } catch (err) {
+    log.warn({ err: (err as Error).message, type: event.type }, "Notification not saved");
+  }
+}
+
 /** Tells a customer Ruxstar answered or resolved their help ticket, which `support` opens. Logged, never thrown. */
 export async function notifySupport(
   db: Database,

@@ -8,7 +8,7 @@ export const CATEGORIES: readonly { module: BusinessModule; label: string; descr
   { module: "stays", label: "PG & hostel stays", description: "Rooms and beds by the month" },
 ];
 
-export const BUSINESS_TYPES = ["print_shop", "concert", "sports_event", "coaching", "pg", "hostel"] as const;
+export const BUSINESS_TYPES = ["print_shop", "concert", "sports_event", "meetup", "coaching", "pg", "hostel"] as const;
 export type BusinessType = (typeof BUSINESS_TYPES)[number];
 
 export const TYPES: readonly {
@@ -46,6 +46,15 @@ export const TYPES: readonly {
     examples: "Stadium, sports club events",
     namePlaceholder: "e.g. Champions Turf Events",
     detailHint: "Your organisation name and where events are held.",
+  },
+  {
+    id: "meetup",
+    module: "events",
+    label: "Workshops & meetups",
+    description: "Meetups, workshops, talks and online sessions",
+    examples: "Community group, workshop host, webinar organiser",
+    namePlaceholder: "e.g. Hyderabad Makers",
+    detailHint: "Your group or brand name. Events can be at a venue or online.",
   },
   {
     id: "coaching",

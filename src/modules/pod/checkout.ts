@@ -6,29 +6,12 @@ import { ObjectIdString, Strict } from "../../contracts/common.js";
 import { requireDatabase } from "../../platform/context.js";
 import type { PodOrderDoc } from "../../platform/db.js";
 import { AppError } from "../../platform/errors.js";
+import { escape, htmlPage as page, NO_STORE as noStore, payPage } from "../../platform/pay-page.js";
+import { syncEventPayment } from "../events/orders.js";
 import { checkoutTokenValid, fileLinkValid, photoLinkValid, rupees, signingKey, syncPayment, withOrder } from "./orders.js";
 
 const Params = Strict({ id: ObjectIdString });
 const Query = Strict({ exp: Type.Integer(), back: Type.String({ maxLength: 500 }), t: Type.String({ maxLength: 100 }) });
-
-const escape = (text: string) =>
-  text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-/** For JSON inside a script tag. */
-const scriptJson = (value: unknown) => JSON.stringify(value).replace(/</g, "\\u003c");
-
-const page = (title: string, body: string, script = "") => `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex"><title>${escape(title)} · Ruxstar</title>
-<style>
-:root{color-scheme:light dark;--bg:#f6f5fb;--card:#fff;--ink:#14121f;--ink2:#5d5a6e;--line:#e4e1ef;--accent:#6c4cf5}
-@media (prefers-color-scheme:dark){:root{--bg:#0e0d14;--card:#191723;--ink:#f3f1fa;--ink2:#a7a3b8;--line:#2b2838}}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:24px}
-main{width:100%;max-width:420px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:28px}
-h1{font-size:20px;margin:0 0 4px}p{margin:0 0 16px;color:var(--ink2)}.total{font-size:32px;font-weight:700;margin:8px 0 20px;color:var(--ink)}
-button,a.btn{display:block;width:100%;border:0;border-radius:14px;padding:14px;font:600 16px system-ui,sans-serif;text-align:center;text-decoration:none;cursor:pointer}
-button{background:var(--accent);color:#fff}button:disabled{opacity:.6}a.btn{margin-top:10px;color:var(--ink2);background:transparent}
-.err{color:#d6455d;min-height:24px;margin:12px 0 0;font-size:14px}.brand{font-weight:800;letter-spacing:.5px;color:var(--accent);margin-bottom:16px}
-</style></head><body><main><div class="brand">RUXSTAR</div>${body}</main>${script}</body></html>`;
 
 /**
  * The page customers pay on, from the app's browser or the website, and Cashfree's webhook. Outside /v1:
@@ -51,8 +34,6 @@ const checkout: FastifyPluginAsyncTypebox = async (app) => {
     return order;
   }
 
-  const noStore = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY" };
-
   app.get(
     "/pay/:id",
     { schema: { hide: true, params: Params, querystring: Query }, config: { rateLimit: { max: 60, timeWindow: 60_000 } } },
@@ -70,42 +51,15 @@ const checkout: FastifyPluginAsyncTypebox = async (app) => {
       if (order.status !== "awaiting_payment") return reply.redirect(next, 303);
 
       const query = new URLSearchParams({ exp: String(request.query.exp), back: request.query.back, t: request.query.t }).toString();
-      const fake = app.payments.checkout === "fake";
-      const config = {
-        mode: app.payments.checkout === "cashfree-production" ? "production" : "sandbox",
-        fake,
+      return payPage(app.payments, {
+        heading: `Pay ${order.shopName}`,
+        detail: `Order #${order.orderNo} · ${order.productLabel} × ${order.quantity}`,
+        amount: rupees(order.price.total),
         session: order.payment.sessionId,
         check: `/pay/${id}/check?${query}`,
         test: `/pay/${id}/test?${query}`,
         next,
-      };
-      const body = `<h1>Pay ${escape(order.shopName)}</h1><p>Order #${order.orderNo} · ${escape(order.productLabel)} × ${order.quantity}</p>
-<div class="total">${escape(rupees(order.price.total))}</div>
-<button id="pay">${fake ? "Pay (test, no money moves)" : "Pay securely"}</button>
-<a class="btn" href="${escape(next)}">Not now</a><div class="err" id="err" role="alert"></div>`;
-      const script = `${fake ? "" : '<script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>'}
-<script id="cfg" type="application/json">${scriptJson(config)}</script>
-<script>
-const cfg = JSON.parse(document.getElementById("cfg").textContent);
-const btn = document.getElementById("pay"), err = document.getElementById("err");
-async function done() {
-  const r = await fetch(cfg.check, { method: "POST" }).catch(() => null);
-  const j = r ? await r.json().catch(() => ({})) : {};
-  location.replace(j.next || cfg.next);
-}
-async function pay() {
-  btn.disabled = true; err.textContent = "";
-  try {
-    if (cfg.fake) { await fetch(cfg.test, { method: "POST" }); return done(); }
-    const result = await Cashfree({ mode: cfg.mode }).checkout({ paymentSessionId: cfg.session, redirectTarget: "_modal" });
-    if (result && result.error) { err.textContent = result.error.message || "Payment didn't go through. Try again."; btn.disabled = false; return; }
-    return done();
-  } catch (e) { err.textContent = "Payment didn't open. Check your connection and try again."; btn.disabled = false; }
-}
-btn.addEventListener("click", pay);
-if (!cfg.fake) pay();
-</script>`;
-      return page("Payment", body, script);
+      });
     },
   );
 
@@ -215,6 +169,10 @@ if (!cfg.fake) pay();
     const order = gatewayOrderId ? await db().podOrders.findOne({ "payment.gatewayOrderId": gatewayOrderId }) : null;
     // The event only says something changed; the gateway is asked what. Pending refunds are asked about too.
     if (order) await syncPayment(app, db(), order);
+    else if (gatewayOrderId) {
+      const tickets = await db().eventOrders.findOne({ "payment.gatewayOrderId": gatewayOrderId });
+      if (tickets) await syncEventPayment(app, db(), tickets);
+    }
     return { ok: true };
   });
 };

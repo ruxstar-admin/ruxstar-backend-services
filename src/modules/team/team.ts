@@ -10,32 +10,71 @@ import { INVITE_DAYS, MAX_TEAM, type Pay, type TeamMember, type WorkPlace } from
 
 const DAY_MS = 24 * 60 * 60_000;
 
-export const PERMISSIONS: { key: TeamPermission; label: string; hint: string | null; needs: TeamPermission | null }[] = [
-  { key: "orders.view", label: "See orders", hint: "New and past orders, and the files to print", needs: null },
-  { key: "orders.move", label: "Accept and move orders", hint: "Accept, printing, ready, out for delivery and delivered", needs: "orders.view" },
-  { key: "orders.reject", label: "Turn down orders", hint: "Before accepting; the customer gets a full refund", needs: "orders.view" },
-  { key: "orders.refund", label: "Refund part of an order", hint: "It comes out of the shop's share", needs: "orders.view" },
-  {
-    key: "orders.deliver",
-    label: "Deliver orders",
-    hint: "The shop can send them orders to take in the Ruxstar Delivery app. Needs delivery verification",
-    needs: "orders.view",
-  },
-  { key: "earnings.view", label: "See the shop's earnings", hint: "The shop's share and Ruxstar's commission on each order", needs: "orders.view" },
-  { key: "shop.open", label: "Open and close the shop", hint: null, needs: null },
-  { key: "shop.catalog", label: "Change products, prices and delivery area", hint: null, needs: null },
-  { key: "shop.details", label: "Edit details and photos", hint: "Name, phone, address, description and photos", needs: null },
-  { key: "coupons.manage", label: "Make and change coupons", hint: "For this shop. The discount comes out of the shop's share", needs: null },
-  { key: "posts.create", label: "Post as the business", hint: null, needs: null },
-  { key: "reviews.reply", label: "Reply to reviews", hint: "Answer customers' reviews for the shop", needs: null },
-];
+type PermissionInfo = { key: TeamPermission; label: string; hint: string | null; needs: TeamPermission | null; verify: boolean };
 
-/** In catalog order, with whatever each one needs added. */
-export function withNeeds(permissions: TeamPermission[]): TeamPermission[] {
+/** What doesn't need the person verified: a gate keeper only checks tickets, so anyone the owner invites can do it. */
+export const NO_KYC: readonly TeamPermission[] = ["tickets.scan"];
+const info = (p: { key: string; label: string; hint: string | null; needs: string | null }): PermissionInfo =>
+  ({ ...p, verify: !NO_KYC.includes(p.key as TeamPermission) }) as PermissionInfo;
+
+/** What an owner can give, by kind of business. Modules not listed have no team yet. */
+const CATALOGS: Partial<Record<BusinessDoc["module"], PermissionInfo[]>> = {
+  pod: [
+    { key: "orders.view", label: "See orders", hint: "New and past orders, and the files to print", needs: null },
+    { key: "orders.move", label: "Accept and move orders", hint: "Accept, printing, ready, out for delivery and delivered", needs: "orders.view" },
+    { key: "orders.reject", label: "Turn down orders", hint: "Before accepting; the customer gets a full refund", needs: "orders.view" },
+    { key: "orders.refund", label: "Refund part of an order", hint: "It comes out of the shop's share", needs: "orders.view" },
+    {
+      key: "orders.deliver",
+      label: "Deliver orders",
+      hint: "The shop can send them orders to take in the Ruxstar Delivery app. Needs delivery verification",
+      needs: "orders.view",
+    },
+    { key: "earnings.view", label: "See the shop's earnings", hint: "The shop's share and Ruxstar's commission on each order", needs: "orders.view" },
+    { key: "shop.open", label: "Open and close the shop", hint: null, needs: null },
+    { key: "shop.catalog", label: "Change products, prices and delivery area", hint: null, needs: null },
+    { key: "shop.details", label: "Edit details and photos", hint: "Name, phone, address, description and photos", needs: null },
+    { key: "coupons.manage", label: "Make and change coupons", hint: "For this shop. The discount comes out of the shop's share", needs: null },
+    { key: "posts.create", label: "Post as the business", hint: null, needs: null },
+    { key: "reviews.reply", label: "Reply to reviews", hint: "Answer customers' reviews for the shop", needs: null },
+  ].map(info),
+  events: [
+    {
+      key: "tickets.scan",
+      label: "Scan tickets at the gate",
+      hint: "Check people in with the phone camera, at every event of this business. No verification needed",
+      needs: null,
+    },
+    {
+      key: "tickets.guests",
+      label: "See the guest list",
+      hint: "Who bought tickets, their phone numbers and answers, and who hasn't arrived yet",
+      needs: "tickets.scan",
+    },
+  ].map(info),
+};
+
+/** Every permission once, for labelling places at any kind of business. */
+export const PERMISSIONS: PermissionInfo[] = Object.values(CATALOGS).flat();
+
+export const permissionsFor = (module: BusinessDoc["module"]): PermissionInfo[] => CATALOGS[module] ?? [];
+
+/** Only what this kind of business offers, in its order, with whatever each one needs added. */
+export function withNeeds(permissions: TeamPermission[], module: BusinessDoc["module"]): TeamPermission[] {
+  const catalog = permissionsFor(module);
+  const unknown = permissions.findIndex((p) => !catalog.some((c) => c.key === p));
+  if (unknown >= 0) {
+    throw new AppError("VALIDATION_FAILED", "This kind of business doesn't offer that permission.", [
+      { path: `body/permissions/${unknown}`, message: "Not offered here" },
+    ]);
+  }
   const set = new Set(permissions);
-  for (const p of PERMISSIONS) if (set.has(p.key) && p.needs) set.add(p.needs);
-  return PERMISSIONS.filter((p) => set.has(p.key)).map((p) => p.key);
+  for (const p of catalog) if (set.has(p.key) && p.needs) set.add(p.needs);
+  return catalog.filter((p) => set.has(p.key)).map((p) => p.key);
 }
+
+/** Everything in the place works without verification. */
+export const kycFree = (permissions: TeamPermission[]) => permissions.every((p) => NO_KYC.includes(p));
 
 const cleanPay = (pay: Pay | null | undefined): Pay | null => (pay ? { amount: pay.amount, per: pay.per, note: pay.note?.trim() || null } : null);
 const payOf = (d: Pick<EmploymentDoc, "pay">): Pay | null => d.pay ?? null;
@@ -67,7 +106,7 @@ export async function teamOf(db: Database, businessId: ObjectId): Promise<TeamMe
     return {
       id: d._id.toHexString(),
       person: { id: d.userId.toHexString(), name: nameOf(user), username: user?.username ?? null, avatar: user?.avatar ?? null },
-      status: d.status === "invited" ? "invited" : verified(user) ? "active" : "waiting",
+      status: d.status === "invited" ? "invited" : verified(user) || kycFree(d.permissions) ? "active" : "waiting",
       permissions: d.permissions,
       pay: payOf(d),
       invitedAt: d.invitedAt.toISOString(),
@@ -78,7 +117,11 @@ export async function teamOf(db: Database, businessId: ObjectId): Promise<TeamMe
   return [...members.filter((m) => m.status !== "invited"), ...members.filter((m) => m.status === "invited")];
 }
 
-export const teamView = async (db: Database, businessId: ObjectId) => ({ members: await teamOf(db, businessId), permissions: PERMISSIONS, max: MAX_TEAM });
+export const teamView = async (db: Database, business: Pick<BusinessDoc, "module"> & { _id: ObjectId }) => ({
+  members: await teamOf(db, business._id),
+  permissions: permissionsFor(business.module),
+  max: MAX_TEAM,
+});
 
 const audit = (
   db: Database,
@@ -91,7 +134,7 @@ const audit = (
 
 export function assertTeamBusiness(business: BusinessDoc) {
   if (business.suspension) throw new AppError("BUSINESS_SUSPENDED");
-  if (business.module !== "pod") throw new AppError("CONFLICT", "Teams are for print shops for now.");
+  if (!permissionsFor(business.module).length) throw new AppError("CONFLICT", "Teams come to this kind of business soon.");
 }
 
 interface Ctx {
@@ -133,7 +176,7 @@ export async function invite(
     userId: user._id,
     status: "invited",
     current: true,
-    permissions: withNeeds(input.permissions),
+    permissions: withNeeds(input.permissions, business.module),
     pay: cleanPay(input.pay),
     invitedBy: ctx.by,
     invitedAt: now,
@@ -175,7 +218,7 @@ export async function memberOf(db: Database, businessId: ObjectId, memberId: str
 
 /** What a member may do, and while they're invited, the pay on offer. */
 export async function updateMember(db: Database, member: WithId<EmploymentDoc>, input: { permissions?: TeamPermission[]; pay?: Pay | null }, ctx: Ctx) {
-  const permissions = input.permissions ? withNeeds(input.permissions) : member.permissions;
+  const permissions = input.permissions ? withNeeds(input.permissions, member.module) : member.permissions;
   const pay = input.pay === undefined ? payOf(member) : cleanPay(input.pay);
   const payChanged = !samePay(pay, payOf(member));
   if (payChanged && member.status !== "invited") {
@@ -340,13 +383,14 @@ export function placeView(d: EmploymentDoc, business: WithId<BusinessDoc>, owner
     permissions: d.permissions,
     pay: payOf(d),
     joinedAt: (d.joinedAt ?? d.invitedAt).toISOString(),
-    access: business.suspension ? "on_hold" : isVerified ? "on" : "verify",
+    access: business.suspension ? "on_hold" : isVerified || kycFree(d.permissions) ? "on" : "verify",
   };
 }
 
 /**
- * What a team member may do at a business: their active place must include `permission` (or one of them), they must be verified,
- * and the business must not be on hold. Owners use the vendor routes, not this.
+ * What a team member may do at a business: their active place must include `permission` (or one of them), they must be verified
+ * unless every permission asked for works without it (scanning tickets), and the business must not be on hold. Owners use the
+ * vendor routes, not this.
  */
 export async function teamAccess(
   db: Database,
@@ -357,8 +401,9 @@ export async function teamAccess(
   const at = "placeId" in where ? { _id: new ObjectId(where.placeId) } : { businessId: where.businessId };
   const place = await db.employments.findOne({ ...at, userId: auth.userId, status: "active", current: true });
   if (!place) throw new AppError("NOT_FOUND", "You're not on this business's team.");
-  if (auth.kyc.base !== "approved") throw new AppError("KYC_REQUIRED", "Get verified to work at this business.");
-  if (![permission].flat().some((p) => place.permissions.includes(p))) throw new AppError("FORBIDDEN", "The owner hasn't given you this.");
+  const asked = [permission].flat();
+  if (auth.kyc.base !== "approved" && !kycFree(asked)) throw new AppError("KYC_REQUIRED", "Get verified to work at this business.");
+  if (!asked.some((p) => place.permissions.includes(p))) throw new AppError("FORBIDDEN", "The owner hasn't given you this.");
   const business = await db.businesses.findOne({ _id: place.businessId });
   if (!business) throw new AppError("NOT_FOUND", "Business not found.");
   if (business.suspension) throw new AppError("BUSINESS_SUSPENDED");

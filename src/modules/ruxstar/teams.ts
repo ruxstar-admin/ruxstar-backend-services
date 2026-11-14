@@ -18,7 +18,7 @@ const teams: FastifyPluginAsyncTypebox = async (app) => {
   const db = () => requireDatabase(app.db);
 
   async function business(id: string) {
-    const doc = await db().businesses.findOne({ _id: new ObjectId(id) }, { projection: { _id: 1 } });
+    const doc = await db().businesses.findOne({ _id: new ObjectId(id) }, { projection: { _id: 1, module: 1 } });
     if (!doc) throw new AppError("NOT_FOUND", "Business not found.");
     return doc;
   }
@@ -29,7 +29,7 @@ const teams: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: requireRuxstar("businesses.view"),
       schema: { tags: ["ruxstar"], summary: "A business's team and open invites", params: TeamParams, response: { 200: TeamOne, ...Errors }, security },
     },
-    async (request) => ok(request, await teamView(db(), (await business(request.params.id))._id)),
+    async (request) => ok(request, await teamView(db(), await business(request.params.id))),
   );
 
   app.post(

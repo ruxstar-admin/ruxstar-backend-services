@@ -472,7 +472,9 @@ export type NotificationType =
   | "delivery.updated"
   | "support.replied"
   | "support.resolved"
-  | "kyc.reopened";
+  | "kyc.reopened"
+  | "event.ticket"
+  | "event.updated";
 
 export interface NotificationDoc {
   _id: ObjectId;
@@ -488,7 +490,8 @@ export interface NotificationDoc {
    * `payments` opens the vendor's Payments (its id is the payout); `work` opens the Work area (its id is the place on the team);
    * `team` opens a business's Team in the vendor portal (its id is the business); `reviews` a business's reviews there, and
    * `work_reviews` the same reviews in the Work area (its id is the place on the team). `delivery_job` opens a job in the
-   * delivery app. `support` opens one of your help tickets.
+   * delivery app. `support` opens one of your help tickets. `event` opens an event's page, `event_order` a customer's tickets
+   * for one (its id is the ticket order), and `vendor_event` an event in the vendor portal.
    */
   link: {
     screen:
@@ -506,7 +509,10 @@ export interface NotificationDoc {
       | "work_reviews"
       | "delivery_job"
       | "delivery_earnings"
-      | "support";
+      | "support"
+      | "event"
+      | "event_order"
+      | "vendor_event";
     id: string;
   };
   readAt: Date | null;
@@ -569,9 +575,23 @@ export interface ModuleSettingsDoc extends Stamped {
   riderRate?: DeliveryFee;
   shopFeeMax?: { base: number; perKm: number };
   offerMinutes?: number;
+  /** The events module only. Missing: the defaults in the events module. */
+  eventRules?: EventRules;
   deliveryEnabled: boolean;
   permissionCatalog: string[];
   updatedBy: ObjectId | null;
+}
+
+/** What Ruxstar sets for every event. */
+export interface EventRules {
+  /** Customers can cancel for a full refund until this many hours before the start, unless the organiser chose no refunds. */
+  refundHours: number;
+  /** Seats offered to the next person on a waitlist are held for them this long. */
+  waitlistHours: number;
+  /** Ticket types per event. */
+  maxTicketTypes: number;
+  /** Questions an organiser can ask each ticket holder. */
+  maxQuestions: number;
 }
 
 /** A file a customer uploaded to print. Unused ones are deleted a day later, on the uploader's next upload. */
@@ -778,8 +798,124 @@ export interface LedgerEntryDoc {
   accountId: string;
   bucket: "pending" | "withdrawable";
   signedPaise: number;
-  source: { type: "pod_order" | "payout"; id: ObjectId };
+  source: { type: "pod_order" | "event_order" | "payout"; id: ObjectId };
   at: Date;
+}
+
+/** `show`: concerts and live shows; `sports`: matches and tournaments; `meetup`: workshops, talks and meetups. */
+export type EventKind = "show" | "sports" | "meetup";
+
+export interface EventTierDoc {
+  id: string;
+  name: string;
+  /** Paise, per person; per team for team entries. 0 is free. */
+  price: number;
+  /** People, or teams for team entries. */
+  capacity: number;
+  /** Not sold, not waiting for payment and not held for someone on the waitlist. */
+  left: number;
+}
+
+/**
+ * One event from an events business. Customers buy tickets once it is live; each person gets their own ticket with a QR code,
+ * and a team entry gives every player one. Online events have a link instead of a venue and nothing to scan.
+ */
+export interface EventDoc extends Stamped {
+  _id: ObjectId;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  businessName: string;
+  title: string;
+  description: string | null;
+  kind: EventKind;
+  venue: { name: string; address: string; city: string; point: { lat: number; lng: number } | null } | null;
+  /** Shown only to people with a ticket. */
+  online: { link: string } | null;
+  /** Lower case, for the city filter; null for online events. */
+  city: string | null;
+  startsAt: Date;
+  endsAt: Date;
+  /** Team entries: the captain pays once and names between `min` and `max` players. */
+  team: { min: number; max: number } | null;
+  tiers: EventTierDoc[];
+  questions: { id: string; label: string; required: boolean }[];
+  /** `standard`: full refund until Ruxstar's refund hours before the start. */
+  refunds: "standard" | "none";
+  photo: BusinessPhoto | null;
+  status: "draft" | "live" | "cancelled";
+  publishedAt: Date | null;
+  cancellation: { by: "vendor" | "staff"; actorId: ObjectId; reason: string; at: Date } | null;
+}
+
+export type EventOrderStatus = "awaiting_payment" | "confirmed" | "cancelled";
+
+/** One checkout: tickets of one or more types for one event. Free orders are confirmed at once. */
+export interface EventOrderDoc extends Stamped {
+  _id: ObjectId;
+  orderNo: number;
+  eventId: ObjectId;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  customerId: ObjectId;
+  eventTitle: string;
+  businessName: string;
+  startsAt: Date;
+  endsAt: Date;
+  lines: { tierId: string; name: string; quantity: number; unitPrice: number }[];
+  team: { name: string } | null;
+  price: { items: number; platformFee: number; total: number; commissionBps: number; commission: number };
+  status: EventOrderStatus;
+  timeline: { status: EventOrderStatus; at: Date; by: "customer" | "vendor" | "staff" | "system" }[];
+  /** Null on free orders. */
+  payment: { gatewayOrderId: string; sessionId: string; paymentId: string | null; paidAt: Date | null } | null;
+  /** Unpaid orders give their seats back after this. */
+  holdUntil: Date | null;
+  /** The waitlist offer it was bought from. */
+  waitlistId: ObjectId | null;
+  refund: { refundId: string; amount: number; reason: string | null; by: "customer" | "vendor" | "staff" | "system"; status: "pending" | "done"; at: Date } | null;
+  reason: string | null;
+  /** The organiser's share becomes available when the event ends. */
+  releaseAt: Date | null;
+  releasedAt: Date | null;
+}
+
+/** One person's entry. The QR code holds a signed token; only its SHA-256 is stored, and is what scanners check offline. */
+export interface EventTicketDoc {
+  _id: ObjectId;
+  orderId: ObjectId;
+  eventId: ObjectId;
+  businessId: ObjectId;
+  customerId: ObjectId;
+  tierId: string;
+  tierName: string;
+  holder: { name: string; phone: string | null };
+  answers: { id: string; label: string; answer: string }[];
+  team: string | null;
+  /** Six letters, unique in the event, for looking a ticket up by hand. */
+  code: string;
+  hash: string;
+  status: "awaiting_payment" | "valid" | "cancelled";
+  /** One a day; `day` is the date in India. */
+  checkIns: { day: string; at: Date; by: ObjectId; manual: boolean; offline: boolean }[];
+  /** Scanned in on two phones while they were offline; the later one is kept here for the organiser. */
+  clashes: { day: string; at: Date; by: ObjectId }[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** First come, first served for one ticket type. An offer holds the seats until `offeredUntil`. */
+export interface EventWaitDoc {
+  _id: ObjectId;
+  eventId: ObjectId;
+  tierId: string;
+  customerId: ObjectId;
+  quantity: number;
+  status: "waiting" | "offered" | "booked" | "expired" | "left" | "closed";
+  /** Set while waiting or offered, so a person has one place per ticket type. */
+  open?: true;
+  offeredUntil: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /**
@@ -840,7 +976,9 @@ export type TeamPermission =
   | "coupons.manage"
   | "posts.create"
   | "reviews.reply"
-  | "orders.deliver";
+  | "orders.deliver"
+  | "tickets.scan"
+  | "tickets.guests";
 
 /**
  * A customer's review of one delivered print order (decision 55): 1 to 5 stars and an optional note, written or changed within
@@ -1134,6 +1272,18 @@ export class Database {
   }
   get supportMessages() {
     return this.db.collection<SupportMessageDoc>("support_messages");
+  }
+  get events() {
+    return this.db.collection<EventDoc>("events");
+  }
+  get eventOrders() {
+    return this.db.collection<EventOrderDoc>("event_orders");
+  }
+  get eventTickets() {
+    return this.db.collection<EventTicketDoc>("event_tickets");
+  }
+  get eventWaits() {
+    return this.db.collection<EventWaitDoc>("event_waitlist");
   }
 
   /** Runs `work` in a majority-committed transaction, retrying transient errors. */

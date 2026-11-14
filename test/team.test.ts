@@ -100,7 +100,7 @@ describe("vendor team", () => {
     const work = (await call("GET", "/employment", kiran.token)).json().data;
     expect(work.places).toEqual([]);
     expect(work.invites).toMatchObject([{ id: member.id, business: { id, name: "Rao Prints", city: "Hyderabad" }, owner: { name: "Asha Rao" } }]);
-    expect(work.permissions).toHaveLength(12);
+    expect(work.permissions).toHaveLength(14);
 
     const accepted = await call("POST", `/employment/${member.id}/accept`, kiran.token);
     expect(accepted.statusCode).toBe(200);
@@ -174,7 +174,7 @@ describe("vendor team", () => {
     const food = await shop(owner, "food");
     const res = await invite(blocked.username, owner.token, food);
     expect(res.statusCode).toBe(409);
-    expect(res.json().error.message).toBe("Teams are for print shops for now.");
+    expect(res.json().error.message).toBe("Teams come to this kind of business soon.");
 
     await stack.db.businesses.updateOne({ _id: new ObjectId(id) }, { $set: { suspension: { at: new Date(), reason: "Checks", by: owner.userId } } as never });
     const fine = await person();

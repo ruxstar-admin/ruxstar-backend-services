@@ -19,8 +19,10 @@ export const TeamPermission = Type.Union(
     Type.Literal("posts.create"),
     Type.Literal("reviews.reply"),
     Type.Literal("orders.deliver"),
+    Type.Literal("tickets.scan"),
+    Type.Literal("tickets.guests"),
   ],
-  { description: "What the owner lets this person do at the business" },
+  { description: "What the owner lets this person do at the business. Each kind of business offers its own; GET its team lists them" },
 );
 
 const PermissionInfo = Strict({
@@ -28,6 +30,7 @@ const PermissionInfo = Strict({
   label: Type.String(),
   hint: Type.Union([Type.String(), Type.Null()]),
   needs: Type.Union([TeamPermission, Type.Null()], { description: "Given with this one, since it can't work without it" }),
+  verify: Type.Boolean({ description: "Works only once the person's identity is verified. Scanning tickets doesn't need it" }),
 });
 
 export const PAY_NOTE_MAX = 120;
@@ -59,7 +62,8 @@ export const TeamMember = Strict({
   id: ObjectIdString,
   person: Person,
   status: Type.Union([Type.Literal("invited"), Type.Literal("waiting"), Type.Literal("active")], {
-    description: "`invited` hasn't accepted yet; `waiting` accepted but isn't verified, so nothing works for them yet",
+    description:
+      "`invited` hasn't accepted yet; `waiting` accepted but isn't verified, so only what doesn't need verification (scanning tickets) works yet",
   }),
   permissions: Type.Array(TeamPermission),
   pay: PayOrNull,

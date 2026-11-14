@@ -12,6 +12,8 @@ import { idempotent } from "../../platform/idempotency.js";
 import { findPage } from "../../platform/pagination.js";
 import { seal } from "../../platform/sealed.js";
 import { loadCase, NAME_MATCHES, verificationId } from "../kyc/cases.js";
+import { releaseEventShares } from "../events/orders.js";
+import { vendorShare } from "../events/rules.js";
 import { releaseShare } from "../pod/order-rules.js";
 import { refundsOf, shopShareLeft } from "../pod/orders.js";
 import { payoutMethodView, requireVendor } from "./businesses.js";
@@ -135,8 +137,9 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
         .limit(50)
         .toArray();
       for (const order of due) await releaseShare(app, db(), order, now);
+      await releaseEventShares(app, db(), { vendorId }, now);
       await settleDue(app, db(), vendorId, now);
-      const [method, payouts, paid, ledger, holding, rules] = await Promise.all([
+      const [method, payouts, paid, ledger, holding, tickets, rules] = await Promise.all([
         db().payoutMethods.findOne({ userId: vendorId }),
         db()
           .payouts.find({ vendorId, ...payeeFilter("vendor") })
@@ -156,6 +159,11 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           ])
           .toArray(),
         db().podOrders.find({ vendorId, status: "delivered", releasedAt: null, releaseAt: { $ne: null } }).sort({ releaseAt: 1 }).limit(20).toArray(),
+        db()
+          .eventOrders.find({ vendorId, status: "confirmed", releasedAt: null, releaseAt: { $ne: null } }, { projection: { orderNo: 1, price: 1, releaseAt: 1 } })
+          .sort({ releaseAt: 1 })
+          .limit(20)
+          .toArray(),
         payoutRules(db()),
       ]);
       const sum = (bucket: "pending" | "withdrawable") => ledger.find((row) => row._id === bucket)?.total ?? 0;
@@ -163,13 +171,20 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
       return ok(request, {
         // Released after the hold, less withdrawals (they leave the ledger when asked for); pending is paid orders not released yet.
         balance: { available: Math.max(0, sum("withdrawable")), pending: Math.max(0, sum("pending")), paidOut },
-        upcoming: holding.map((o) => ({
-          orderId: o._id.toHexString(),
-          orderNo: o.orderNo,
-          amount: shopShareLeft(o),
-          availableAt: o.releaseAt!.toISOString(),
-          held: o.problem?.status === "open",
-        })),
+        upcoming: [
+          ...holding.map((o) => ({
+            orderId: o._id.toHexString(),
+            orderNo: o.orderNo,
+            amount: shopShareLeft(o),
+            availableAt: o.releaseAt!.toISOString(),
+            held: o.problem?.status === "open",
+          })),
+          ...tickets
+            .filter((o) => vendorShare(o) > 0)
+            .map((o) => ({ orderId: o._id.toHexString(), orderNo: o.orderNo, amount: vendorShare(o), availableAt: o.releaseAt!.toISOString(), held: false })),
+        ]
+          .sort((a, b) => a.availableAt.localeCompare(b.availableAt))
+          .slice(0, 20),
         withdrawal: rules,
         payoutMethod: method ? payoutMethodView(method) : null,
         payouts: payouts.map(payoutView),
@@ -223,8 +238,8 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
         cursor: request.query.cursor,
         limit: request.query.limit,
       });
-      const ids = (type: "pod_order" | "payout") => items.filter((e) => e.source.type === type).map((e) => e.source.id);
-      const [orders, payouts] = await Promise.all([
+      const ids = (type: "pod_order" | "event_order" | "payout") => items.filter((e) => e.source.type === type).map((e) => e.source.id);
+      const [orders, payouts, eventOrders] = await Promise.all([
         database.podOrders
           .find(
             { _id: { $in: ids("pod_order") } },
@@ -232,7 +247,17 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           )
           .toArray(),
         database.payouts.find({ _id: { $in: ids("payout") } }, { projection: { to: 1, fee: 1, status: 1, utr: 1 } }).toArray(),
+        database.eventOrders
+          .find(
+            { _id: { $in: ids("event_order") } },
+            { projection: { orderNo: 1, businessId: 1, businessName: 1, eventTitle: 1, lines: 1, "price.total": 1, payment: 1, refund: 1 } },
+          )
+          .toArray(),
       ]);
+      const holders = await database.eventTickets
+        .find({ orderId: { $in: eventOrders.map((o) => o._id) } }, { projection: { orderId: 1, "holder.name": 1 } })
+        .sort({ _id: 1 })
+        .toArray();
       const shops = await database.businesses
         .find({ _id: { $in: orders.map((o) => o.shopId) } }, { projection: { name: 1 } })
         .toArray();
@@ -250,6 +275,31 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
               order: null,
               refund: null,
               payout: { id: payout._id.toHexString(), to: payout.to, fee: payout.fee ?? 0, status: payout.status, utr: payout.utr },
+            },
+          ];
+        }
+        if (entry.source.type === "event_order") {
+          const order = eventOrders.find((o) => o._id.equals(entry.source.id));
+          if (!order) return [];
+          const kind = entry.kind === "payment" ? "paid" : entry.kind === "release" ? "available" : "refund";
+          const count = order.lines.reduce((sum, l) => sum + l.quantity, 0);
+          return [
+            {
+              ...base,
+              kind,
+              module: "events",
+              order: {
+                id: order._id.toHexString(),
+                orderNo: order.orderNo,
+                business: { id: order.businessId.toHexString(), name: order.businessName },
+                label: `${order.eventTitle}, ${count} ${count === 1 ? "ticket" : "tickets"}`,
+                customer: holders.find((h) => h.orderId.equals(order._id))?.holder.name ?? "",
+                total: order.price.total,
+                paymentId: order.payment?.paymentId ?? null,
+                paidAt: order.payment?.paidAt?.toISOString() ?? null,
+              },
+              refund: kind === "refund" && order.refund ? { id: order.refund.refundId, reason: order.refund.reason, by: order.refund.by } : null,
+              payout: null,
             },
           ];
         }

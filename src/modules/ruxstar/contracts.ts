@@ -23,6 +23,16 @@ const DeliveryRate = Strict(
   { description: "What a Ruxstar delivery partner is paid for one trip, out of the shop's share" },
 );
 
+const EventRules = Strict(
+  {
+    refundHours: Type.Integer({ minimum: 0, maximum: 720, description: "Customers can cancel for a full refund until this many hours before the start" }),
+    waitlistHours: Type.Integer({ minimum: 1, maximum: 48, description: "How long someone offered a seat from the waitlist has to pay" }),
+    maxTicketTypes: Type.Integer({ minimum: 1, maximum: 10 }),
+    maxQuestions: Type.Integer({ minimum: 0, maximum: 10, description: "Questions an organiser can ask each ticket holder" }),
+  },
+  { description: "The events module only" },
+);
+
 export const ModuleSettings = Strict({
   module: ModuleName,
   live: Type.Boolean(),
@@ -50,6 +60,7 @@ export const ModuleSettings = Strict({
       { description: "The delivery module only" },
     ),
   ),
+  eventRules: Nullable(EventRules),
   permissionCatalog: Type.Array(Type.String()),
   updatedAt: DateTime,
 });
@@ -79,6 +90,7 @@ export const ModuleSettingsPatch = Strict(
       }),
     ),
     offerMinutes: Type.Optional(Type.Integer({ minimum: 1, maximum: 120 })),
+    eventRules: Type.Optional(Type.Partial(EventRules, { additionalProperties: false, minProperties: 1, description: "Events only. Send only what changes." })),
   },
   { minProperties: 1 },
 );

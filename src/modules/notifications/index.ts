@@ -35,6 +35,8 @@ const Notification = Strict({
     Type.Literal("support.replied"),
     Type.Literal("support.resolved"),
     Type.Literal("kyc.reopened"),
+    Type.Literal("event.ticket"),
+    Type.Literal("event.updated"),
   ]),
   title: Type.String(),
   body: Type.String(),
@@ -56,10 +58,13 @@ const Notification = Strict({
         Type.Literal("delivery_job"),
         Type.Literal("delivery_earnings"),
         Type.Literal("support"),
+        Type.Literal("event"),
+        Type.Literal("event_order"),
+        Type.Literal("vendor_event"),
       ],
       {
         description:
-          "`verification` opens the KYC screen (`id` is the track: base or delivery), `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team), `team` a business's Team in the vendor portal (`id` is the business), `work_order` an order to a shop you work at, in the Work area, `reviews` a business's reviews in the vendor portal (`id` is the business), `work_reviews` the reviews of a shop you work at (`id` is the place on the team), `delivery_job` a delivery in the Ruxstar Delivery app and `delivery_earnings` Earnings in the Ruxstar Delivery app (`id` is the payout), `support` one of your help tickets; `id` says which",
+          "`verification` opens the KYC screen (`id` is the track: base or delivery), `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team), `team` a business's Team in the vendor portal (`id` is the business), `work_order` an order to a shop you work at, in the Work area, `reviews` a business's reviews in the vendor portal (`id` is the business), `work_reviews` the reviews of a shop you work at (`id` is the place on the team), `delivery_job` a delivery in the Ruxstar Delivery app and `delivery_earnings` Earnings in the Ruxstar Delivery app (`id` is the payout), `support` one of your help tickets, `event` an event's page, `event_order` your tickets for an event (`id` is the ticket order), `vendor_event` one of your events in the vendor portal; `id` says which",
       },
     ),
     id: Type.String(),

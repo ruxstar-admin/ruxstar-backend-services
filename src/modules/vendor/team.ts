@@ -39,7 +39,7 @@ const team: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const business = await owned(request, request.params.id);
-      return ok(request, await teamView(db(), business._id));
+      return ok(request, await teamView(db(), business));
     },
   );
 
@@ -52,8 +52,9 @@ const team: FastifyPluginAsyncTypebox = async (app) => {
         tags: ["vendor"],
         summary: "Invite someone to the team by their username",
         description:
-          `They get a notification and have ${INVITE_DAYS} days to accept. Nothing works for them until their identity verification is approved. ` +
-          `A team holds up to ${MAX_TEAM} people, invites included. Permissions that need "See orders" bring it with them. ` +
+          `They get a notification and have ${INVITE_DAYS} days to accept. Nothing works for them until their identity verification is approved, ` +
+          "except scanning tickets at events, which anyone can do. " +
+          `A team holds up to ${MAX_TEAM} people, invites included. Permissions that need another (such as "See orders") bring it with them. ` +
           "Pay is optional and shown to them with the invite, so they can compare offers. " +
           "Withdrawals, payment details, publishing, deleting and the team itself stay with the owner.",
         params: TeamParams,

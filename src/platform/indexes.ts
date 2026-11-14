@@ -148,6 +148,31 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.supportTickets.createIndex({ assigneeId: 1, status: 1, lastAt: -1, _id: -1 }),
     db.supportTickets.createIndex({ status: 1, slaDueAt: 1 }),
     db.supportMessages.createIndex({ ticketId: 1, at: 1 }),
+    // Events: a business's, what's on (by start), and those cancelled lately for the refunds sweep.
+    db.events.createIndex({ businessId: 1, startsAt: -1 }),
+    db.events.createIndex({ status: 1, startsAt: 1, _id: 1 }),
+    db.events.createIndex({ status: 1, "cancellation.at": -1 }),
+    db.eventOrders.createIndex({ orderNo: 1 }, { unique: true }),
+    db.eventOrders.createIndex({ "payment.gatewayOrderId": 1 }, { unique: true, partialFilterExpression: { "payment.gatewayOrderId": { $type: "string" } } }),
+    db.eventOrders.createIndex({ customerId: 1, startsAt: -1, _id: -1 }),
+    db.eventOrders.createIndex({ customerId: 1, eventId: 1 }),
+    db.eventOrders.createIndex({ eventId: 1, status: 1, createdAt: -1, _id: -1 }),
+    // The ticket timers: unpaid holds, shares coming due, refunds to retry.
+    db.eventOrders.createIndex({ status: 1, holdUntil: 1 }),
+    db.eventOrders.createIndex({ status: 1, releasedAt: 1, releaseAt: 1 }),
+    db.eventOrders.createIndex({ vendorId: 1, status: 1, releasedAt: 1 }),
+    db.eventOrders.createIndex({ "refund.status": 1 }, { partialFilterExpression: { "refund.status": "pending" } }),
+    db.eventTickets.createIndex({ eventId: 1, code: 1 }, { unique: true }),
+    db.eventTickets.createIndex({ hash: 1 }, { unique: true }),
+    db.eventTickets.createIndex({ orderId: 1 }),
+    db.eventTickets.createIndex({ eventId: 1, status: 1, "checkIns.day": 1 }),
+    db.eventTickets.createIndex({ eventId: 1, "holder.phone": 1 }),
+    db.eventTickets.createIndex({ eventId: 1, status: 1, createdAt: -1, _id: -1 }),
+    // The waitlist: one open place per person and ticket type, the queue in order, and offers running out.
+    db.eventWaits.createIndex({ eventId: 1, tierId: 1, customerId: 1 }, { unique: true, partialFilterExpression: { open: true } }),
+    db.eventWaits.createIndex({ eventId: 1, tierId: 1, status: 1, createdAt: 1 }),
+    db.eventWaits.createIndex({ customerId: 1, eventId: 1 }),
+    db.eventWaits.createIndex({ status: 1, offeredUntil: 1 }),
   ]);
 }
 

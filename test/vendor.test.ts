@@ -99,7 +99,7 @@ describe("vendor portal", () => {
     expect(catalog.categories[0]).toMatchObject({ module: "pod", label: "Print on demand", live: true, signupsOpen: true });
     expect(catalog.categories[0].types.map((t: { id: string }) => t.id)).toEqual(["print_shop"]);
     expect(catalog.categories[1]).toMatchObject({ live: true, signupsOpen: false });
-    expect(catalog.categories[1].types.map((t: { id: string }) => t.id)).toEqual(["concert", "sports_event"]);
+    expect(catalog.categories[1].types.map((t: { id: string }) => t.id)).toEqual(["concert", "sports_event", "meetup"]);
     expect(catalog.categories[3].types.map((t: { id: string }) => t.id)).toEqual(["pg", "hostel"]);
     expect(catalog.states).toHaveLength(36);
     expect(catalog.states.find((s: { name: string }) => s.name === "Telangana").cities).toContain("Hyderabad");

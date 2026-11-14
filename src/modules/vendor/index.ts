@@ -32,6 +32,7 @@ import {
 } from "./contracts.js";
 import activity from "./activity.js";
 import coupons from "./coupons.js";
+import events from "../events/manage.js";
 import { INDIA } from "./india.js";
 import orders from "./orders.js";
 import payments from "./payments.js";
@@ -51,6 +52,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(orders);
   await app.register(coupons);
   await app.register(team);
+  await app.register(events);
   await app.register(activity);
   await app.register(reviews);
 
