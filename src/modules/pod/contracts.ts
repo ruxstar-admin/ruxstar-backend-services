@@ -68,7 +68,13 @@ export const ShopsQuery = Strict({
   ...PageQuery,
   city: Type.Optional(Type.String({ minLength: 2, maxLength: 60, description: "Shops in or delivering to this city" })),
   product: Type.Optional(PodProductId),
-  q: Type.Optional(Type.String({ minLength: 1, maxLength: 60, description: "Part of the shop name" })),
+  q: Type.Optional(
+    Type.String({
+      minLength: 1,
+      maxLength: 60,
+      description: "Part of the shop name, what it prints (\"banner\", \"visiting cards\", \"xerox\") or its city or area",
+    }),
+  ),
 });
 
 // Ordering.

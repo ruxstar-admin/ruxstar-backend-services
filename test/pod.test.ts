@@ -122,6 +122,30 @@ describe("print shops for customers", () => {
     expect(await ids("?q=(")).toEqual([]);
   });
 
+  it("searches what shops print and where they are, with shops in your city first", async () => {
+    const owner = await vendor();
+    const cards = await shop(owner, "Sri Prints", { products: ["business_cards"], serveAll: true, prices: [{ product: "business_cards", basePrice: 300 }] });
+    const banners = await shop(owner, "Rao Graphics", { products: ["flex_banners"], serveAll: true, prices: [{ product: "flex_banners", basePrice: 9_900 }] }, { city: "Pune" });
+    const copies = await shop(owner, "Copy Corner", { products: ["documents"], serveAll: true, prices: [{ product: "documents", bw: 200 }] });
+
+    const ids = async (query: string) => (await call("GET", `/pod/shops${query}`, customer.token)).json().data.map((c: { id: string }) => c.id);
+    expect(await ids("?q=visiting%20cards")).toEqual([cards]);
+    expect(await ids("?q=business%20card")).toEqual([cards]);
+    expect(await ids("?q=banner")).toEqual([banners]);
+    expect(await ids("?q=xerox")).toEqual([copies]);
+    expect(await ids("?q=pune")).toEqual([banners]);
+    expect((await ids("?q=madhapur")).sort()).toEqual([cards, banners, copies].sort());
+    expect(await ids("?q=zz")).toEqual([]);
+
+    expect(await ids("")).toEqual([copies, banners, cards]);
+    await stack.db.users.updateOne({ _id: customer.userId }, { $set: { "home.city": "Pune" } });
+    try {
+      expect(await ids("")).toEqual([banners, copies, cards]);
+    } finally {
+      await stack.db.users.updateOne({ _id: customer.userId }, { $set: { "home.city": null } });
+    }
+  });
+
   it("shows a shop's priced products without its street address or phone", async () => {
     const owner = await vendor();
     const id = await shop(owner, "Rao Tees", {

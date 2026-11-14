@@ -3,7 +3,7 @@ import type { BusinessDoc, PodPrice, PostPhoto } from "../../platform/db.js";
 import { shopFeeOf } from "../delivery/rates.js";
 import { ratingOf } from "../reviews/reviews.js";
 import { unpricedOf } from "../vendor/businesses.js";
-import { PRODUCTS, typeOf } from "../vendor/catalog.js";
+import { PRODUCTS, typeOf, type PodProduct } from "../vendor/catalog.js";
 import type { Shop, ShopCard } from "./contracts.js";
 
 /** Customers see a print shop only while it is live and not on hold; the module being off hides them all. */
@@ -94,4 +94,48 @@ export function shopView(doc: BusinessDoc): Shop {
 /** Open shops first within a page, so a customer sees who can take the order now. */
 export const openFirst = (a: ShopCard, b: ShopCard) => Number(b.open) - Number(a.open);
 
+/** Within a page: shops in the customer's own city, then open ones. */
+export const nearFirst = (city: string | null | undefined) => {
+  const home = city?.trim().toLowerCase();
+  const near = (s: ShopCard) => Number(!!home && s.city.toLowerCase() === home);
+  return (a: ShopCard, b: ShopCard) => near(b) - near(a) || openFirst(a, b);
+};
+
 export const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** What people type for a product besides its name. */
+const PRODUCT_WORDS: Partial<Record<PodProduct, string[]>> = {
+  tshirts: ["t shirt", "tshirt", "tee"],
+  business_cards: ["visiting card", "visiting cards"],
+  flex_banners: ["flex", "banner", "hoarding"],
+  invitations: ["invite", "wedding card"],
+  photo_prints: ["photo"],
+  documents: ["xerox", "photocopy", "printout", "print out", "document"],
+  stickers: ["label"],
+};
+
+const fold = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/** Products a search means: its words are in a product's name or description, or it names one of the product's words. */
+export function productsFor(q: string): PodProduct[] {
+  const term = fold(q);
+  if (term.length < 3) return [];
+  return PRODUCTS.filter((p) => {
+    const words = [p.label, p.description, ...(PRODUCT_WORDS[p.id] ?? [])].map(fold);
+    return words.some((w) => w.includes(term) || ` ${term} `.includes(` ${w} `));
+  }).map((p) => p.id);
+}
+
+/** A search matches part of the shop's name, what it prints, or its city or area. */
+export function shopSearch(q: string): Filter<BusinessDoc> {
+  const pattern = { $regex: escapeRegex(q.trim()), $options: "i" };
+  const products = productsFor(q);
+  return {
+    $or: [
+      { name: pattern },
+      { "location.city": pattern },
+      { "location.area": pattern },
+      ...(products.length ? [{ "pod.products": { $in: products } }] : []),
+    ],
+  };
+}

@@ -52400,7 +52400,7 @@
         "tags": [
           "pod"
         ],
-        "description": "Live shops that are not on hold, open ones first in each page. Empty while Ruxstar has print on demand switched off.",
+        "description": "Live shops that are not on hold. In each page, shops in your city (from your profile) come first, then open ones. Empty while Ruxstar has print on demand switched off.",
         "parameters": [
           {
             "schema": {
@@ -52461,7 +52461,7 @@
             "in": "query",
             "name": "q",
             "required": false,
-            "description": "Part of the shop name"
+            "description": "Part of the shop name, what it prints (\"banner\", \"visiting cards\", \"xerox\") or its city or area"
           }
         ],
         "security": [
