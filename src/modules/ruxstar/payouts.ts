@@ -9,9 +9,10 @@ import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { findPage } from "../../platform/pagination.js";
+import { releaseRiderPay, riderPayHeld } from "../delivery/pay.js";
 import { dueApplied, releaseEarly } from "../pod/order-rules.js";
 import { shopShareLeft } from "../pod/orders.js";
-import { failureText, settlePayout } from "../vendor/payouts.js";
+import { failureText, payeeOf, settlePayout } from "../vendor/payouts.js";
 import {
   HeldList,
   HeldParams,
@@ -29,7 +30,7 @@ import {
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 const iso = (date: Date | null | undefined) => date?.toISOString() ?? null;
 
-/** Vendors' withdrawals and the order shares still on hold, for the Ruxstar team. */
+/** Vendors' and partners' withdrawals and the order shares still on hold, for the Ruxstar team. */
 const payouts: FastifyPluginAsyncTypebox = async (app) => {
   const db = () => requireDatabase(app.db);
 
@@ -44,6 +45,7 @@ const payouts: FastifyPluginAsyncTypebox = async (app) => {
     const vendor = await names(docs.map((d) => d.vendorId));
     return docs.map((doc) => ({
       id: doc._id.toHexString(),
+      payee: payeeOf(doc) === "rider" ? ("partner" as const) : ("vendor" as const),
       vendor: vendor(doc.vendorId),
       amount: doc.amount,
       fee: doc.fee,
@@ -68,6 +70,8 @@ const payouts: FastifyPluginAsyncTypebox = async (app) => {
     ]);
     return docs.map((doc) => {
       const shop = shops.find((s) => s._id.equals(doc.shopId));
+      const delivery = doc.delivery;
+      const partnerHeld = delivery?.rider && delivery.releaseAt && !delivery.releasedAt;
       return {
         id: doc._id.toHexString(),
         orderNo: doc.orderNo,
@@ -78,6 +82,14 @@ const payouts: FastifyPluginAsyncTypebox = async (app) => {
         deliveredAt: iso(doc.deliveredAt),
         releaseAt: doc.releaseAt!.toISOString(),
         problemOpen: doc.problem?.status === "open",
+        partner: partnerHeld
+          ? {
+              rider: { id: delivery.rider!.id.toHexString(), name: delivery.rider!.name },
+              amount: delivery.pay,
+              releaseAt: delivery.releaseAt!.toISOString(),
+              held: riderPayHeld(doc),
+            }
+          : null,
       };
     });
   }
@@ -88,8 +100,8 @@ const payouts: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: requireRuxstar("payouts.view"),
       schema: {
         tags: ["ruxstar"],
-        summary: "Vendors' withdrawals, newest first",
-        description: "`pending` is on the way, `failed` came back to the vendor's balance, `paid` reached their account.",
+        summary: "Vendors' and delivery partners' withdrawals, newest first",
+        description: "`pending` is on the way, `failed` came back to the payee's balance, `paid` reached their account. `payee` says whose it is.",
         querystring: PayoutsQuery,
         response: { 200: StaffPayoutList, ...Errors },
         security,
@@ -131,7 +143,9 @@ const payouts: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["ruxstar"],
         summary: "Delivered orders whose share is still on hold, latest release date first",
-        description: "Print orders wait 48 hours after delivery, and while a reported problem is open.",
+        description:
+          "Print orders wait 48 hours after delivery, and while a reported problem is open. A Ruxstar partner's pay for the delivery " +
+          "waits 48 hours too, and longer only while a report that it never arrived is open.",
         querystring: HeldQuery,
         response: { 200: HeldList, ...Errors },
         security,
@@ -145,7 +159,11 @@ const payouts: FastifyPluginAsyncTypebox = async (app) => {
         cursor,
         limit,
       });
+      const now = new Date();
       const current = (await dueApplied(app, db(), items)).filter((o) => !o.releasedAt);
+      for (const order of current) {
+        if (order.delivery && (await releaseRiderPay(db(), order, now))) order.delivery = { ...order.delivery, releasedAt: now };
+      }
       return page(request, await heldRows(current), nextCursor);
     },
   );

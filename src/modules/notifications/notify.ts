@@ -170,11 +170,11 @@ export async function notifyOrder(
   }
 }
 
-/** Tells a vendor a withdrawal reached the bank or came back. Logged, never thrown: the payout is already settled. */
+/** Tells a vendor or a delivery partner a withdrawal reached the bank or came back. Logged, never thrown: the payout is already settled. */
 export async function notifyPayout(
   db: Database,
   log: FastifyBaseLogger,
-  event: { to: ObjectId; payoutId: ObjectId; title: string; body: string },
+  event: { to: ObjectId; payoutId: ObjectId; rider?: boolean; title: string; body: string },
 ): Promise<void> {
   try {
     await save(db, {
@@ -184,7 +184,7 @@ export async function notifyPayout(
       actorId: event.to,
       title: clip(event.title, 60),
       body: clip(event.body, 140),
-      link: { screen: "payments", id: event.payoutId.toHexString() },
+      link: { screen: event.rider ? "delivery_earnings" : "payments", id: event.payoutId.toHexString() },
       readAt: null,
       createdAt: new Date(),
     });

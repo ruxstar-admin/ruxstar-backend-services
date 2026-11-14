@@ -279,7 +279,7 @@ export const PayoutMethodBody = Type.Union([
   Strict({ kind: Type.Literal("upi"), vpa: Type.String({ pattern: VPA_PATTERN, description: "For example asha@okhdfc" }) }),
 ]);
 
-const Payout = Strict({
+export const Payout = Strict({
   id: ObjectIdString,
   amount: Paise,
   fee: Type.Integer({ minimum: 0, description: "Paise taken from the amount; the bank gets amount - fee" }),

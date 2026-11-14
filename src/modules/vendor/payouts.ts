@@ -19,7 +19,14 @@ const CHECK_AFTER_MS = 60_000;
 const SWEEP_BATCH = 50;
 
 const money = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { minimumFractionDigits: paise % 100 ? 2 : 0, maximumFractionDigits: 2 })}`;
-const vendorAccount = (vendorId: ObjectId) => `vendor:${vendorId.toHexString()}`;
+
+/** Who a withdrawal pays: a vendor, or a Ruxstar delivery partner (decision 59). */
+export type Payee = "vendor" | "rider";
+export const payeeOf = (payout: PayoutDoc): Payee => payout.payee ?? "vendor";
+const accountOf = (payee: Payee, userId: ObjectId) => `${payee}:${userId.toHexString()}`;
+/** One payee's withdrawals: a vendor's have no `payee`. */
+export const payeeFilter = (payee: Payee) => (payee === "rider" ? { payee: "rider" as const } : { payee: { $exists: false } });
+export const methodsOf = (db: Database, payee: Payee) => (payee === "rider" ? db.riderPayoutMethods : db.payoutMethods);
 
 /** What the vendor is told when a payout comes back, by Cashfree's reason. */
 const FAILURES: Record<string, string> = {
@@ -32,20 +39,21 @@ const FAILURES: Record<string, string> = {
 };
 export const failureText = (code: string | null) => FAILURES[code ?? ""] ?? "The bank couldn't complete it. Try again in a while.";
 
-/** The payout fee and the least a vendor can withdraw, set by Ruxstar on the ledger module. */
-export async function payoutRules(db: Database): Promise<{ fee: number; minimum: number }> {
-  const settings = await db.moduleSettings.findOne({ module: "ledger" }, { projection: { payoutFee: 1, minPayout: 1 } });
+/** The payout fee and the least that can be withdrawn, set by Ruxstar: on the ledger module for vendors, the delivery module for partners. */
+export async function payoutRules(db: Database, payee: Payee = "vendor"): Promise<{ fee: number; minimum: number }> {
+  const module = payee === "rider" ? "delivery" : "ledger";
+  const settings = await db.moduleSettings.findOne({ module }, { projection: { payoutFee: 1, minPayout: 1 } });
   return { fee: settings?.payoutFee ?? DEFAULT_PAYOUT_FEE, minimum: settings?.minPayout ?? DEFAULT_MIN_PAYOUT };
 }
 
 /**
- * A withdrawal takes `amount` from the vendor's available balance; the fee is Ruxstar's and the rest leaves through
+ * A withdrawal takes `amount` from the payee's available balance; the fee is Ruxstar's and the rest leaves through
  * Cashfree. A failed one is the same entries the other way.
  */
 function payoutLedger(kind: "payout" | "payout_return", payout: PayoutDoc, at: Date): LedgerEntryDoc[] {
   const sign = kind === "payout" ? 1 : -1;
   const rows: [string, number][] = [
-    [vendorAccount(payout.vendorId), -payout.amount],
+    [accountOf(payeeOf(payout), payout.vendorId), -payout.amount],
     ["ruxstar", payout.fee],
     ["gateway", payout.amount - payout.fee],
   ];
@@ -63,24 +71,44 @@ function payoutLedger(kind: "payout" | "payout_return", payout: PayoutDoc, at: D
 }
 
 /** Letters and spaces only, as Cashfree wants the name. */
-const bankName = (name: string) =>
+const bankName = (name: string, payee: Payee) =>
   name
     .replace(/[^\p{L} ]/gu, " ")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 100) || "Ruxstar Vendor";
+    .slice(0, 100) || (payee === "rider" ? "Ruxstar Partner" : "Ruxstar Vendor");
 
-/** Withdraws everything available, at least the minimum, to the vendor's checked account, then sends it. */
-export async function withdraw(app: FastifyInstance, db: Database, vendorId: ObjectId, actor: AuditLogDoc["actor"], ip: string | null): Promise<PayoutDoc> {
+/** A person has one withdrawal on the way at a time, whether they are paid as a vendor or as a partner. */
+async function noneOnTheWay(db: Database, userId: ObjectId, payee: Payee) {
+  const other = await db.payouts.findOne({ vendorId: userId, status: "pending" }, { projection: { payee: 1 } });
+  if (!other) return;
+  if (payeeOf(other) === payee) throw new AppError("PAYOUT_IN_PROGRESS");
+  throw new AppError(
+    "PAYOUT_IN_PROGRESS",
+    payee === "rider"
+      ? "Your withdrawal from your shop earnings is still on the way. Wait for it to arrive."
+      : "Your withdrawal from your delivery earnings is still on the way. Wait for it to arrive.",
+  );
+}
+
+/** Withdraws everything available, at least the minimum, to the payee's checked account, then sends it. */
+export async function withdraw(
+  app: FastifyInstance,
+  db: Database,
+  userId: ObjectId,
+  actor: AuditLogDoc["actor"],
+  ip: string | null,
+  payee: Payee = "vendor",
+): Promise<PayoutDoc> {
   if (!app.payouts.available) throw new AppError("PAYOUTS_UNAVAILABLE", "Withdrawals aren't available right now. Try again later.");
   const [method, rules, user] = await Promise.all([
-    db.payoutMethods.findOne({ userId: vendorId }),
-    payoutRules(db),
-    db.users.findOne({ _id: vendorId }, { projection: { name: 1 } }),
+    methodsOf(db, payee).findOne({ userId }),
+    payoutRules(db, payee),
+    db.users.findOne({ _id: userId }, { projection: { name: 1 } }),
   ]);
   if (!method) throw new AppError("PAYOUT_METHOD_REQUIRED");
   if (method.kind === "bank" && !app.config.payoutKey) throw new AppError("PAYOUTS_UNAVAILABLE", "Withdrawals aren't available right now. Try again later.");
-  if (await db.payouts.findOne({ vendorId, status: "pending" }, { projection: { _id: 1 } })) throw new AppError("PAYOUT_IN_PROGRESS");
+  await noneOnTheWay(db, userId, payee);
 
   const now = new Date();
   const _id = new ObjectId();
@@ -88,7 +116,7 @@ export async function withdraw(app: FastifyInstance, db: Database, vendorId: Obj
     .transaction(async (session) => {
       const [row] = await db.ledgerEntries
         .aggregate<{ total: number }>(
-          [{ $match: { accountId: vendorAccount(vendorId), bucket: "withdrawable" } }, { $group: { _id: null, total: { $sum: "$signedPaise" } } }],
+          [{ $match: { accountId: accountOf(payee, userId), bucket: "withdrawable" } }, { $group: { _id: null, total: { $sum: "$signedPaise" } } }],
           { session },
         )
         .toArray();
@@ -98,13 +126,14 @@ export async function withdraw(app: FastifyInstance, db: Database, vendorId: Obj
       }
       const doc: PayoutDoc = {
         _id,
-        vendorId,
+        vendorId: userId,
+        ...(payee === "rider" ? { payee } : {}),
         amount: available,
         fee: rules.fee,
         status: "pending",
         to: payoutMethodView(method).label,
         destination: {
-          name: bankName(method.holderName ?? user?.name ?? ""),
+          name: bankName(method.holderName ?? user?.name ?? "", payee),
           ...(method.kind === "bank" && method.bank ? { bank: { number: method.bank.number, ifsc: method.bank.ifsc } } : {}),
           ...(method.kind === "upi" && method.upi ? { upi: { vpa: method.upi.vpa } } : {}),
         },
@@ -122,7 +151,7 @@ export async function withdraw(app: FastifyInstance, db: Database, vendorId: Obj
         db,
         {
           actor,
-          scope: { module: "ledger" },
+          scope: { module: payee === "rider" ? "delivery" : "ledger" },
           action: "payout.request",
           target: { type: "payout", id: _id },
           diff: { amount: { from: null, to: available }, fee: { from: null, to: rules.fee }, to: { from: null, to: doc.to } },
@@ -183,6 +212,7 @@ export async function settlePayout(app: FastifyInstance, db: Database, payout: P
     await notifyPayout(db, app.log, {
       to: paid.vendorId,
       payoutId: paid._id,
+      rider: payeeOf(paid) === "rider",
       title: `${money(paid.amount - paid.fee)} sent`,
       body: `Your withdrawal reached ${paid.to}.${paid.utr ? ` Bank reference ${paid.utr}.` : ""}`,
     });
@@ -201,19 +231,24 @@ export async function settlePayout(app: FastifyInstance, db: Database, payout: P
     return after;
   });
   if (!failed) return (await db.payouts.findOne({ _id: payout._id })) ?? payout;
-  app.log.warn({ payout: failed._id.toHexString(), failure: failed.failure }, "Payout failed; the money is back in the vendor's balance");
+  app.log.warn({ payout: failed._id.toHexString(), failure: failed.failure, payee: payeeOf(failed) }, "Payout failed; the money is back in the balance");
   await notifyPayout(db, app.log, {
     to: failed.vendorId,
     payoutId: failed._id,
+    rider: payeeOf(failed) === "rider",
     title: "Withdrawal didn't go through",
     body: `${money(failed.amount)} is back in your balance. ${failureText(failed.failure)}`,
   });
   return failed;
 }
 
-/** Settles a vendor's payout on the way once it is due for a check, before their balance is shown. */
-export async function settleDue(app: FastifyInstance, db: Database, vendorId: ObjectId, now = new Date()): Promise<void> {
-  const due = await db.payouts.findOne({ vendorId, status: "pending", $or: [{ checkedAt: null }, { checkedAt: { $lte: new Date(now.getTime() - CHECK_AFTER_MS) } }] });
+/** Settles someone's payout on the way once it is due for a check, before their balance is shown. */
+export async function settleDue(app: FastifyInstance, db: Database, userId: ObjectId, now = new Date()): Promise<void> {
+  const due = await db.payouts.findOne({
+    vendorId: userId,
+    status: "pending",
+    $or: [{ checkedAt: null }, { checkedAt: { $lte: new Date(now.getTime() - CHECK_AFTER_MS) } }],
+  });
   if (due) await settlePayout(app, db, due, now);
 }
 

@@ -6,7 +6,7 @@ import { stamp, type AuditLogDoc, type Database, type DeliveryJobDoc, type Order
 import { AppError } from "../../platform/errors.js";
 import { toPrivateJpeg } from "../../platform/private-photo.js";
 import { notifyOrder, notifyRider } from "../notifications/notify.js";
-import { moveOrder, riderHeld, riderPayLedger, rupees, shopShareLeft } from "../pod/orders.js";
+import { HOLD_MS, moveOrder, riderHeld, riderPayLedger, rupees, shopShareLeft } from "../pod/orders.js";
 import type { Job } from "./contracts.js";
 import { deliveryRules, rateFor, roadKm, type DeliveryRules } from "./rates.js";
 import { OPEN_TRIP, tripActive } from "./stop.js";
@@ -521,8 +521,9 @@ export async function deliver(app: FastifyInstance, db: Database, job: DeliveryJ
   if (order.status !== "out_for_delivery") throw new AppError("ORDER_STATE");
   const now = new Date();
   const partner = job.carrier === "partner";
+  const hold = partner && job.pay > 0 ? { "delivery.releaseAt": new Date(now.getTime() + HOLD_MS), "delivery.releasedAt": null } : {};
   await moveOrder(app, db, order, "delivered", { kind: "rider", actor: riderActor(riderId) }, {
-    set: { "delivery.status": "delivered", ...(partner ? { "delivery.paidAt": now } : {}) },
+    set: { "delivery.status": "delivered", ...(partner ? { "delivery.paidAt": now } : {}), ...hold },
     inside: async (session, after) => {
       const res = await db.deliveryJobs.updateOne(
         { _id: job._id, status: "picked_up", riderId },
@@ -540,7 +541,7 @@ export async function deliver(app: FastifyInstance, db: Database, job: DeliveryJ
     job,
     riderId,
     `Order #${job.orderNo} delivered`,
-    partner ? `${name} delivered it. ${rupees(job.pay)} of your share went to them.` : `${name} delivered it.`,
+    partner ? `${name} delivered it. ${rupees(job.pay)} of your share goes to them.` : `${name} delivered it.`,
   );
   return (await db.deliveryJobs.findOne({ _id: job._id }))!;
 }

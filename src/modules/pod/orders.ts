@@ -300,7 +300,7 @@ export function ledgerFor(kind: "payment" | "release" | "refund", order: PodOrde
   return entries(`${kind}:${order._id.toHexString()}`, kind, order, rows, at);
 }
 
-/** At delivery, a Ruxstar partner's pay moves out of the shop's pending share to them. */
+/** At delivery, a Ruxstar partner's pay moves out of the shop's pending share to theirs, on hold for 48 hours. */
 export const riderPayLedger = (order: PodOrderDoc, riderId: ObjectId, pay: number, at: Date): LedgerEntryDoc[] =>
   entries(
     `rider_pay:${order._id.toHexString()}`,
@@ -308,6 +308,19 @@ export const riderPayLedger = (order: PodOrderDoc, riderId: ObjectId, pay: numbe
     order,
     [
       [vendorAccount(order), "pending", -pay],
+      [`rider:${riderId.toHexString()}`, "pending", pay],
+    ],
+    at,
+  );
+
+/** The hold is over: the partner can withdraw their pay. */
+export const riderReleaseLedger = (order: PodOrderDoc, riderId: ObjectId, pay: number, at: Date): LedgerEntryDoc[] =>
+  entries(
+    `rider_release:${order._id.toHexString()}`,
+    "rider_release",
+    order,
+    [
+      [`rider:${riderId.toHexString()}`, "pending", -pay],
       [`rider:${riderId.toHexString()}`, "withdrawable", pay],
     ],
     at,

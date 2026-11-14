@@ -1,9 +1,11 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
+import type { FastifyInstance } from "fastify";
+import type { Static } from "typebox";
 import { ObjectId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { actorOf, writeAudit } from "../../platform/audit.js";
 import { requireDatabase } from "../../platform/context.js";
-import type { PayoutDoc, PayoutMethodDoc, Stamped } from "../../platform/db.js";
+import type { AuditLogDoc, Database, PayoutDoc, PayoutMethodDoc, Stamped } from "../../platform/db.js";
 import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
@@ -14,9 +16,9 @@ import { releaseShare } from "../pod/order-rules.js";
 import { shopShareLeft } from "../pod/orders.js";
 import { payoutMethodView, requireVendor } from "./businesses.js";
 import { PayoutMethodBody, PayoutMethodResult, PayoutResult, Payments, Statement, StatementQuery, type Payout, type StatementLine } from "./contracts.js";
-import { failureText, payoutRules, settleDue, withdraw } from "./payouts.js";
+import { failureText, methodsOf, payeeFilter, payoutRules, settleDue, withdraw, type Payee } from "./payouts.js";
 
-const payoutView = (p: PayoutDoc): Payout => ({
+export const payoutView = (p: PayoutDoc): Payout => ({
   id: p._id.toHexString(),
   amount: p.amount,
   fee: p.fee ?? 0,
@@ -33,6 +35,71 @@ const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 const PAYOUT_NAME_MATCHES = new Set([...NAME_MATCHES, "MATCH"]);
 
 const failed = (path: string, message: string) => new AppError("KYC_CHECK_FAILED", message, [{ path, message }]);
+
+/**
+ * Checks a bank account or UPI ID with Cashfree, in the name on the person's Aadhaar, and saves it as where they are
+ * paid as a vendor or as a delivery partner, replacing the one they had.
+ */
+export async function setPayoutMethod(
+  app: FastifyInstance,
+  database: Database,
+  userId: ObjectId,
+  body: Static<typeof PayoutMethodBody>,
+  audit: { actor: AuditLogDoc["actor"]; ip: string | null },
+  payee: Payee = "vendor",
+): Promise<PayoutMethodDoc> {
+  const key = app.config.payoutKey;
+  if (body.kind === "bank" && !key) throw new AppError("PAYOUTS_UNAVAILABLE", "Bank accounts can't be added right now. Use a UPI ID.");
+
+  const [base, user] = await Promise.all([loadCase(database, userId, "base"), database.users.findOne({ _id: userId }, { projection: { name: 1 } })]);
+  const name = base?.steps.aadhaar?.name ?? user?.name ?? "";
+  const result =
+    body.kind === "bank"
+      ? await app.verifier.bankAccount(body.accountNumber, body.ifsc, name)
+      : await app.verifier.upi(verificationId(userId, "upi"), body.vpa, name);
+  const path = body.kind === "bank" ? "body/accountNumber" : "body/vpa";
+  if (!result.valid) {
+    throw failed(path, body.kind === "bank" ? "We couldn't verify this account. Check the number and IFSC." : "We couldn't verify this UPI ID.");
+  }
+  if (!PAYOUT_NAME_MATCHES.has(result.nameMatch ?? "")) throw failed(path, "This account is in another name. Use one in the name on your Aadhaar.");
+
+  const now = new Date();
+  const fields: Omit<PayoutMethodDoc, "_id" | "userId" | keyof Stamped> = {
+    kind: body.kind,
+    holderName: result.holderName,
+    nameMatch: result.nameMatch,
+    verifiedAt: now,
+    ...(body.kind === "bank"
+      ? { bank: { number: seal(body.accountNumber, key!), last4: body.accountNumber.slice(-4), ifsc: body.ifsc, bankName: result.bankName } }
+      : { upi: { vpa: body.vpa.toLowerCase() } }),
+  };
+  const methods = methodsOf(database, payee);
+  return database.transaction(async (session) => {
+    const before = await methods.findOne({ userId }, { session });
+    const after = await methods.findOneAndUpdate(
+      { userId },
+      {
+        $set: { ...fields, updatedAt: now },
+        $unset: body.kind === "bank" ? { upi: "" } : { bank: "" },
+        $setOnInsert: { _id: new ObjectId(), createdAt: now, schemaVersion: 1 },
+      },
+      { upsert: true, returnDocument: "after", session },
+    );
+    await writeAudit(
+      database,
+      {
+        actor: audit.actor,
+        scope: { module: payee === "rider" ? "delivery" : "vendor" },
+        action: "payout_method.set",
+        target: { type: "payout_method", id: after!._id },
+        diff: { method: { from: before ? payoutMethodView(before).label : null, to: payoutMethodView(after!).label } },
+        ip: audit.ip,
+      },
+      session,
+    );
+    return after!;
+  });
+}
 
 /** Where a vendor is paid, and what they have earned and been paid. */
 const payments: FastifyPluginAsyncTypebox = async (app) => {
@@ -63,9 +130,16 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
       await settleDue(app, db(), vendorId, now);
       const [method, payouts, paid, ledger, holding, rules] = await Promise.all([
         db().payoutMethods.findOne({ userId: vendorId }),
-        db().payouts.find({ vendorId }).sort({ createdAt: -1, _id: -1 }).limit(20).toArray(),
         db()
-          .payouts.aggregate<{ total: number }>([{ $match: { vendorId, status: "paid" } }, { $group: { _id: null, total: { $sum: "$amount" } } }])
+          .payouts.find({ vendorId, ...payeeFilter("vendor") })
+          .sort({ createdAt: -1, _id: -1 })
+          .limit(20)
+          .toArray(),
+        db()
+          .payouts.aggregate<{ total: number }>([
+            { $match: { vendorId, status: "paid", ...payeeFilter("vendor") } },
+            { $group: { _id: null, total: { $sum: "$amount" } } },
+          ])
           .toArray(),
         db()
           .ledgerEntries.aggregate<{ _id: "pending" | "withdrawable"; total: number }>([
@@ -203,59 +277,7 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (request) => {
-      const database = db();
-      const userId = request.auth!.userId;
-      const body = request.body;
-      const key = app.config.payoutKey;
-      if (body.kind === "bank" && !key) throw new AppError("PAYOUTS_UNAVAILABLE", "Bank accounts can't be added right now. Use a UPI ID.");
-
-      const [base, user] = await Promise.all([loadCase(database, userId, "base"), database.users.findOne({ _id: userId }, { projection: { name: 1 } })]);
-      const name = base?.steps.aadhaar?.name ?? user?.name ?? "";
-      const result =
-        body.kind === "bank"
-          ? await app.verifier.bankAccount(body.accountNumber, body.ifsc, name)
-          : await app.verifier.upi(verificationId(userId, "upi"), body.vpa, name);
-      const path = body.kind === "bank" ? "body/accountNumber" : "body/vpa";
-      if (!result.valid) {
-        throw failed(path, body.kind === "bank" ? "We couldn't verify this account. Check the number and IFSC." : "We couldn't verify this UPI ID.");
-      }
-      if (!PAYOUT_NAME_MATCHES.has(result.nameMatch ?? "")) throw failed(path, "This account is in another name. Use one in the name on your Aadhaar.");
-
-      const now = new Date();
-      const fields: Omit<PayoutMethodDoc, "_id" | "userId" | keyof Stamped> = {
-        kind: body.kind,
-        holderName: result.holderName,
-        nameMatch: result.nameMatch,
-        verifiedAt: now,
-        ...(body.kind === "bank"
-          ? { bank: { number: seal(body.accountNumber, key!), last4: body.accountNumber.slice(-4), ifsc: body.ifsc, bankName: result.bankName } }
-          : { upi: { vpa: body.vpa.toLowerCase() } }),
-      };
-      const saved = await database.transaction(async (session) => {
-        const before = await database.payoutMethods.findOne({ userId }, { session });
-        const after = await database.payoutMethods.findOneAndUpdate(
-          { userId },
-          {
-            $set: { ...fields, updatedAt: now },
-            $unset: body.kind === "bank" ? { upi: "" } : { bank: "" },
-            $setOnInsert: { _id: new ObjectId(), createdAt: now, schemaVersion: 1 },
-          },
-          { upsert: true, returnDocument: "after", session },
-        );
-        await writeAudit(
-          database,
-          {
-            actor: actorOf(request),
-            scope: { module: "vendor" },
-            action: "payout_method.set",
-            target: { type: "payout_method", id: after!._id },
-            diff: { method: { from: before ? payoutMethodView(before).label : null, to: payoutMethodView(after!).label } },
-            ip: request.ip,
-          },
-          session,
-        );
-        return after!;
-      });
+      const saved = await setPayoutMethod(app, db(), request.auth!.userId, request.body, { actor: actorOf(request), ip: request.ip });
       return ok(request, payoutMethodView(saved));
     },
   );

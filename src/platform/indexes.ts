@@ -85,8 +85,9 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.businesses.createIndex({ module: 1, status: 1, publishedAt: -1, _id: -1 }),
     db.businesses.createIndex({ status: 1, updatedAt: -1, _id: -1 }),
     db.payoutMethods.createIndex({ userId: 1 }, { unique: true }),
+    db.riderPayoutMethods.createIndex({ userId: 1 }, { unique: true }),
     db.payouts.createIndex({ vendorId: 1, createdAt: -1, _id: -1 }),
-    // One withdrawal on the way per vendor, so two taps at once can't both take the balance.
+    // One withdrawal on the way per person, vendor or partner, so two taps at once can't both take the balance.
     db.payouts.createIndex({ vendorId: 1 }, { name: "one_pending_payout", unique: true, partialFilterExpression: { status: "pending" } }),
     db.payouts.createIndex({ status: 1, checkedAt: 1 }),
     db.payouts.createIndex({ status: 1, createdAt: -1, _id: -1 }),
@@ -133,6 +134,12 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.deliveryJobs.createIndex({ riderId: 1 }, { name: "one_trip_per_rider", unique: true, partialFilterExpression: { busy: true } }),
     db.riderStates.createIndex({ online: 1, city: 1 }),
     db.podOrders.createIndex({ "delivery.status": 1, "delivery.offerUntil": 1 }, { partialFilterExpression: { "delivery.status": "offered" } }),
+    // Partners' pay on hold: all of it coming due, and one partner's.
+    db.podOrders.createIndex({ "delivery.releasedAt": 1, "delivery.releaseAt": 1 }, { partialFilterExpression: { "delivery.releaseAt": { $type: "date" } } }),
+    db.podOrders.createIndex(
+      { "delivery.rider.id": 1, "delivery.releasedAt": 1, "delivery.releaseAt": 1 },
+      { partialFilterExpression: { "delivery.releaseAt": { $type: "date" } } },
+    ),
   ]);
 }
 
