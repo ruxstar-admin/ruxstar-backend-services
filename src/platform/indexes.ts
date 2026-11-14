@@ -140,6 +140,14 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
       { "delivery.rider.id": 1, "delivery.releasedAt": 1, "delivery.releaseAt": 1 },
       { partialFilterExpression: { "delivery.releaseAt": { $type: "date" } } },
     ),
+    // Support: one number per ticket, a person's tickets, the console's queue (by status, topic or assignee) and its overdue count.
+    db.supportTickets.createIndex({ ticketNo: 1 }, { unique: true }),
+    db.supportTickets.createIndex({ requesterId: 1, lastAt: -1, _id: -1 }),
+    db.supportTickets.createIndex({ status: 1, lastAt: -1, _id: -1 }),
+    db.supportTickets.createIndex({ status: 1, category: 1, lastAt: -1, _id: -1 }),
+    db.supportTickets.createIndex({ assigneeId: 1, status: 1, lastAt: -1, _id: -1 }),
+    db.supportTickets.createIndex({ status: 1, slaDueAt: 1 }),
+    db.supportMessages.createIndex({ ticketId: 1, at: 1 }),
   ]);
 }
 

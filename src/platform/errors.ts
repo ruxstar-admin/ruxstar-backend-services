@@ -39,6 +39,7 @@ export const ERROR_CODES = {
   EMAIL_UNAVAILABLE: { status: 503, message: "We cannot send emails right now. Try again shortly." },
   PHOTO_INVALID: { status: 422, message: "Choose a JPEG, PNG or WebP photo." },
   PHOTO_UNAVAILABLE: { status: 503, message: "We cannot save photos right now. Try again shortly." },
+  ACCOUNT_ON_HOLD: { status: 423, message: "This account is on hold. You can still message Ruxstar support." },
   // KYC
   KYC_CHECK_FAILED: { status: 422, message: "We could not verify this. Check it and try again." },
   KYC_STEP_ORDER: { status: 409, message: "Finish the earlier verification steps first." },

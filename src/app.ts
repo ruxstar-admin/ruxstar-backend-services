@@ -24,6 +24,7 @@ import { googleJobAuth, jobs, type JobAuth } from "./modules/jobs.js";
 import kycPhotoLinks from "./modules/kyc/photo-links.js";
 import checkout from "./modules/pod/checkout.js";
 import chatPhotoLinks from "./modules/social/chat-photo-links.js";
+import supportPhotoLinks from "./modules/support/photo-links.js";
 import { registerAuth } from "./platform/auth.js";
 import { registerClientCheck } from "./platform/client.js";
 import "./platform/context.js";
@@ -181,6 +182,7 @@ export async function buildApp({
   await app.register(checkout);
   await app.register(chatPhotoLinks);
   await app.register(kycPhotoLinks);
+  await app.register(supportPhotoLinks);
   await app.register(jobs(jobAuth ?? googleJobAuth(config)));
 
   if (config.env !== "prod") {

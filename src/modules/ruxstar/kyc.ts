@@ -13,7 +13,7 @@ import { idempotent } from "../../platform/idempotency.js";
 import { findPage } from "../../platform/pagination.js";
 import { kycPhotoLinks, REVIEW_USER_PROJECTION, reviewView } from "../kyc/cases.js";
 import { CaseParams, MAX_REJECTIONS, RejectBody, ReviewList, ReviewOne, ReviewQuery } from "../kyc/contracts.js";
-import { notifyKycDecision } from "../notifications/notify.js";
+import { notifyKycDecision, notifyKycReopened } from "../notifications/notify.js";
 import { apiOrigin, signingKey } from "../pod/orders.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
@@ -194,6 +194,52 @@ const kycReview: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (request) => ok(request, await decide(request, request.params.id, "rejected", request.body.reason.trim())),
+  );
+
+  app.post(
+    "/kyc/:id/reopen",
+    {
+      preHandler: [requireRuxstar("kyc.review"), idempotent],
+      schema: {
+        tags: ["ruxstar"],
+        summary: "Give a locked verification case one more try",
+        description: `For a case locked after ${MAX_REJECTIONS} rejections, usually from a help ticket. It goes back to rejected, so the person can fix it and send it again; another rejection locks it again.`,
+        params: CaseParams,
+        response: { 200: ReviewOne, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const database = db();
+      const now = new Date();
+      const updated = await database.transaction(async (session) => {
+        const doc = await database.kycCases.findOne({ _id: new ObjectId(request.params.id), track: { $in: REVIEWED } }, { session });
+        if (!doc) throw new AppError("NOT_FOUND", "Case not found.");
+        if (doc.status !== "locked") throw new AppError("CONFLICT", "Only a locked case can be reopened.");
+        const after = await database.kycCases.findOneAndUpdate(
+          { _id: doc._id, status: "locked" },
+          { $set: { status: "rejected", rejections: MAX_REJECTIONS - 1, updatedAt: now } },
+          { session, returnDocument: "after", projection: { "steps.aadhaar.photo": 0 } },
+        );
+        if (!after) throw new AppError("CONFLICT");
+        await writeAudit(
+          database,
+          {
+            actor: actorOf(request),
+            scope: { module: doc.track === "delivery" ? "delivery" : "kyc" },
+            action: "kyc.reopen",
+            target: { type: "kyc_case", id: doc._id },
+            diff: { status: { from: "locked", to: "rejected" }, rejections: { from: doc.rejections, to: MAX_REJECTIONS - 1 } },
+            ip: request.ip,
+          },
+          session,
+        );
+        return after;
+      });
+      app.authCache.forget(updated.userId);
+      await notifyKycReopened(database, app.log, { to: updated.userId, reviewer: request.auth!.userId, track: updated.track === "delivery" ? "delivery" : "base" });
+      return ok(request, (await withUsers([updated], request))[0]!);
+    },
   );
 };
 

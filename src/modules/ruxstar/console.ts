@@ -53,7 +53,7 @@ const consoleHome: FastifyPluginAsyncTypebox = async (app) => {
       const d = db();
       const when = <T>(allowed: boolean, work: () => Promise<T>) => (allowed ? work() : Promise.resolve(null));
 
-      const [kyc, reports, users, businesses, modules, orders, staff] = await Promise.all([
+      const [kyc, reports, users, businesses, modules, orders, support, staff] = await Promise.all([
         when(can("kyc.view"), async () => {
           const [identity, delivery] = await Promise.all([
             d.kycCases.countDocuments({ status: "submitted", track: "base" }),
@@ -96,9 +96,17 @@ const consoleHome: FastifyPluginAsyncTypebox = async (app) => {
           return SWITCHABLE_MODULES.map((module) => ({ module, live: docs.find((m) => m.module === module)?.live ?? false }));
         }),
         when(can("orders.view"), async () => ({ problems: await d.podOrders.countDocuments({ "problem.status": "open" }) })),
+        when(can("support.view"), async () => {
+          const [open, overdue, unassigned] = await Promise.all([
+            d.supportTickets.countDocuments({ status: "open" }),
+            d.supportTickets.countDocuments({ status: "open", slaDueAt: { $lt: new Date() } }),
+            d.supportTickets.countDocuments({ status: "open", assigneeId: null }),
+          ]);
+          return { open, overdue, unassigned };
+        }),
         when(access.admin, async () => ({ active: await d.ruxstarStaff.countDocuments({ status: "active" }) })),
       ]);
-      return ok(request, { kyc, reports, users, businesses, modules, orders, staff });
+      return ok(request, { kyc, reports, users, businesses, modules, orders, support, staff });
     },
   );
 };

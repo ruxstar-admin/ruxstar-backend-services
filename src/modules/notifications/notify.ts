@@ -305,6 +305,52 @@ export async function notifyRider(
   }
 }
 
+/** Tells a customer Ruxstar answered or resolved their help ticket, which `support` opens. Logged, never thrown. */
+export async function notifySupport(
+  db: Database,
+  log: FastifyBaseLogger,
+  event: { to: ObjectId; actor: ObjectId; ticketId: ObjectId; type: "support.replied" | "support.resolved"; title: string; body: string },
+): Promise<void> {
+  try {
+    await save(db, {
+      _id: new ObjectId(),
+      userId: event.to,
+      type: event.type,
+      actorId: event.actor,
+      title: clip(event.title, 60),
+      body: clip(event.body, 140),
+      link: { screen: "support", id: event.ticketId.toHexString() },
+      readAt: null,
+      createdAt: new Date(),
+    });
+  } catch (err) {
+    log.warn({ err: (err as Error).message, type: event.type }, "Notification not saved");
+  }
+}
+
+/** Tells a user Ruxstar reopened their locked verification, so they can fix it and send it again. Logged, never thrown. */
+export async function notifyKycReopened(
+  db: Database,
+  log: FastifyBaseLogger,
+  event: { to: ObjectId; reviewer: ObjectId; track: "base" | "delivery" },
+): Promise<void> {
+  try {
+    await save(db, {
+      _id: new ObjectId(),
+      userId: event.to,
+      type: "kyc.reopened",
+      actorId: event.reviewer,
+      title: "You can verify again",
+      body: "Ruxstar reopened your verification. Fix what was asked and send it again.",
+      link: { screen: "verification", id: event.track },
+      readAt: null,
+      createdAt: new Date(),
+    });
+  } catch (err) {
+    log.warn({ err: (err as Error).message, type: "kyc" }, "Notification not saved");
+  }
+}
+
 /** Tells a user their verification was decided. Logged, never thrown: the decision is already saved. */
 export async function notifyKycDecision(
   db: Database,

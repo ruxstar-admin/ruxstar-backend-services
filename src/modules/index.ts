@@ -7,6 +7,7 @@ import notifications from "./notifications/index.js";
 import pod from "./pod/index.js";
 import ruxstar from "./ruxstar/index.js";
 import social from "./social/index.js";
+import support from "./support/index.js";
 import vendor from "./vendor/index.js";
 
 /** The 14 resources, each mounted at `/v1/<name>`. A module is added here once it has routes. */
@@ -38,6 +39,7 @@ const MODULES: Partial<Record<Resource, FastifyPluginAsync>> = {
   pod,
   employment,
   delivery,
+  support,
   ruxstar,
 };
 

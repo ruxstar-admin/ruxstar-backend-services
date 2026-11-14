@@ -469,7 +469,10 @@ export type NotificationType =
   | "review.replied"
   | "review.removed"
   | "delivery.offer"
-  | "delivery.updated";
+  | "delivery.updated"
+  | "support.replied"
+  | "support.resolved"
+  | "kyc.reopened";
 
 export interface NotificationDoc {
   _id: ObjectId;
@@ -485,7 +488,7 @@ export interface NotificationDoc {
    * `payments` opens the vendor's Payments (its id is the payout); `work` opens the Work area (its id is the place on the team);
    * `team` opens a business's Team in the vendor portal (its id is the business); `reviews` a business's reviews there, and
    * `work_reviews` the same reviews in the Work area (its id is the place on the team). `delivery_job` opens a job in the
-   * delivery app.
+   * delivery app. `support` opens one of your help tickets.
    */
   link: {
     screen:
@@ -502,7 +505,8 @@ export interface NotificationDoc {
       | "reviews"
       | "work_reviews"
       | "delivery_job"
-      | "delivery_earnings";
+      | "delivery_earnings"
+      | "support";
     id: string;
   };
   readAt: Date | null;
@@ -942,6 +946,56 @@ export interface PlatformSettingDoc extends Stamped {
   updatedBy: ObjectId | null;
 }
 
+export type SupportCategory = "orders" | "refunds" | "verification" | "business" | "delivery" | "account" | "safety" | "app" | "other";
+export type SupportPriority = "urgent" | "high" | "normal" | "low";
+/** `waiting` is waiting on the customer. A resolved ticket reads as closed once `reopenUntil` has passed. */
+export type SupportStatus = "open" | "waiting" | "resolved";
+export type SupportContextType = "order" | "business" | "verification" | "post" | "coupon";
+
+export interface SupportTicketDoc extends Stamped {
+  _id: ObjectId;
+  /** Shown as RX-1042. */
+  ticketNo: number;
+  requesterId: ObjectId;
+  category: SupportCategory;
+  subject: string;
+  /** What it is about, checked when the ticket is opened. `label` is how staff and the customer see it, for example "Order #1042". */
+  context: { type: SupportContextType; id: string; label: string } | null;
+  status: SupportStatus;
+  priority: SupportPriority;
+  assigneeId: ObjectId | null;
+  /** When the customer's oldest unanswered message arrived; null once staff reply. */
+  awaitingSince: Date | null;
+  /** The reply-by deadline: `awaitingSince` plus the priority's hours. Null while nothing waits for staff. */
+  slaDueAt: Date | null;
+  /** The latest message the customer can see, for sorting. */
+  lastAt: Date;
+  lastFrom: "customer" | "staff";
+  /** When the customer last opened it, so staff replies after that show as unread. */
+  seenAt: Date | null;
+  resolvedAt: Date | null;
+  reopenUntil: Date | null;
+}
+
+export interface SupportPhotoDoc {
+  id: ObjectId;
+  key: string;
+  bytes: number;
+}
+
+export interface SupportMessageDoc {
+  _id: ObjectId;
+  ticketId: ObjectId;
+  authorId: ObjectId;
+  from: "customer" | "staff";
+  text: string;
+  /** JPEGs in the private print files bucket under `support/`. */
+  photos: SupportPhotoDoc[];
+  /** A staff note the customer never sees. */
+  internal: boolean;
+  at: Date;
+}
+
 export class Database {
   /** False until the first connect and the index build succeed; requests get 503 until then. */
   ready = false;
@@ -1074,6 +1128,12 @@ export class Database {
   }
   get riderStates() {
     return this.db.collection<RiderStateDoc>("rider_states");
+  }
+  get supportTickets() {
+    return this.db.collection<SupportTicketDoc>("support_tickets");
+  }
+  get supportMessages() {
+    return this.db.collection<SupportMessageDoc>("support_messages");
   }
 
   /** Runs `work` in a majority-committed transaction, retrying transient errors. */

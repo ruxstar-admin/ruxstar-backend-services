@@ -46,6 +46,7 @@ import { blockBetween, blockedAround } from "../social/relations.js";
 import { eraseChats } from "../social/chats.js";
 import { endPlacesFor } from "../team/team.js";
 import { signedInIfPossible } from "../social/shared.js";
+import { onHold } from "../support/pass.js";
 import { checkCode, countText, sendCode, useVerification } from "./otp.js";
 import { PHOTO_MAX_BYTES, toAvatar } from "./photos.js";
 import { firstFreeUsername, isAvailable, isReserved, suggestUsernames } from "./usernames.js";
@@ -302,7 +303,9 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["account"],
         summary: "Sign in with number and password",
-        description: `${LOCK_AFTER_FAILURES} wrong passwords lock the account for ${minutes(LOCK_MINUTES)}.`,
+        description:
+          `${LOCK_AFTER_FAILURES} wrong passwords lock the account for ${minutes(LOCK_MINUTES)}. An account Ruxstar put on hold gets ` +
+          "ACCOUNT_ON_HOLD instead of a session; its detail has a `supportToken` for /v1/support, good for 2 hours.",
         body: LoginBody,
         response: { 200: LoginResult, ...Errors },
       },
@@ -352,7 +355,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
         throw new AppError("INVALID_CREDENTIALS");
       }
       await d.db.users.updateOne({ _id: user._id }, { $set: { lock: { failedCount: 0, lockedUntil: null } } });
-      if (user.status === "locked") throw new AppError("FORBIDDEN", "This account is on hold. Contact support.");
+      if (user.status === "locked") throw await onHold(app.config.jwtSecret!, user);
       const started = await startSession(d.db, request, user._id, request.body);
       const tokens = await issueTokens(request, user._id, started);
       return ok(request, { user: view(user), tokens: deliverTokens(request, reply, tokens) });
@@ -366,7 +369,8 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["account"],
         summary: "Sign in with the code texted by POST /otp (purpose login)",
-        description: "The code's own limits apply: five wrong codes lock that number's codes for 5 minutes.",
+        description:
+          "The code's own limits apply: five wrong codes lock that number's codes for 5 minutes. An account on hold gets ACCOUNT_ON_HOLD with a support pass, as with POST /login.",
         body: LoginCodeBody,
         response: { 200: LoginResult, ...Errors },
       },
@@ -378,7 +382,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
       await useVerification(d, verificationToken, "login");
       const user = await d.db.users.findOne({ phone, status: { $ne: "deleted" } });
       if (!user) throw new AppError("NOT_FOUND", "No account uses this number. Create one instead.");
-      if (user.status === "locked") throw new AppError("FORBIDDEN", "This account is on hold. Contact support.");
+      if (user.status === "locked") throw await onHold(app.config.jwtSecret!, user);
       const started = await startSession(d.db, request, user._id, request.body);
       const tokens = await issueTokens(request, user._id, started);
       return ok(request, { user: view(user), tokens: deliverTokens(request, reply, tokens) });
