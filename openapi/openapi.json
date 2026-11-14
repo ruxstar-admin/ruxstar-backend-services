@@ -53901,6 +53901,125 @@
         }
       }
     },
+    "/v1/pod/terms": {
+      "get": {
+        "summary": "Payment conditions for print orders and print shops",
+        "tags": [
+          "pod"
+        ],
+        "description": "What customers see before paying and vendors before opening a shop. The commission and fees are Ruxstar's current settings.",
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "commissionBps",
+                        "platformFee",
+                        "acceptHours",
+                        "reportHours",
+                        "filesDays",
+                        "refundDays",
+                        "payoutFee",
+                        "minPayout"
+                      ],
+                      "properties": {
+                        "commissionBps": {
+                          "type": "integer",
+                          "description": "Ruxstar's commission on the items, in basis points. 1000 = 10%"
+                        },
+                        "platformFee": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise. What the customer pays Ruxstar on each order, on top of the price."
+                        },
+                        "acceptHours": {
+                          "type": "integer",
+                          "description": "A paid order the shop hasn't accepted in this long is cancelled and fully refunded"
+                        },
+                        "reportHours": {
+                          "type": "integer",
+                          "description": "After delivery, the customer has this long to report a problem; the shop's share waits for it"
+                        },
+                        "filesDays": {
+                          "type": "integer",
+                          "description": "Days a delivered order's print files are kept"
+                        },
+                        "refundDays": {
+                          "type": "integer",
+                          "description": "Days a bank can take to show a refund"
+                        },
+                        "payoutFee": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise. Taken from each withdrawal."
+                        },
+                        "minPayout": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Amount in paise. The least a vendor can withdraw."
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/employment/{id}/orders": {
       "get": {
         "summary": "Orders to a shop you work at, newest first",

@@ -10,6 +10,19 @@ const Nullable = <T extends TSchema>(schema: T, options?: { description: string 
 const PaiseNote = (description: string) => Type.Integer({ minimum: 0, description: `Amount in paise. ${description}` });
 const Unit = Type.Union([Type.Literal("unit"), Type.Literal("page")]);
 
+/** The payment conditions of print on demand, as Ruxstar has them set now. */
+export const Terms = Strict({
+  commissionBps: Type.Integer({ description: "Ruxstar's commission on the items, in basis points. 1000 = 10%" }),
+  platformFee: PaiseNote("What the customer pays Ruxstar on each order, on top of the price."),
+  acceptHours: Type.Integer({ description: "A paid order the shop hasn't accepted in this long is cancelled and fully refunded" }),
+  reportHours: Type.Integer({ description: "After delivery, the customer has this long to report a problem; the shop's share waits for it" }),
+  filesDays: Type.Integer({ description: "Days a delivered order's print files are kept" }),
+  refundDays: Type.Integer({ description: "Days a bank can take to show a refund" }),
+  payoutFee: PaiseNote("Taken from each withdrawal."),
+  minPayout: PaiseNote("The least a vendor can withdraw."),
+});
+export const TermsOne = Envelope(Terms);
+
 /** A print shop as Discover shows it. */
 export const ShopCard = Strict({
   id: ObjectIdString,

@@ -635,4 +635,24 @@ describe("print orders", () => {
     expect(res.json().data).toMatchObject({ module: "pod", platformFee: 1_000 });
     expect((await call("PATCH", "/ruxstar/modules/pod", admin.token, { platformFee: 60_000 })).statusCode).toBe(400);
   });
+
+  it("shows the payment conditions as Ruxstar has them set now", async () => {
+    const customer = await signIn(stack);
+    const terms = await call("GET", "/pod/terms", customer.token);
+    expect(terms.json().data).toMatchObject({
+      commissionBps: 1000,
+      platformFee: 500,
+      acceptHours: 6,
+      reportHours: 48,
+      filesDays: 30,
+      refundDays: 7,
+      payoutFee: expect.any(Number),
+      minPayout: expect.any(Number),
+    });
+
+    const admin = await signIn(stack, { admin: true });
+    await call("PATCH", "/ruxstar/modules/pod", admin.token, { commissionBps: 1200, platformFee: 900 });
+    expect((await call("GET", "/pod/terms", customer.token)).json().data).toMatchObject({ commissionBps: 1200, platformFee: 900 });
+    await call("PATCH", "/ruxstar/modules/pod", admin.token, { commissionBps: 1000, platformFee: 500 });
+  });
 });

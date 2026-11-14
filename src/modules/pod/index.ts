@@ -8,13 +8,19 @@ import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { isModuleLive } from "../../platform/module-switch.js";
 import { findPage } from "../../platform/pagination.js";
-import { ShopList, ShopOne, ShopParams, ShopsQuery } from "./contracts.js";
+import { payoutRules } from "../vendor/payouts.js";
+import { ShopList, ShopOne, ShopParams, ShopsQuery, TermsOne } from "./contracts.js";
+import { ACCEPT_WINDOW_MS, chargesOf, FILES_KEPT_MS, HOLD_MS } from "./orders.js";
 import orders from "./order-routes.js";
 import problems from "./problem-routes.js";
 import reviews from "./review-routes.js";
 import { escapeRegex, nearFirst, shopCard, shopSearch, shopView, visibleShops } from "./shops.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
+const HOUR_MS = 60 * 60_000;
+const DAY_MS = 24 * HOUR_MS;
+/** What customers are told a bank can take to show a refund. */
+const REFUND_DAYS = 7;
 
 /** Print on demand for customers: shops to order from, and their own orders. Shops are businesses in the pod module. */
 const pod: FastifyPluginAsyncTypebox = async (app) => {
@@ -87,6 +93,33 @@ const pod: FastifyPluginAsyncTypebox = async (app) => {
       const doc = await db().businesses.findOne({ ...visibleShops, _id: new ObjectId(request.params.id) });
       if (!doc || !(await isModuleLive(db(), "pod"))) throw new AppError("NOT_FOUND", "This shop is not on Ruxstar right now.");
       return ok(request, shopView(doc));
+    },
+  );
+
+  app.get(
+    "/terms",
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ["pod"],
+        summary: "Payment conditions for print orders and print shops",
+        description: "What customers see before paying and vendors before opening a shop. The commission and fees are Ruxstar's current settings.",
+        response: { 200: TermsOne, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const [charges, payouts] = await Promise.all([chargesOf(db()), payoutRules(db())]);
+      return ok(request, {
+        commissionBps: charges.commissionBps,
+        platformFee: charges.platformFee,
+        acceptHours: ACCEPT_WINDOW_MS / HOUR_MS,
+        reportHours: HOLD_MS / HOUR_MS,
+        filesDays: FILES_KEPT_MS / DAY_MS,
+        refundDays: REFUND_DAYS,
+        payoutFee: payouts.fee,
+        minPayout: payouts.minimum,
+      });
     },
   );
 };
