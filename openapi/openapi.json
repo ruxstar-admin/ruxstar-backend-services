@@ -596,6 +596,325 @@
         }
       }
     },
+    "/v1/account/payments": {
+      "get": {
+        "summary": "Your payments, newest first",
+        "tags": [
+          "account"
+        ],
+        "description": "One per paid order, at every business, with its refunds. Orders never paid for are left out.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "module",
+                          "business",
+                          "order",
+                          "amount",
+                          "paidAt",
+                          "paymentId",
+                          "status",
+                          "refunded",
+                          "refunds"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "module": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "pod"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "events"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coaching"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "stays"
+                                ]
+                              }
+                            ],
+                            "description": "pod is print on demand"
+                          },
+                          "business": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "name"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "order": {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "orderNo",
+                              "label"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{24}$",
+                                "description": "MongoDB ObjectId as hex"
+                              },
+                              "orderNo": {
+                                "type": "integer"
+                              },
+                              "label": {
+                                "type": "string",
+                                "description": "What was bought"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "amount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Amount in paise"
+                          },
+                          "paidAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "paymentId": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The payment gateway's ID for it, once it confirmed the payment"
+                          },
+                          "status": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "paid"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "refund_pending"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "part_refunded"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "refunded"
+                                ]
+                              }
+                            ],
+                            "description": "`refund_pending` while money is on its way back; `part_refunded` once some came back"
+                          },
+                          "refunded": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Amount in paise"
+                          },
+                          "refunds": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "amount",
+                                "kind",
+                                "reason",
+                                "status",
+                                "at"
+                              ],
+                              "properties": {
+                                "amount": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Amount in paise"
+                                },
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "full"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "partial"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "reason": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "status": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "pending"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "done"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "at": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "description": "Oldest first"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/account/otp": {
       "post": {
         "summary": "Text a 6-digit code to a number, to sign up, sign in or reset a password",

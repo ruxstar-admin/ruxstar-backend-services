@@ -298,6 +298,7 @@ describe("print orders", () => {
     expect(vendorEntries.reduce((s, e) => s + e.signedPaise, 0)).toBe(0);
     const told = await stack.db.notifications.findOne({ userId: customer.userId, type: "order.updated" });
     expect(told?.body).toContain("Out of XXL white shirts");
+    expect((await call("GET", "/account/payments", customer.token)).json().data).toMatchObject([{ id: order.id, status: "refunded", refunded: 360_500 }]);
   });
 
   it("lets the customer cancel before the shop accepts: unpaid is closed at the gateway, paid is refunded", async () => {
@@ -461,6 +462,21 @@ describe("print orders", () => {
     expect(gateway().refunds.get(`rf_${order.id}_1`)).toEqual({ orderId: `rx_${order.id}`, amount: 50_000 });
     expect(await stack.db.notifications.findOne({ userId: customer.userId, title: `₹500 back for order #${order.orderNo}` })).not.toBeNull();
     expect((await call("GET", "/vendor/payments", owner.token)).json().data.balance).toMatchObject({ pending: 274_000 });
+    expect((await call("GET", "/account/payments", customer.token)).json().data).toEqual([
+      {
+        id: order.id,
+        module: "pod",
+        business: { id: expect.any(String), name: expect.any(String) },
+        order: { id: order.id, orderNo: order.orderNo, label: "T-Shirts" },
+        amount: order.price.total,
+        paidAt: expect.any(String),
+        paymentId: expect.any(String),
+        status: "part_refunded",
+        refunded: 50_000,
+        refunds: [{ amount: 50_000, kind: "partial", reason: "Two shirts misprinted", status: "done", at: expect.any(String) }],
+      },
+    ]);
+    expect((await call("GET", "/account/payments", owner.token)).json().data).toEqual([]);
 
     await call("POST", `/vendor/orders/${order.id}/status`, owner.token, { status: "delivered" });
     await age(order.id, { releaseAt: 1 });

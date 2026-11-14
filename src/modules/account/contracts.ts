@@ -1,5 +1,6 @@
 import { Type, type Static, type TSchema } from "typebox";
-import { Client, DateTime, Envelope, ListEnvelope, ObjectIdString, Strict } from "../../contracts/common.js";
+import { Client, DateTime, Envelope, ListEnvelope, ObjectIdString, PageQuery, Paise, Strict } from "../../contracts/common.js";
+import { BusinessModule } from "../vendor/contracts.js";
 
 export const Phone = Type.String({
   pattern: "^[6-9]\\d{9}$",
@@ -205,3 +206,33 @@ export const SessionList = ListEnvelope(Session);
 export const SessionParams = Strict({ id: ObjectIdString });
 
 export const DeviceBody = Strict({ pushToken: Type.String({ minLength: 1, maxLength: 500 }) });
+
+// What a customer paid.
+
+export const PaymentStatus = Type.Union([Type.Literal("paid"), Type.Literal("refund_pending"), Type.Literal("part_refunded"), Type.Literal("refunded")], {
+  description: "`refund_pending` while money is on its way back; `part_refunded` once some came back",
+});
+export const Payment = Strict({
+  id: ObjectIdString,
+  module: BusinessModule,
+  business: Strict({ id: ObjectIdString, name: Type.String() }),
+  order: Strict({ id: ObjectIdString, orderNo: Type.Integer(), label: Type.String({ description: "What was bought" }) }),
+  amount: Paise,
+  paidAt: DateTime,
+  paymentId: Type.Union([Type.String(), Type.Null()], { description: "The payment gateway's ID for it, once it confirmed the payment" }),
+  status: PaymentStatus,
+  refunded: Paise,
+  refunds: Type.Array(
+    Strict({
+      amount: Paise,
+      kind: Type.Union([Type.Literal("full"), Type.Literal("partial")]),
+      reason: Type.Union([Type.String(), Type.Null()]),
+      status: Type.Union([Type.Literal("pending"), Type.Literal("done")]),
+      at: DateTime,
+    }),
+    { description: "Oldest first" },
+  ),
+});
+export type Payment = Static<typeof Payment>;
+export const PaymentList = ListEnvelope(Payment);
+export const PaymentsQuery = Strict({ ...PageQuery });

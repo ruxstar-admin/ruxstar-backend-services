@@ -48,6 +48,7 @@ import { endPlacesFor } from "../team/team.js";
 import { signedInIfPossible } from "../social/shared.js";
 import { onHold } from "../support/pass.js";
 import { checkCode, countText, sendCode, useVerification } from "./otp.js";
+import payments from "./payments.js";
 import { PHOTO_MAX_BYTES, toAvatar } from "./photos.js";
 import { firstFreeUsername, isAvailable, isReserved, suggestUsernames } from "./usernames.js";
 import { checkPasswordRules, hashPassword, verifyAgainstNothing, verifyPassword, wasUsedRecently } from "./passwords.js";
@@ -179,6 +180,7 @@ const account: FastifyPluginAsyncTypebox = async (app) => {
   };
 
   app.addContentTypeParser(/^image\//, { parseAs: "buffer", bodyLimit: PHOTO_MAX_BYTES }, (_request, body, done) => done(null, body));
+  await app.register(payments);
 
   app.post(
     "/otp",
