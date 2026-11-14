@@ -9,7 +9,8 @@ import { AppError } from "../platform/errors.js";
  * custom time, which is set on upload (so abandoned files go too) and again when the order ends.
  */
 export interface PrintFileStore {
-  save(key: string, data: Buffer, contentType: string): Promise<void>;
+  /** `keep` leaves the countdown off until `expire`, for files that must last however long a review takes. */
+  save(key: string, data: Buffer, contentType: string, options?: { keep?: boolean }): Promise<void>;
   read(key: string): Promise<Buffer>;
   /** Starts the bucket's 30-day countdown. Logged, never thrown. */
   expire(key: string): Promise<void>;
@@ -26,11 +27,10 @@ class GcsPrintFiles implements PrintFileStore {
     this.bucket = new Storage().bucket(bucket);
   }
 
-  async save(key: string, data: Buffer, contentType: string) {
+  async save(key: string, data: Buffer, contentType: string, options: { keep?: boolean } = {}) {
     try {
-      await this.bucket
-        .file(key)
-        .save(data, { resumable: false, contentType, metadata: { cacheControl: "private, no-store", customTime: new Date().toISOString() } });
+      const metadata = { cacheControl: "private, no-store", ...(options.keep ? {} : { customTime: new Date().toISOString() }) };
+      await this.bucket.file(key).save(data, { resumable: false, contentType, metadata });
     } catch (err) {
       this.log.error({ err: (err as Error).message, key }, "Print file could not be saved");
       throw new AppError("FILES_UNAVAILABLE");

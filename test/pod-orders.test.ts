@@ -334,6 +334,7 @@ describe("print orders", () => {
 
     expect((await order({ address: { ...ADDRESS, city: "Chennai" } })).json().error.code).toBe("ORDER_INVALID");
     expect((await order({ returnTo: "https://evil.example/steal" })).json().error.code).toBe("VALIDATION_FAILED");
+    expect((await order({ returnTo: "javascript:alert(1)" })).json().error.code).toBe("VALIDATION_FAILED");
     expect((await order({}, owner.token)).json().error.code).toBe("ORDER_INVALID");
     const other = await signIn(stack);
     expect((await order({}, other.token)).json().error.details[0].path).toBe("body/fileIds/0");
@@ -342,7 +343,8 @@ describe("print orders", () => {
     expect((await order({})).json().error.code).toBe("SHOP_CLOSED");
     await call("POST", `/vendor/businesses/${shopId}/open`, owner.token);
 
-    expect((await order({})).statusCode).toBe(201);
+    // The installed app returns to its own scheme, not Expo Go's.
+    expect((await order({ returnTo: "ruxstarapplicationservices://pod/paid" })).statusCode).toBe(201);
     // The file is now in that order, so it can't be ordered again.
     expect((await order({})).json().error.code).toBe("ORDER_INVALID");
   });

@@ -11,6 +11,17 @@ export const MAX_PLATFORM_FEE = 50_000;
 export const MAX_PAYOUT_FEE = 10_000;
 /** ₹1,00,000. */
 export const MAX_MIN_PAYOUT = 10_000_000;
+/** ₹1,000, for any one delivery rate. */
+export const MAX_DELIVERY_RATE = 100_000;
+
+const DeliveryRate = Strict(
+  {
+    base: Type.Integer({ minimum: 0, maximum: MAX_DELIVERY_RATE, description: "Paise for the first `includedKm`" }),
+    includedKm: Type.Integer({ minimum: 0, maximum: 50 }),
+    perKm: Type.Integer({ minimum: 0, maximum: MAX_DELIVERY_RATE, description: "Paise for each km after" }),
+  },
+  { description: "What a Ruxstar delivery partner is paid for one trip, out of the shop's share" },
+);
 
 export const ModuleSettings = Strict({
   module: ModuleName,
@@ -25,6 +36,17 @@ export const ModuleSettings = Strict({
     }),
   ),
   deliveryEnabled: Type.Boolean(),
+  gstinRequired: Nullable(Type.Boolean({ description: "Business modules: publishing needs a verified GSTIN. Null for other modules." })),
+  delivery: Nullable(
+    Strict(
+      {
+        riderRate: DeliveryRate,
+        shopFeeMax: Strict({ base: Type.Integer({ minimum: 0 }), perKm: Type.Integer({ minimum: 0 }) }, { description: "The most a shop can charge, in paise" }),
+        offerMinutes: Type.Integer({ minimum: 1, description: "A Ruxstar partner offer nobody accepts is cancelled after this" }),
+      },
+      { description: "The delivery module only" },
+    ),
+  ),
   permissionCatalog: Type.Array(Type.String()),
   updatedAt: DateTime,
 });
@@ -41,6 +63,15 @@ export const ModuleSettingsPatch = Strict(
     payoutFee: Type.Optional(Type.Integer({ minimum: 0, maximum: MAX_PAYOUT_FEE, description: "Ledger only. Paise taken from each withdrawal, up to ₹100" })),
     minPayout: Type.Optional(Type.Integer({ minimum: 100, maximum: MAX_MIN_PAYOUT, description: "Ledger only. Paise, at least ₹1 more than the payout fee" })),
     deliveryEnabled: Type.Optional(Type.Boolean()),
+    gstinRequired: Type.Optional(Type.Boolean({ description: "Business modules only. Live businesses without a GSTIN stay live." })),
+    riderRate: Type.Optional(DeliveryRate),
+    shopFeeMax: Type.Optional(
+      Strict({
+        base: Type.Integer({ minimum: 0, maximum: MAX_DELIVERY_RATE }),
+        perKm: Type.Integer({ minimum: 0, maximum: MAX_DELIVERY_RATE }),
+      }),
+    ),
+    offerMinutes: Type.Optional(Type.Integer({ minimum: 1, maximum: 120 })),
   },
   { minProperties: 1 },
 );
@@ -82,8 +113,15 @@ export const AccessResult = Envelope(
 export const OverviewResult = Envelope(
   Strict(
     {
-      kyc: Nullable(Strict({ waiting: Count })),
-      reports: Nullable(Strict({ posts: Count, reports: Count, people: Type.Integer({ minimum: 0, description: "People with open reports" }) })),
+      kyc: Nullable(Strict({ waiting: Count, delivery: Type.Integer({ minimum: 0, description: "Of those waiting, delivery partner cases" }) })),
+      reports: Nullable(
+        Strict({
+          posts: Count,
+          reports: Count,
+          people: Type.Integer({ minimum: 0, description: "People with open reports" }),
+          reviews: Type.Integer({ minimum: 0, description: "Shop reviews with open reports" }),
+        }),
+      ),
       users: Nullable(Strict({ total: Count, newThisWeek: Count, suspended: Count })),
       businesses: Nullable(Strict({ total: Count, live: Count, suspended: Count })),
       modules: Nullable(Type.Array(Strict({ module: ModuleName, live: Type.Boolean() }))),

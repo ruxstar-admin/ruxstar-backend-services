@@ -11,11 +11,13 @@ import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { findPage } from "../../platform/pagination.js";
-import { REVIEW_USER_PROJECTION, reviewView } from "../kyc/cases.js";
+import { kycPhotoLinks, REVIEW_USER_PROJECTION, reviewView } from "../kyc/cases.js";
 import { CaseParams, MAX_REJECTIONS, RejectBody, ReviewList, ReviewOne, ReviewQuery } from "../kyc/contracts.js";
 import { notifyKycDecision } from "../notifications/notify.js";
+import { apiOrigin, signingKey } from "../pod/orders.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
+const REVIEWED: KycCaseDoc["track"][] = ["base", "delivery"];
 
 /** RUX- and 8 hex digits, as on v1 cards. Random, so card numbers say nothing about sign-up order. */
 async function newCardId(db: Database, session: ClientSession): Promise<string> {
@@ -31,12 +33,20 @@ async function newCardId(db: Database, session: ClientSession): Promise<string> 
 const kycReview: FastifyPluginAsyncTypebox = async (app) => {
   const db = () => requireDatabase(app.db);
 
-  const withUsers = async (docs: KycCaseDoc[]) => {
-    const users = await db()
-      .users.find({ _id: { $in: docs.map((d) => d.userId) } }, { projection: REVIEW_USER_PROJECTION })
-      .toArray();
+  /** With each person, and for delivery cases their identity case and signed photo links. */
+  const withUsers = async (docs: KycCaseDoc[], request: FastifyRequest) => {
+    const ids = docs.map((d) => d.userId);
+    const deliveryIds = docs.filter((d) => d.track === "delivery").map((d) => d.userId);
+    const [users, identities] = await Promise.all([
+      db().users.find({ _id: { $in: ids } }, { projection: REVIEW_USER_PROJECTION }).toArray(),
+      deliveryIds.length
+        ? db().kycCases.find({ userId: { $in: deliveryIds }, track: "base" }, { projection: { "steps.aadhaar.photo": 0 } }).toArray()
+        : [],
+    ]);
     const byId = new Map(users.map((u) => [u._id.toHexString(), u]));
-    return docs.map((d) => reviewView(d, byId.get(d.userId.toHexString())));
+    const identityOf = new Map(identities.map((c) => [c.userId.toHexString(), c]));
+    const links = kycPhotoLinks(signingKey(app), apiOrigin(app, request));
+    return docs.map((d) => reviewView(d, byId.get(d.userId.toHexString()), links, identityOf.get(d.userId.toHexString())));
   };
 
   app.get(
@@ -45,23 +55,23 @@ const kycReview: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: requireRuxstar("kyc.view"),
       schema: {
         tags: ["ruxstar"],
-        summary: "Identity verification cases, waiting for review first by default",
-        description: "Newest activity first. `status` defaults to `submitted`.",
+        summary: "Verification cases, waiting for review first by default",
+        description: "Newest activity first. `status` defaults to `submitted`, `track` to `base` (identity); `delivery` is delivery partners.",
         querystring: ReviewQuery,
         response: { 200: ReviewList, ...Errors },
         security,
       },
     },
     async (request) => {
-      const { status = "submitted", cursor, limit } = request.query;
+      const { status = "submitted", track = "base", cursor, limit } = request.query;
       const { items, nextCursor } = await findPage(db().kycCases, {
-        filter: { status, track: "base" },
+        filter: { status, track },
         sortField: "updatedAt",
         cursor,
         limit,
         projection: { "steps.aadhaar.photo": 0 },
       });
-      return page(request, await withUsers(items), nextCursor);
+      return page(request, await withUsers(items, request), nextCursor);
     },
   );
 
@@ -78,15 +88,19 @@ const kycReview: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (request) => {
-      const doc = await db().kycCases.findOne({ _id: new ObjectId(request.params.id), track: "base" }, { projection: { "steps.aadhaar.photo": 0 } });
+      const doc = await db().kycCases.findOne(
+        { _id: new ObjectId(request.params.id), track: { $in: REVIEWED } },
+        { projection: { "steps.aadhaar.photo": 0 } },
+      );
       if (!doc) throw new AppError("NOT_FOUND", "Case not found.");
-      return ok(request, (await withUsers([doc]))[0]!);
+      return ok(request, (await withUsers([doc], request))[0]!);
     },
   );
 
   /**
-   * Decides a submitted case in one transaction with its audit entry. Approving issues the Ruxstar
-   * Card and turns the vendor role on. Either way the held Aadhaar photo goes.
+   * Decides a submitted case in one transaction with its audit entry. Approving identity issues the Ruxstar
+   * Card and turns the vendor role on, and either way the held Aadhaar photo goes. Approving delivery turns the
+   * delivery role on, and its photos start their 30-day countdown.
    */
   async function decide(request: FastifyRequest, id: string, decision: "approved" | "rejected", reason: string | null) {
     const database = db();
@@ -95,7 +109,7 @@ const kycReview: FastifyPluginAsyncTypebox = async (app) => {
     let outcome: "approved" | "rejected" | "locked" = decision;
 
     const updated = await database.transaction(async (session) => {
-      const doc = await database.kycCases.findOne({ _id: new ObjectId(id), track: "base" }, { session });
+      const doc = await database.kycCases.findOne({ _id: new ObjectId(id), track: { $in: REVIEWED } }, { session });
       if (!doc) throw new AppError("NOT_FOUND", "Case not found.");
       if (doc.status !== "submitted") throw new AppError("CONFLICT", "This case is not waiting for review.");
 
@@ -111,17 +125,23 @@ const kycReview: FastifyPluginAsyncTypebox = async (app) => {
       );
       if (!after) throw new AppError("CONFLICT");
 
-      const user = await database.users.findOne({ _id: doc.userId }, { session, projection: { card: 1 } });
-      const set: Record<string, unknown> = { "kyc.base": decision, updatedAt: now };
-      if (decision === "approved") set["roles.vendor"] = true;
-      if (decision === "approved" && !user?.card) set.card = { id: await newCardId(database, session), issuedAt: now };
+      const set: Record<string, unknown> = { updatedAt: now };
+      if (doc.track === "delivery") {
+        set["kyc.delivery"] = decision;
+        if (decision === "approved") set["roles.delivery"] = true;
+      } else {
+        const user = await database.users.findOne({ _id: doc.userId }, { session, projection: { card: 1 } });
+        set["kyc.base"] = decision;
+        if (decision === "approved") set["roles.vendor"] = true;
+        if (decision === "approved" && !user?.card) set.card = { id: await newCardId(database, session), issuedAt: now };
+      }
       await database.users.updateOne({ _id: doc.userId }, { $set: set }, { session });
 
       await writeAudit(
         database,
         {
           actor,
-          scope: { module: "kyc" },
+          scope: { module: doc.track === "delivery" ? "delivery" : "kyc" },
           action: decision === "approved" ? "kyc.approve" : "kyc.reject",
           target: { type: "kyc_case", id: doc._id },
           diff: { status: { from: doc.status, to: outcome }, ...(reason ? { reason: { from: null, to: reason } } : {}) },
@@ -133,8 +153,14 @@ const kycReview: FastifyPluginAsyncTypebox = async (app) => {
     });
 
     app.authCache.forget(updated.userId);
-    await notifyKycDecision(database, app.log, { to: updated.userId, reviewer: request.auth!.userId, decision: outcome, reason });
-    return (await withUsers([updated]))[0]!;
+    const track = updated.track === "delivery" ? "delivery" : "base";
+    if (track === "delivery" && outcome === "approved") {
+      await Promise.all(
+        [updated.steps.licence?.photo, updated.steps.vehicle?.photo].flatMap((p) => (p ? [app.printFiles.expire(p.key)] : [])),
+      );
+    }
+    await notifyKycDecision(database, app.log, { to: updated.userId, reviewer: request.auth!.userId, decision: outcome, reason, track });
+    return (await withUsers([updated], request))[0]!;
   }
 
   app.post(

@@ -213,8 +213,20 @@ describe("vendor portal", () => {
     const pod = (body: object) => call("PATCH", `/vendor/businesses/${id}/pod`, owner.token, body);
     expect((await pod({ products: [] })).json().error.details[0].path).toBe("body/products");
     expect((await pod({ serveAll: false })).json().error.details[0].path).toBe("body/area");
-    expect((await pod({ products: ["tshirts", "posters"] })).json().error.details[0].path).toBe("body/pricing");
-    expect((await pod({ products: ["tshirts", "posters"], prices: [{ product: "posters", basePrice: 9_900 }] })).statusCode).toBe(200);
+    // Swapping every priced product for an unpriced one would leave nothing to order.
+    expect((await pod({ products: ["posters"] })).json().error.details[0].path).toBe("body/pricing");
+
+    // A new product can be added before its price, and customers don't see it until it has one.
+    const added = (await pod({ products: ["tshirts", "posters"] })).json().data;
+    expect(added.pod.unpriced).toEqual(["posters"]);
+    expect(added.missing).toEqual(["pricing"]);
+    const shop = (await call("GET", `/pod/shops/${id}`, owner.token)).json().data;
+    expect(shop.catalog.map((p: { id: string }) => p.id)).toEqual(["tshirts"]);
+    expect(shop.products).toEqual(["tshirts"]);
+    const listed = async () => (await call("GET", "/pod/shops?product=posters", owner.token)).json().data.map((s: { id: string }) => s.id);
+    expect(await listed()).not.toContain(id);
+    expect((await pod({ prices: [{ product: "posters", basePrice: 9_900 }] })).json().data.pod.unpriced).toEqual([]);
+    expect(await listed()).toContain(id);
     expect((await call("PATCH", `/vendor/businesses/${id}`, owner.token, { location: null })).json().error.details[0].path).toBe("body/location");
   });
 

@@ -21,6 +21,7 @@ import { registerModules } from "./modules/index.js";
 import health from "./modules/health.js";
 import { usePush } from "./modules/notifications/push.js";
 import { googleJobAuth, jobs, type JobAuth } from "./modules/jobs.js";
+import kycPhotoLinks from "./modules/kyc/photo-links.js";
 import checkout from "./modules/pod/checkout.js";
 import chatPhotoLinks from "./modules/social/chat-photo-links.js";
 import { registerAuth } from "./platform/auth.js";
@@ -179,6 +180,7 @@ export async function buildApp({
   await registerModules(app);
   await app.register(checkout);
   await app.register(chatPhotoLinks);
+  await app.register(kycPhotoLinks);
   await app.register(jobs(jobAuth ?? googleJobAuth(config)));
 
   if (config.env !== "prod") {

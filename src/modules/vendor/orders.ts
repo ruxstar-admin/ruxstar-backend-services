@@ -20,6 +20,9 @@ import {
 } from "../pod/contracts.js";
 import { applyDue, dueApplied, refundPart } from "../pod/order-rules.js";
 import { fileLink, moveOrder, photoLinks, shopCanMove, shopOrderView, signingKey } from "../pod/orders.js";
+import { AssignBody, DeliveryOptions } from "../delivery/contracts.js";
+import { riderHasIt } from "../delivery/stop.js";
+import { assignTrip, cancelTrip, deliveryOptions } from "../delivery/trips.js";
 import { requireVendor } from "./businesses.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
@@ -97,6 +100,7 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
       const order = await theirs(request.auth!.userId, request.params.id);
       const { status, reason } = request.body;
       if (!shopCanMove(order.status, status)) throw new AppError("ORDER_STATE");
+      riderHasIt(order, status);
       if (status === "rejected" && !reason?.trim()) {
         throw new AppError("VALIDATION_FAILED", "Tell the customer why.", [{ path: "body/reason", message: "Tell the customer why." }]);
       }
@@ -135,6 +139,64 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
         ip: request.ip,
       });
       return ok(request, shopOrderView(done, photoLinks(app, request)));
+    },
+  );
+
+  app.get(
+    "/orders/:id/delivery",
+    {
+      preHandler: requireVendor,
+      schema: {
+        tags: ["vendor"],
+        summary: "Who can deliver an order: your team, or a Ruxstar partner and what they'd be paid",
+        description: "Delivering it yourself needs nothing here: mark it out for delivery and delivered as usual.",
+        params: OrderParams,
+        response: { 200: DeliveryOptions, ...Errors },
+        security,
+      },
+    },
+    async (request) => ok(request, await deliveryOptions(db(), await theirs(request.auth!.userId, request.params.id))),
+  );
+
+  app.post(
+    "/orders/:id/delivery",
+    {
+      preHandler: [requireVendor, idempotent],
+      schema: {
+        tags: ["vendor"],
+        summary: "Send a ready order with someone on your team, or offer it to Ruxstar partners",
+        description:
+          'Someone on the team needs "Deliver orders" and delivery verification, and accepts it in the Ruxstar Delivery app. A partner offer ' +
+          "goes to the partners online in your city; the first to accept gets it, and their pay comes out of your share at delivery.",
+        params: OrderParams,
+        body: AssignBody,
+        response: { 200: ShopOrderOne, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const order = await theirs(request.auth!.userId, request.params.id);
+      const updated = await assignTrip(app, db(), order, request.body, { actor: actorOf(request), ip: request.ip });
+      return ok(request, shopOrderView(updated, photoLinks(app, request)));
+    },
+  );
+
+  app.delete(
+    "/orders/:id/delivery",
+    {
+      preHandler: requireVendor,
+      schema: {
+        tags: ["vendor"],
+        summary: "Cancel a delivery before it is picked up",
+        params: OrderParams,
+        response: { 200: ShopOrderOne, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const order = await theirs(request.auth!.userId, request.params.id);
+      const updated = await cancelTrip(app, db(), order, { actor: actorOf(request), ip: request.ip });
+      return ok(request, shopOrderView(updated, photoLinks(app, request)));
     },
   );
 

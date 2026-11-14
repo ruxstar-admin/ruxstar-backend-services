@@ -10,8 +10,8 @@ import { AppError } from "../../platform/errors.js";
 export const PERMISSIONS = [
   { key: "kyc.view", label: "See verification cases" },
   { key: "kyc.review", label: "Approve and reject verification" },
-  { key: "reports.view", label: "See reported posts" },
-  { key: "reports.act", label: "Keep or remove reported posts" },
+  { key: "reports.view", label: "See reported posts, people and reviews" },
+  { key: "reports.act", label: "Keep or remove reported posts and reviews" },
   { key: "users.view", label: "Find people and see their accounts" },
   { key: "users.manage", label: "Suspend, unlock and sign people out" },
   { key: "modules.view", label: "See module settings" },

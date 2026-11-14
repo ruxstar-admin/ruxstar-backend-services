@@ -47,6 +47,7 @@ const MOVED: Record<string, (no: string) => string> = {
 const listOf = (items: string[]) => (items.length < 2 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
 const labels = (diff: Entry["diff"], words: Record<string, string>) => [...new Set(Object.keys(diff).flatMap((k) => (words[k] ? [words[k]] : [])))];
 const amountOf = (change: Change) => Number(change?.to ?? 0) - Number(change?.from ?? 0);
+const starsOf = (n: unknown) => `${Number(n)} star${Number(n) === 1 ? "" : "s"}`;
 const idOf = (e: Entry) => (typeof e.target.id === "string" ? e.target.id : e.target.id.toHexString());
 
 /** What happened, in the owner's words, without who did it. */
@@ -72,6 +73,18 @@ export function lineOf(e: Entry, refs: Refs): string {
       return `Released the shop's share of order ${no} early`;
     case "pod_order.problem":
       return `Reported a problem with order ${no}`;
+    case "review.create":
+      return `Rated order ${no} ${starsOf(d.rating?.to)}`;
+    case "review.update":
+      return d.rating ? `Changed the rating of order ${no} to ${starsOf(d.rating.to)}` : `Changed the review of order ${no}`;
+    case "review.delete":
+      return `Deleted the review of order ${no}`;
+    case "review.reply":
+      return d.reply?.from === null ? `Replied to the review of order ${no}` : `Changed the reply to the review of order ${no}`;
+    case "review.reply_delete":
+      return `Took down the reply to the review of order ${no}`;
+    case "review.remove":
+      return `Removed the review of order ${no}${reason}`;
     case "business.update": {
       const what = labels(e.diff, DETAILS);
       return what.length ? `Changed the ${listOf(what)}` : "Changed the details";
@@ -105,7 +118,8 @@ export function lineOf(e: Entry, refs: Refs): string {
     case "team.invite":
       return `Invited ${person} to the team`;
     case "team.update":
-      return `Changed what ${person} can do`;
+      if (!d.pay) return `Changed what ${person} can do`;
+      return d.permissions ? `Changed what ${person} can do and the pay on offer` : `Changed the pay offered to ${person}`;
     case "team.remove":
       return d.status?.from === "invited" ? `Cancelled ${person}'s invite` : `Removed ${person} from the team${reason}`;
     case "team.leave":
@@ -181,7 +195,7 @@ const activity: FastifyPluginAsyncTypebox = async (app) => {
         tags: ["vendor"],
         summary: "What happened at a business and who did it, newest first",
         description:
-          "Orders moved and refunded, shop and coupon changes, posts and the team, by you, the team, customers or Ruxstar. " +
+          "Orders moved and refunded, reviews and replies, shop and coupon changes, posts and the team, by you, the team, customers or Ruxstar. " +
           "`by` shows one person's. Customers and the Ruxstar team stay unnamed.",
         params: BusinessParams,
         querystring: ActivityQuery,

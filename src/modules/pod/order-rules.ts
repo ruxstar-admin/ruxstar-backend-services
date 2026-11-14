@@ -15,9 +15,12 @@ import {
   partialRefundLedger,
   refundsOf,
   rupees,
+  shopRefundable,
   shopShareLeft,
   unreleased,
 } from "./orders.js";
+import { stopTrip, tripEnded } from "../delivery/stop.js";
+import { expireOffer, offerExpired } from "../delivery/trips.js";
 
 export interface Staff {
   actor: AuditLogDoc["actor"];
@@ -119,7 +122,7 @@ export async function refundPart(
   input: { amount: number; reason: string; by: "vendor" | "staff"; actor: AuditLogDoc["actor"]; ip: string | null; resolve?: Resolution },
 ): Promise<PodOrderDoc> {
   refundable(order);
-  const left = shopShareLeft(order);
+  const left = shopRefundable(order);
   if (input.amount > left) {
     throw new AppError("ORDER_INVALID", `At most ${rupees(left)} can come out of the shop's share.`, [
       { path: "body/amount", message: `At most ${rupees(left)}` },
@@ -223,12 +226,14 @@ export async function refundWhole(
           reason: input.reason,
           updatedAt: now,
           ...(input.resolve ? { "problem.status": "resolved" as const, "problem.resolution": input.resolve } : {}),
+          ...tripEnded(order),
         },
         $push: { timeline: { status: "refunded", at: now, by: "staff" } },
       },
       { session, returnDocument: "after" },
     );
     if (!after) return null;
+    await stopTrip(db, session, order, "staff", "Ruxstar refunded the order.");
     for (const entry of ledgerFor("refund", after, now)) await db.ledgerEntries.insertOne(entry, { session });
     await giveBack(db, after, session);
     await writeAudit(
@@ -314,7 +319,7 @@ export async function dismissProblem(app: FastifyInstance, db: Database, order: 
 
 /** Whether `applyDue` has anything to do, without a database call. */
 export const isDue = (order: PodOrderDoc, now = new Date()) =>
-  acceptOverdue(order, now) || longLate(order, now) || releaseDue(order, now) || hasPendingRefund(order);
+  acceptOverdue(order, now) || longLate(order, now) || releaseDue(order, now) || hasPendingRefund(order) || offerExpired(order, now);
 
 /**
  * Runs whatever an order's clock says is due: cancels and refunds it when the shop didn't accept within 6 hours,
@@ -324,10 +329,15 @@ export const isDue = (order: PodOrderDoc, now = new Date()) =>
 export async function applyDue(app: FastifyInstance, db: Database, order: PodOrderDoc, now = new Date()): Promise<PodOrderDoc> {
   let current = order;
   try {
+    if (offerExpired(current, now)) current = await expireOffer(app, db, current, now);
     if (acceptOverdue(current, now)) {
       current = await moveOrder(app, db, current, "cancelled", SYSTEM, { reason: "The shop didn't accept it within 6 hours." });
     } else if (longLate(current, now)) {
-      current = await moveOrder(app, db, current, "delivered", SYSTEM);
+      const read = current;
+      current = await moveOrder(app, db, current, "delivered", SYSTEM, {
+        set: tripEnded(read),
+        inside: (session) => stopTrip(db, session, read, "system", "A week past the ready date, the order was marked delivered."),
+      });
     }
     current = await releaseShare(app, db, current, now);
     if (hasPendingRefund(current)) current = await askForRefund(app, db, current);

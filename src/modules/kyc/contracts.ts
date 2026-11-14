@@ -40,7 +40,34 @@ export const BaseCase = Strict({
 });
 export type BaseCase = Static<typeof BaseCase>;
 
-export const Overview = Strict({ base: BaseCase });
+/** Indian driving licence numbers: the state, the RTO, the year and a serial, 15 or 16 characters once spaces and dashes go. */
+export const LICENCE_PATTERN = "^[A-Z]{2}[0-9]{2}[0-9A-Z]{11,12}$";
+/** Number plates: TS09AB1234, or the BH series 22BH1234AB. */
+export const PLATE_PATTERN = "^([A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}|[0-9]{2}BH[0-9]{4}[A-Z]{1,2})$";
+export const VehicleType = Type.Union([Type.Literal("bike"), Type.Literal("scooter")], { description: "Bikes and scooters only" });
+export const DeliveryPhotoKind = Type.Union([Type.Literal("licence"), Type.Literal("vehicle")], {
+  description: "`licence` is the front of the driving licence; `vehicle` shows the bike or scooter with its number plate",
+});
+
+export const DeliveryCase = Strict({
+  ...Decision,
+  identityVerified: Type.Boolean({ description: "Identity verification comes first; this track opens once it is approved" }),
+  licence: Strict({ number: Nullable(Type.String()), photo: Type.Boolean({ description: "A photo was added" }) }),
+  vehicle: Strict({ type: Nullable(VehicleType), number: Nullable(Type.String()), photo: Type.Boolean() }),
+});
+export type DeliveryCase = Static<typeof DeliveryCase>;
+
+export const DeliveryBody = Strict(
+  {
+    licenceNumber: Type.Optional(Type.String({ minLength: 10, maxLength: 24, description: "Spaces and dashes are fine" })),
+    vehicleType: Type.Optional(VehicleType),
+    vehicleNumber: Type.Optional(Type.String({ minLength: 6, maxLength: 16, description: "The number plate; spaces and dashes are fine" })),
+  },
+  { minProperties: 1 },
+);
+export const DeliveryPhotoParams = Strict({ kind: DeliveryPhotoKind });
+
+export const Overview = Strict({ base: BaseCase, delivery: DeliveryCase });
 export type Overview = Static<typeof Overview>;
 export const OverviewResult = Envelope(Overview);
 
@@ -65,13 +92,18 @@ export const CardResult = Envelope(Card);
 
 // Review queue, under /v1/ruxstar.
 
+export const ReviewTrack = Type.Union([Type.Literal("base"), Type.Literal("delivery")], {
+  description: "`base` is identity; `delivery` is a delivery partner's licence and vehicle",
+});
 export const ReviewQuery = Strict({
   ...PageQuery,
   status: Type.Optional(Type.Union([...StoredStatus], { default: "submitted" })),
+  track: Type.Optional(Type.Union([Type.Literal("base"), Type.Literal("delivery")], { default: "base" })),
 });
 
 export const ReviewCase = Strict({
   id: ObjectIdString,
+  track: ReviewTrack,
   status: CaseStatus,
   rejections: Type.Integer(),
   user: Strict({
@@ -91,6 +123,18 @@ export const ReviewCase = Strict({
     livenessScore: Nullable(Type.Number()),
     faceMatchScore: Nullable(Type.Number()),
   }),
+  delivery: Nullable(
+    Strict(
+      {
+        licenceNumber: Nullable(Type.String()),
+        licencePhotoUrl: Nullable(Type.String({ description: "Opens without signing in; works for 10 minutes" })),
+        vehicleType: Nullable(VehicleType),
+        vehicleNumber: Nullable(Type.String()),
+        vehiclePhotoUrl: Nullable(Type.String()),
+      },
+      { description: "Delivery cases only. Check the licence photo matches the number and the plate in the vehicle photo matches its number" },
+    ),
+  ),
   submittedAt: Nullable(DateTime),
   review: Nullable(Strict({ decision: Type.Union([Type.Literal("approved"), Type.Literal("rejected")]), reason: Nullable(Type.String()), at: DateTime })),
 });

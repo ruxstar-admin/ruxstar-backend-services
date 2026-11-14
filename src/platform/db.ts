@@ -66,7 +66,10 @@ export interface UserDoc extends Stamped {
   hideActivity?: boolean;
 }
 
-export type KycTrack = "base" | "vendor";
+export type KycTrack = "base" | "vendor" | "delivery";
+
+/** Bikes and scooters only (decision 57). */
+export type VehicleType = "bike" | "scooter";
 /** `locked` follows the third rejection; only support can reopen it. */
 export type KycCaseStatus = "in_progress" | "submitted" | "approved" | "rejected" | "locked";
 export type KycStepStatus = "pending" | "verified" | "failed";
@@ -122,6 +125,9 @@ export interface KycCaseDoc extends Stamped {
       tries: number;
       at: Date;
     };
+    /** Delivery track: the driving licence and the vehicle. Photos are JPEGs in the private print files bucket under `kyc/`. */
+    licence?: { number: string | null; photo: { key: string; bytes: number } | null; at: Date };
+    vehicle?: { type: VehicleType | null; number: string | null; photo: { key: string; bytes: number } | null; at: Date };
   };
   submittedAt: Date | null;
   /** The latest decision. Earlier ones are in the audit log. */
@@ -164,6 +170,13 @@ export interface PodPrice {
   tiers: { from: number; unitPrice: number }[];
 }
 
+/** What a shop charges to deliver, in paise: `base` covers the first `includedKm`, then `perKm` for each km after. All 0 is free. */
+export interface DeliveryFee {
+  base: number;
+  includedKm: number;
+  perKm: number;
+}
+
 /** A print on demand business's setup: what it prints, where, and for how much. */
 export interface PodSetup {
   products: PodProduct[];
@@ -175,6 +188,8 @@ export interface PodSetup {
   minOrder: number;
   notes: string | null;
   prices: PodPrice[];
+  /** Missing on shops from before it: free. */
+  deliveryFee?: DeliveryFee;
 }
 
 export interface BusinessDoc extends Stamped {
@@ -199,6 +214,8 @@ export interface BusinessDoc extends Stamped {
   publishedAt: Date | null;
   /** Set while the Ruxstar team holds the business; customers can't see it. Removed on restore. */
   suspension?: { by: ObjectId; at: Date; reason: string };
+  /** Live reviews, counted again on every change to one (decision 55). Missing before the first. */
+  rating?: { count: number; sum: number };
 }
 
 /** Where a vendor is paid. One per vendor, checked with Cashfree before it is saved. */
@@ -440,7 +457,12 @@ export type NotificationType =
   | "payout.updated"
   | "team.invited"
   | "team.joined"
-  | "team.ended";
+  | "team.ended"
+  | "review.posted"
+  | "review.replied"
+  | "review.removed"
+  | "delivery.offer"
+  | "delivery.updated";
 
 export interface NotificationDoc {
   _id: ObjectId;
@@ -454,9 +476,27 @@ export interface NotificationDoc {
    * `verification` opens the KYC screen (its id is the track); `business` opens a business in the vendor portal;
    * `order` opens a customer's print order and `shop_order` the same order in the vendor portal; `profile` opens a person (its id is theirs);
    * `payments` opens the vendor's Payments (its id is the payout); `work` opens the Work area (its id is the place on the team);
-   * `team` opens a business's Team in the vendor portal (its id is the business).
+   * `team` opens a business's Team in the vendor portal (its id is the business); `reviews` a business's reviews there, and
+   * `work_reviews` the same reviews in the Work area (its id is the place on the team). `delivery_job` opens a job in the
+   * delivery app.
    */
-  link: { screen: "post" | "verification" | "business" | "order" | "shop_order" | "profile" | "payments" | "work" | "team" | "work_order"; id: string };
+  link: {
+    screen:
+      | "post"
+      | "verification"
+      | "business"
+      | "order"
+      | "shop_order"
+      | "profile"
+      | "payments"
+      | "work"
+      | "team"
+      | "work_order"
+      | "reviews"
+      | "work_reviews"
+      | "delivery_job";
+    id: string;
+  };
   readAt: Date | null;
   createdAt: Date;
 }
@@ -508,6 +548,12 @@ export interface ModuleSettingsDoc extends Stamped {
   /** The ledger module only, in paise: taken from each withdrawal, and the least a vendor can withdraw. Missing: the defaults. */
   payoutFee?: number;
   minPayout?: number;
+  /** Business modules: publishing needs a verified GSTIN. Missing: not needed. */
+  gstinRequired?: boolean;
+  /** The delivery module only. Missing: the defaults in the delivery module. */
+  riderRate?: DeliveryFee;
+  shopFeeMax?: { base: number; perKm: number };
+  offerMinutes?: number;
   deliveryEnabled: boolean;
   permissionCatalog: string[];
   updatedBy: ObjectId | null;
@@ -591,13 +637,20 @@ export interface PodOrderDoc extends Stamped {
     /** Taken off `items` by the coupon. Missing on older orders: 0. */
     discount?: number;
     coupon?: { id: ObjectId; code: string; fundedBy: CouponDoc["fundedBy"] } | null;
-    /** `items` less the discount, plus the platform fee. */
+    /** The shop's delivery fee; part of its share, with no commission on it. Missing on older orders: 0. */
+    delivery?: number;
+    /** From the shop to the customer, rounded up, when both are on the map. */
+    deliveryKm?: number | null;
+    /** `items` less the discount, plus delivery and the platform fee. */
     total: number;
     commissionBps: number;
     /** On `items`, or on `items` less the discount when the vendor pays for the coupon. */
     commission: number;
   };
-  address: { name: string; phone: string; line: string; city: string; pincode: string };
+  /** `point` from "Use my location", or found from the typed address; null when neither worked. */
+  address: { name: string; phone: string; line: string; city: string; pincode: string; point?: { lat: number; lng: number } | null };
+  /** Who is taking it to the customer, when not the shop itself (decision 57). Kept after a job is cancelled, until the next one. */
+  delivery?: OrderDelivery | null;
   note: string | null;
   status: PodOrderStatus;
   timeline: { status: PodOrderStatus; at: Date; by: "customer" | "vendor" | "system" | "staff" }[];
@@ -625,15 +678,82 @@ export interface PodOrderDoc extends Stamped {
   problemAt?: Date | null;
 }
 
+export type DeliveryJobStatus = "offered" | "accepted" | "picked_up" | "delivered" | "cancelled";
+
+export interface OrderDelivery {
+  jobId: ObjectId;
+  carrier: "team" | "partner";
+  status: DeliveryJobStatus;
+  rider: { id: ObjectId; name: string; phone: string; avatar: string | null; vehicle: { type: VehicleType; number: string } } | null;
+  /** Paise to a Ruxstar partner, out of the shop's share; 0 for the shop's own team. */
+  pay: number;
+  /** Set once the partner's pay moved to them, at delivery. */
+  paidAt: Date | null;
+  /** Shown to the customer only, who gives it to the rider at the door. */
+  dropCode: string;
+  offerUntil: Date | null;
+}
+
+/**
+ * One trip from a shop to a customer (decision 57). A team job is offered to one member with "Deliver orders"; a partner job to every
+ * online Ruxstar partner in the shop's city, and the first to accept gets it. Cancelled ones stay for the history.
+ */
+export interface DeliveryJobDoc extends Stamped {
+  _id: ObjectId;
+  orderId: ObjectId;
+  orderNo: number;
+  shopId: ObjectId;
+  vendorId: ObjectId;
+  carrier: "team" | "partner";
+  /** Lower case, for partner offers. */
+  city: string;
+  /** The team member it was offered to, or the partner who accepted it. */
+  riderId: ObjectId | null;
+  /** The team place, for team jobs. */
+  placeId: ObjectId | null;
+  status: DeliveryJobStatus;
+  /** A partner offer nobody accepts by then is cancelled and the shop told. */
+  offerUntil: Date | null;
+  pickup: { name: string; phone: string; line: string; city: string; point: { lat: number; lng: number } | null };
+  drop: { name: string; phone: string; line: string; city: string; pincode: string; point: { lat: number; lng: number } | null };
+  item: string;
+  distanceKm: number | null;
+  pay: number;
+  /** The customer reads it out at the door. */
+  dropCode: string;
+  proof: { key: string; bytes: number; at: Date } | null;
+  /** Partners who passed on the offer, so it stops showing to them. */
+  passedBy: ObjectId[];
+  /** Set while accepted or picked up, so a rider has one trip at a time. */
+  busy?: true;
+  /** Wrong drop codes tried; after five the rider calls the customer or hands it back. */
+  codeTries: number;
+  cancel: { by: "rider" | "shop" | "system" | "staff"; reason: string; at: Date } | null;
+  timeline: { status: DeliveryJobStatus; at: Date }[];
+}
+
+/** A delivery partner's working state; one per partner, made the first time they go online. */
+export interface RiderStateDoc {
+  _id: ObjectId;
+  online: boolean;
+  /** Lower case. */
+  city: string | null;
+  point: { lat: number; lng: number } | null;
+  updatedAt: Date;
+}
+
 /**
  * One side of a money movement. Every `txnId`'s entries sum to zero. Accounts are `gateway` (money held at
- * Cashfree), `ruxstar` (commission and fees) and `vendor:<userId>`. `pending` becomes `withdrawable` 48 hours after delivery.
+ * Cashfree), `ruxstar` (commission and fees), `vendor:<userId>` and `rider:<userId>`. `pending` becomes `withdrawable` 48 hours after delivery.
  */
 export interface LedgerEntryDoc {
   _id?: ObjectId;
   txnId: string;
-  /** `payout` takes a withdrawal out of the vendor's available balance; `payout_return` puts a failed one back. */
-  kind: "payment" | "refund" | "release" | "payout" | "payout_return";
+  /**
+   * `payout` takes a withdrawal out of the vendor's available balance; `payout_return` puts a failed one back. `rider_pay` moves a
+   * Ruxstar partner's pay out of the shop's pending share at delivery.
+   */
+  kind: "payment" | "refund" | "release" | "payout" | "payout_return" | "rider_pay";
   accountId: string;
   bucket: "pending" | "withdrawable";
   signedPaise: number;
@@ -697,7 +817,45 @@ export type TeamPermission =
   | "shop.catalog"
   | "shop.details"
   | "coupons.manage"
-  | "posts.create";
+  | "posts.create"
+  | "reviews.reply"
+  | "orders.deliver";
+
+/**
+ * A customer's review of one delivered print order (decision 55): 1 to 5 stars and an optional note, written or changed within
+ * 30 days of delivery. The shop replies once and can change or remove the reply. `removed` when the Ruxstar team took it down.
+ */
+export interface PodReviewDoc extends Stamped {
+  _id: ObjectId;
+  orderId: ObjectId;
+  orderNo: number;
+  shopId: ObjectId;
+  vendorId: ObjectId;
+  customerId: ObjectId;
+  productLabel: string;
+  rating: number;
+  text: string | null;
+  status: "live" | "removed";
+  editedAt: Date | null;
+  reply: { text: string; by: ObjectId; at: Date; editedAt: Date | null } | null;
+  removal?: { by: ObjectId; reason: string; at: Date };
+}
+
+export type ReviewReportReason = "spam" | "fake" | "abuse" | "other";
+
+/** One open report per person and review. Closed when the Ruxstar team keeps or removes the review. */
+export interface ReviewReportDoc {
+  _id?: ObjectId;
+  reviewId: ObjectId;
+  reporterId: ObjectId;
+  reason: ReviewReportReason;
+  note: string | null;
+  status: "open" | "closed";
+  createdAt: Date;
+  outcome?: "kept" | "removed";
+  closedBy?: ObjectId;
+  closedAt?: Date;
+}
 
 /**
  * Someone on a business's team (decision 54). `invited` until they accept or the invite expires; `active` after, though nothing
@@ -713,6 +871,8 @@ export interface EmploymentDoc extends Stamped {
   status: "invited" | "active" | "declined" | "expired" | "removed" | "left";
   current?: true;
   permissions: TeamPermission[];
+  /** Pay offered with the invite, in paise. Shown only: the shop pays its team outside Ruxstar. Missing on invites from before it. */
+  pay?: { amount: number; per: "month" | "week" | "day" | "hour" | "order"; note: string | null } | null;
   invitedBy: ObjectId;
   invitedAt: Date;
   expiresAt: Date;
@@ -880,8 +1040,20 @@ export class Database {
   get employments() {
     return this.db.collection<EmploymentDoc>("employments");
   }
+  get podReviews() {
+    return this.db.collection<PodReviewDoc>("pod_reviews");
+  }
+  get reviewReports() {
+    return this.db.collection<ReviewReportDoc>("review_reports");
+  }
   get ledgerEntries() {
     return this.db.collection<LedgerEntryDoc>("ledger_entries");
+  }
+  get deliveryJobs() {
+    return this.db.collection<DeliveryJobDoc>("delivery_jobs");
+  }
+  get riderStates() {
+    return this.db.collection<RiderStateDoc>("rider_states");
   }
 
   /** Runs `work` in a majority-committed transaction, retrying transient errors. */

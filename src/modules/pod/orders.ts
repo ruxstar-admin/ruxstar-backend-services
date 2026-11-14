@@ -8,6 +8,7 @@ import type {
   BusinessDoc,
   Database,
   LedgerEntryDoc,
+  OrderDelivery,
   PodOrderDoc,
   PodOrderStatus,
   PodRefundDoc,
@@ -16,7 +17,9 @@ import type {
 import { AppError } from "../../platform/errors.js";
 import { isModuleLive } from "../../platform/module-switch.js";
 import { appliedView, giveBack, redeem } from "../coupons/coupons.js";
+import { rateFor, roadKm, shopFeeOf } from "../delivery/rates.js";
 import { notifyOrder } from "../notifications/notify.js";
+import { reviewUntil } from "../reviews/reviews.js";
 import { unpricedOf } from "../vendor/businesses.js";
 import { productOf, type PodProduct } from "../vendor/catalog.js";
 import type { Order, ShopOrder } from "./contracts.js";
@@ -99,6 +102,17 @@ export function deliversTo(shop: BusinessDoc, city: string): boolean {
   return !!shop.pod && (shop.pod.serveAll || shop.pod.cities.includes(name) || shop.location?.city.toLowerCase() === name);
 }
 
+/** Where the customer is: their phone's location, or the typed address looked up on the map. Null when neither works. */
+export async function dropPoint(
+  app: FastifyInstance,
+  address: { line?: string | undefined; city?: string | undefined; pincode?: string | undefined; point?: { lat: number; lng: number } | null | undefined } | undefined,
+): Promise<{ lat: number; lng: number } | null> {
+  if (!address) return null;
+  if (address.point) return { lat: address.point.lat, lng: address.point.lng };
+  if (!address.line?.trim() || !address.city?.trim()) return null;
+  return app.geocoder.locate([address.line, address.city, address.pincode].filter(Boolean).join(", "));
+}
+
 export interface Choice {
   product: PodProduct;
   options: Record<string, string>;
@@ -116,7 +130,13 @@ export async function chargesOf(db: Database): Promise<{ commissionBps: number; 
  * highest `from` the order reaches sets the unit price when it is lower; extras for the chosen
  * option values are added per unit; Ruxstar's platform fee is added once.
  */
-export function priceOf(shop: BusinessDoc, choice: Choice, pages: number, charges: { commissionBps: number; platformFee: number }) {
+export function priceOf(
+  shop: BusinessDoc,
+  choice: Choice,
+  pages: number,
+  charges: { commissionBps: number; platformFee: number },
+  drop: { lat: number; lng: number } | null = null,
+) {
   const pod = shop.pod!;
   const info = productOf(choice.product);
   const price = pod.prices.find((p) => p.product === choice.product);
@@ -153,7 +173,9 @@ export function priceOf(shop: BusinessDoc, choice: Choice, pages: number, charge
   const extrasPerUnit = price.extras.filter((e) => options[e.option] === e.value).reduce((sum, e) => sum + e.price, 0);
   const items = units * (unitPrice + extrasPerUnit);
   if (items < pod.minOrder) throw invalid("body/quantity", `${shop.name}'s smallest order is ${rupees(pod.minOrder)}.`);
-  const total = items + charges.platformFee;
+  const deliveryKm = roadKm(shop.location?.point, drop);
+  const delivery = rateFor(shopFeeOf(shop), deliveryKm);
+  const total = items + delivery + charges.platformFee;
   if (total > MAX_ORDER_TOTAL) throw invalid("body/quantity", "Orders over ₹5,00,000 can't be paid online. Split it into smaller orders.");
 
   return {
@@ -169,6 +191,8 @@ export function priceOf(shop: BusinessDoc, choice: Choice, pages: number, charge
       extrasPerUnit,
       items,
       platformFee: charges.platformFee,
+      delivery,
+      deliveryKm,
       total,
       commissionBps: charges.commissionBps,
       commission: Math.round((items * charges.commissionBps) / 10_000),
@@ -201,10 +225,19 @@ export function refundsOf(order: PodOrderDoc): PodRefundDoc[] {
 const sum = (refunds: PodRefundDoc[]) => refunds.reduce((total, r) => total + r.amount, 0);
 /** Whoever funded the coupon gives up the discount: the shop out of its share, or Ruxstar out of its own (below zero if it must). */
 const discountFrom = (order: PodOrderDoc, funder: "ruxstar" | "vendor") => (order.price.coupon?.fundedBy === funder ? (order.price.discount ?? 0) : 0);
-export const shopShare = (order: PodOrderDoc) => order.price.items - order.price.commission - discountFrom(order, "vendor");
+export const shopShare = (order: PodOrderDoc) =>
+  order.price.items + (order.price.delivery ?? 0) - order.price.commission - discountFrom(order, "vendor");
 export const ruxstarShare = (order: PodOrderDoc) => order.price.commission + order.price.platformFee - discountFrom(order, "ruxstar");
-/** Partial refunds come out of the shop's share, so this is what the shop is still owed. */
-export const shopShareLeft = (order: PodOrderDoc) => shopShare(order) - sum(refundsOf(order).filter((r) => r.kind === "partial"));
+/** A Ruxstar partner's pay, once it moved to them at delivery. */
+export const riderPaid = (order: PodOrderDoc) => (order.delivery?.paidAt ? order.delivery.pay : 0);
+/** A Ruxstar partner's pay on a trip still under way: the shop can't refund it away. */
+export const riderHeld = (order: PodOrderDoc) =>
+  order.delivery && !order.delivery.paidAt && order.delivery.status !== "cancelled" && order.delivery.status !== "delivered" ? order.delivery.pay : 0;
+/** Partial refunds and a partner's pay come out of the shop's share, so this is what the shop is still owed. */
+export const shopShareLeft = (order: PodOrderDoc) =>
+  shopShare(order) - sum(refundsOf(order).filter((r) => r.kind === "partial")) - riderPaid(order);
+/** The most the shop can refund now. */
+export const shopRefundable = (order: PodOrderDoc) => Math.max(0, shopShareLeft(order) - riderHeld(order));
 
 /** The shop's share hasn't moved to its balance yet, so money can still come back out of it. */
 export const unreleased = (order: PodOrderDoc) =>
@@ -237,12 +270,14 @@ const entries = (txnId: string, kind: LedgerEntryDoc["kind"], order: PodOrderDoc
     .map(([accountId, bucket, signedPaise]) => ({ txnId, kind, accountId, bucket, signedPaise, source: { type: "pod_order", id: order._id }, at }));
 
 /**
- * Money each side is owed: the shop its items less commission, Ruxstar the commission and fee. Partial refunds
- * already came out of the shop's pending share, so a release or full refund moves only what is left of it.
+ * Money each side is owed: the shop its items and delivery less commission, Ruxstar the commission and fee. Partial refunds
+ * and a partner's pay already came out of the shop's pending share, so a release or full refund moves only what is left of it.
+ * A full refund after a partner was paid gives the customer that pay back out of Ruxstar's share: the partner keeps it.
  */
 export function ledgerFor(kind: "payment" | "release" | "refund", order: PodOrderDoc, at: Date): LedgerEntryDoc[] {
   const shop = shopShareLeft(order);
   const ruxstar = ruxstarShare(order);
+  const rider = riderPaid(order);
   const rows: Row[] =
     kind === "payment"
       ? [
@@ -259,11 +294,24 @@ export function ledgerFor(kind: "payment" | "release" | "refund", order: PodOrde
           ]
         : [
             [vendorAccount(order), "pending", -shop],
-            ["ruxstar", "pending", -ruxstar],
-            ["gateway", "withdrawable", shop + ruxstar],
+            ["ruxstar", "pending", -ruxstar - rider],
+            ["gateway", "withdrawable", shop + ruxstar + rider],
           ];
   return entries(`${kind}:${order._id.toHexString()}`, kind, order, rows, at);
 }
+
+/** At delivery, a Ruxstar partner's pay moves out of the shop's pending share to them. */
+export const riderPayLedger = (order: PodOrderDoc, riderId: ObjectId, pay: number, at: Date): LedgerEntryDoc[] =>
+  entries(
+    `rider_pay:${order._id.toHexString()}`,
+    "rider_pay",
+    order,
+    [
+      [vendorAccount(order), "pending", -pay],
+      [`rider:${riderId.toHexString()}`, "withdrawable", pay],
+    ],
+    at,
+  );
 
 /** Part of the shop's pending share goes back to the customer. */
 export const partialRefundLedger = (order: PodOrderDoc, refund: PodRefundDoc): LedgerEntryDoc[] =>
@@ -283,7 +331,7 @@ const CUSTOMER_NEWS: Partial<Record<PodOrderStatus, [string, string]>> = {
   printing: ["Being printed", "The shop is printing your order."],
   ready: ["Order ready", "Your order is ready and will be on its way soon."],
   out_for_delivery: ["On the way", "The shop is delivering your order."],
-  delivered: ["Delivered", "Your order was delivered. If something's wrong with it, report a problem within 48 hours."],
+  delivered: ["Delivered", "Your order was delivered. Rate the shop, or report a problem within 48 hours if something's wrong."],
 };
 
 /**
@@ -296,12 +344,21 @@ export async function moveOrder(
   db: Database,
   order: PodOrderDoc,
   to: PodOrderStatus,
-  by: { kind: "customer" | "vendor" | "system"; actor: AuditLogDoc["actor"]; ip?: string | null },
-  extra: { reason?: string | null; paymentId?: string | null } = {},
+  by: { kind: "customer" | "vendor" | "system" | "rider"; actor: AuditLogDoc["actor"]; ip?: string | null },
+  extra: {
+    reason?: string | null;
+    paymentId?: string | null;
+    /** More fields to set with the move. */
+    set?: Record<string, unknown>;
+    /** Runs in the move's transaction; throwing undoes the move. */
+    inside?: (session: ClientSession, after: PodOrderDoc) => Promise<void>;
+    /** What the customer is told instead of the usual line; null tells them nothing. */
+    news?: [string, string] | null;
+  } = {},
 ): Promise<PodOrderDoc> {
   const now = new Date();
   const refunding = order.status === "placed" && (to === "rejected" || to === "cancelled");
-  const set: Partial<PodOrderDoc> = { status: to, updatedAt: now };
+  const set: Record<string, unknown> = { ...extra.set, status: to, updatedAt: now };
   if (to === "placed") {
     set.payment = { ...order.payment, paymentId: extra.paymentId ?? order.payment.paymentId, paidAt: now };
     set.acceptBy = new Date(now.getTime() + ACCEPT_WINDOW_MS);
@@ -315,14 +372,15 @@ export async function moveOrder(
     set.releaseAt = new Date(now.getTime() + HOLD_MS);
   }
   if (to === "rejected" || to === "cancelled") set.reason = extra.reason ?? null;
-  const push: Record<string, unknown> = { timeline: { status: to, at: now, by: by.kind } };
+  const byKind = by.kind === "rider" ? "system" : by.kind;
+  const push: Record<string, unknown> = { timeline: { status: to, at: now, by: byKind } };
   if (refunding) {
     const refund: PodRefundDoc = {
       refundId: `rf_${order._id.toHexString()}`,
       amount: order.price.total,
       kind: "full",
       reason: extra.reason ?? null,
-      by: by.kind,
+      by: byKind,
       status: "pending",
       at: now,
     };
@@ -341,6 +399,7 @@ export async function moveOrder(
     if (kind) for (const entry of ledgerFor(kind, after, now)) await db.ledgerEntries.insertOne(entry, { session });
     if (to === "placed") await redeem(db, after, session);
     if (refunding) await giveBack(db, after, session);
+    if (extra.inside) await extra.inside(session, after);
     if (by.kind !== "system") {
       await writeAudit(
         db,
@@ -441,7 +500,7 @@ export async function moveOrder(
       type: "order.updated",
       forShop: false,
       title: `Marked delivered: ${no}`,
-      body: "It's a week past its ready date. If it didn't arrive, report a problem within 48 hours.",
+      body: "It's a week past its ready date. If it didn't arrive, report a problem within 48 hours; if it did, rate the shop.",
     });
     await notifyOrder(db, app.log, {
       to: moved.vendorId,
@@ -462,6 +521,11 @@ export async function moveOrder(
       title: `${moved.shopName} couldn't take order ${no}`,
       body: `${extra.reason ?? "The shop turned it down."} Your ${rupees(moved.price.total)} is being refunded.`,
     });
+  } else if (extra.news !== undefined) {
+    if (extra.news) {
+      const [title, body] = extra.news;
+      await notifyOrder(db, app.log, { to: moved.customerId, actor, orderId: moved._id, type: "order.updated", forShop: false, title: `${title}: ${no}`, body });
+    }
   } else if (CUSTOMER_NEWS[to]) {
     const [title, body] = CUSTOMER_NEWS[to]!;
     await notifyOrder(db, app.log, { to: moved.customerId, actor, orderId: moved._id, type: "order.updated", forShop: false, title: `${title}: ${no}`, body });
@@ -531,6 +595,9 @@ const FALLBACK_KEY = randomBytes(32);
 /** Signs checkout and file links. Without a JWT secret nobody can sign in anyway, so links only need to work until a restart. */
 export const signingKey = (app: FastifyInstance): Uint8Array => app.config.jwtSecret ?? FALLBACK_KEY;
 
+/** The app's own link schemes: Expo Go's, and the installed app's (`scheme` in the app's app.json). */
+const APP_SCHEMES = ["exp:", "exps:", "ruxstar:", "ruxstarapplicationservices:"];
+
 /** Where the checkout page may send a customer back to: Ruxstar's sites and the app's own links. */
 export function safeReturn(app: FastifyInstance, returnTo: string): string {
   let url: URL;
@@ -540,7 +607,7 @@ export function safeReturn(app: FastifyInstance, returnTo: string): string {
     throw new AppError("VALIDATION_FAILED", "returnTo must be a full link.", [{ path: "body/returnTo", message: "Not a link" }]);
   }
   const origins = new Set([app.config.siteUrl, ...app.config.corsOrigins]);
-  const appLink = ["exp:", "exps:", "ruxstar:"].includes(url.protocol);
+  const appLink = APP_SCHEMES.includes(url.protocol);
   if (!appLink && !origins.has(url.origin)) {
     throw new AppError("VALIDATION_FAILED", "returnTo must be on Ruxstar.", [{ path: "body/returnTo", message: "Not allowed" }]);
   }
@@ -646,7 +713,7 @@ const core = (doc: PodOrderDoc, links: PhotoLinks) => ({
   colour: doc.colour,
   quantity: doc.quantity,
   files: doc.files.map((f) => ({ id: f.id.toHexString(), name: f.name, contentType: f.contentType, bytes: f.bytes, pages: f.pages })),
-  address: doc.address,
+  address: { ...doc.address, point: doc.address.point ?? null },
   note: doc.note,
   status: doc.status,
   timeline: doc.timeline.map((t) => ({ status: t.status, at: t.at.toISOString() })),
@@ -659,12 +726,13 @@ const core = (doc: PodOrderDoc, links: PhotoLinks) => ({
   deliveredAt: iso(doc.deliveredAt),
   canReport: canReport(doc),
   reportUntil: doc.status === "delivered" && doc.deliveredAt && !doc.problem ? new Date(doc.deliveredAt.getTime() + HOLD_MS).toISOString() : null,
+  reviewUntil: iso(reviewUntil(doc)),
   problem: problemView(doc, links),
   createdAt: doc.createdAt.toISOString(),
   updatedAt: doc.updatedAt.toISOString(),
 });
 
-const customerPrice = ({ units, unitPrice, extrasPerUnit, items, discount, coupon, platformFee, total }: PodOrderDoc["price"]) => ({
+const customerPrice = ({ units, unitPrice, extrasPerUnit, items, discount, coupon, platformFee, delivery, deliveryKm, total }: PodOrderDoc["price"]) => ({
   units,
   unitPrice,
   extrasPerUnit,
@@ -672,10 +740,26 @@ const customerPrice = ({ units, unitPrice, extrasPerUnit, items, discount, coupo
   discount: discount ?? 0,
   coupon: appliedView(coupon),
   platformFee,
+  delivery: delivery ?? 0,
+  deliveryKm: deliveryKm ?? null,
   total,
 });
 
-export const orderView = (doc: PodOrderDoc, links: PhotoLinks): Order => ({ ...core(doc, links), price: customerPrice(doc.price) });
+const deliveryCore = (d: OrderDelivery) => ({
+  carrier: d.carrier,
+  status: d.status,
+  rider: d.rider ? { name: d.rider.name, avatarUrl: d.rider.avatar, phone: d.rider.phone, vehicle: d.rider.vehicle } : null,
+});
+const tripOpen = (d: OrderDelivery) => d.status !== "delivered" && d.status !== "cancelled";
+
+export const orderView = (doc: PodOrderDoc, links: PhotoLinks): Order => ({
+  ...core(doc, links),
+  price: customerPrice(doc.price),
+  delivery: doc.delivery ? { ...deliveryCore(doc.delivery), dropCode: tripOpen(doc.delivery) ? doc.delivery.dropCode : null } : null,
+});
+
+export const shopDeliveryView = (d: OrderDelivery | null | undefined) =>
+  d ? { ...deliveryCore(d), jobId: d.jobId.toHexString(), pay: d.pay, offerUntil: d.status === "offered" ? iso(d.offerUntil) : null } : null;
 
 export const shopOrderView = (doc: PodOrderDoc, links: PhotoLinks): ShopOrder => {
   const open = doc.payment.paidAt !== null && unreleased(doc);
@@ -691,6 +775,7 @@ export const shopOrderView = (doc: PodOrderDoc, links: PhotoLinks): ShopOrder =>
     releaseAt: iso(doc.releaseAt),
     // Orders delivered before the 48-hour hold were paid out on delivery.
     releasedAt: iso(doc.releasedAt ?? (doc.status === "delivered" && !doc.releaseAt ? doc.updatedAt : null)),
-    refundable: open ? shopShareLeft(doc) : 0,
+    refundable: open ? shopRefundable(doc) : 0,
+    delivery: shopDeliveryView(doc.delivery),
   };
 };

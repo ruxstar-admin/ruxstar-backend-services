@@ -168,7 +168,7 @@ export function withCoupon(price: Omit<PodOrderDoc["price"], "discount" | "coupo
     ...price,
     discount,
     coupon: { id: coupon._id, code: coupon.code, fundedBy: coupon.fundedBy },
-    total: price.items - discount + price.platformFee,
+    total: price.items - discount + (price.delivery ?? 0) + price.platformFee,
     commission: Math.round((charged * price.commissionBps) / 10_000),
   };
 }

@@ -1,7 +1,7 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { ObjectId } from "mongodb";
 import type { Database, KycCaseDoc, KycTrack, UserDoc } from "../../platform/db.js";
-import { MAX_REJECTIONS, type BaseCase, type Card, type ReviewCase } from "./contracts.js";
+import { MAX_REJECTIONS, type BaseCase, type Card, type DeliveryCase, type ReviewCase } from "./contracts.js";
 
 /** Tries per step in a day. Production checks cost money, so this caps both abuse and the bill. */
 export const MAX_TRIES_PER_DAY = 5;
@@ -54,8 +54,42 @@ export function baseView(doc: KycCaseDoc | null): BaseCase {
   };
 }
 
+export function deliveryView(doc: KycCaseDoc | null, identityVerified: boolean): DeliveryCase {
+  const { licence, vehicle } = doc?.steps ?? {};
+  return {
+    ...decision(doc),
+    identityVerified,
+    licence: { number: licence?.number ?? null, photo: !!licence?.photo },
+    vehicle: { type: vehicle?.type ?? null, number: vehicle?.number ?? null, photo: !!vehicle?.photo },
+  };
+}
+
 export async function overview(db: Database, userId: ObjectId) {
-  return { base: baseView(await loadCase(db, userId, "base")) };
+  const [base, delivery] = await Promise.all([loadCase(db, userId, "base"), loadCase(db, userId, "delivery")]);
+  return { base: baseView(base), delivery: deliveryView(delivery, base?.status === "approved") };
+}
+
+/** The key of a delivery case's photo in the private bucket. A new photo gets a new key, so a review never sees a stale copy. */
+export const deliveryPhotoKey = (userId: ObjectId, kind: "licence" | "vehicle", at: Date) =>
+  `kyc/${userId.toHexString()}/${kind}-${at.getTime()}.jpg`;
+
+const KYC_LINK_SECONDS = 10 * 60;
+const kycSignature = (key: Uint8Array, caseId: string, kind: string, exp: number) =>
+  createHmac("sha256", key).update(`kyc.${caseId}.${kind}.${exp}`).digest("base64url");
+
+/** Signs links to a delivery case's photos for one console response. */
+export function kycPhotoLinks(key: Uint8Array, origin: string) {
+  const exp = Math.floor(Date.now() / 1000) + KYC_LINK_SECONDS;
+  return (caseId: string, kind: "licence" | "vehicle") =>
+    `${origin}/kyc-photos/${caseId}/${kind}?${new URLSearchParams({ exp: String(exp), t: kycSignature(key, caseId, kind, exp) }).toString()}`;
+}
+export type KycPhotoLinks = ReturnType<typeof kycPhotoLinks>;
+
+export function kycPhotoLinkValid(key: Uint8Array, caseId: string, kind: string, exp: number, token: string): boolean {
+  if (!Number.isInteger(exp) || exp * 1000 < Date.now()) return false;
+  const expected = Buffer.from(kycSignature(key, caseId, kind, exp));
+  const given = Buffer.from(token);
+  return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
 export function cardView(user: UserDoc, base: KycCaseDoc, siteUrl: string): Card {
@@ -73,10 +107,13 @@ export function cardView(user: UserDoc, base: KycCaseDoc, siteUrl: string): Card
 
 type ReviewUser = Pick<UserDoc, "_id" | "name" | "username" | "phone" | "avatar" | "createdAt">;
 
-export function reviewView(doc: KycCaseDoc, user: ReviewUser | undefined): ReviewCase {
-  const { aadhaar, pan, face } = doc.steps;
+export function reviewView(doc: KycCaseDoc, user: ReviewUser | undefined, links?: KycPhotoLinks, identity?: KycCaseDoc | null): ReviewCase {
+  const { licence, vehicle } = doc.steps;
+  const { aadhaar, pan, face } = doc.track === "delivery" ? (identity?.steps ?? {}) : doc.steps;
+  const id = doc._id.toHexString();
   return {
-    id: doc._id.toHexString(),
+    id,
+    track: doc.track === "delivery" ? "delivery" : "base",
     status: doc.status,
     rejections: doc.rejections,
     user: {
@@ -96,6 +133,16 @@ export function reviewView(doc: KycCaseDoc, user: ReviewUser | undefined): Revie
       livenessScore: face?.livenessScore ?? null,
       faceMatchScore: face?.matchScore ?? null,
     },
+    delivery:
+      doc.track === "delivery"
+        ? {
+            licenceNumber: licence?.number ?? null,
+            licencePhotoUrl: licence?.photo && links ? links(id, "licence") : null,
+            vehicleType: vehicle?.type ?? null,
+            vehicleNumber: vehicle?.number ?? null,
+            vehiclePhotoUrl: vehicle?.photo && links ? links(id, "vehicle") : null,
+          }
+        : null,
     submittedAt: doc.submittedAt?.toISOString() ?? null,
     review: doc.review ? { decision: doc.review.decision, reason: doc.review.reason, at: doc.review.at.toISOString() } : null,
   };

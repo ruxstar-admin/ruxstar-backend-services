@@ -11,7 +11,8 @@ import { findPage } from "../../platform/pagination.js";
 import { ShopList, ShopOne, ShopParams, ShopsQuery } from "./contracts.js";
 import orders from "./order-routes.js";
 import problems from "./problem-routes.js";
-import { escapeRegex, openFirst, shopCard, shopView, visibleShops } from "./shops.js";
+import reviews from "./review-routes.js";
+import { escapeRegex, nearFirst, shopCard, shopSearch, shopView, visibleShops } from "./shops.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 
@@ -19,6 +20,7 @@ const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 const pod: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(orders);
   await app.register(problems);
+  await app.register(reviews);
   const db = () => requireDatabase(app.db);
 
   app.get(
@@ -28,7 +30,8 @@ const pod: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["pod"],
         summary: "Print shops customers can order from, newest first",
-        description: "Live shops that are not on hold, open ones first in each page. Empty while Ruxstar has print on demand switched off.",
+        description:
+          "Live shops that are not on hold. In each page, shops in your city (from your profile) come first, then open ones. Empty while Ruxstar has print on demand switched off.",
         querystring: ShopsQuery,
         response: { 200: ShopList, ...Errors },
         security,
@@ -48,15 +51,23 @@ const pod: FastifyPluginAsyncTypebox = async (app) => {
           ],
         });
       }
-      if (product) filters.push({ "pod.products": product });
-      if (q) filters.push({ name: { $regex: escapeRegex(q.trim()), $options: "i" } });
-      const { items, nextCursor } = await findPage(db().businesses, {
-        filter: filters.length === 1 ? visibleShops : { $and: filters },
-        sortField: "publishedAt",
-        cursor,
-        limit,
-      });
-      return page(request, items.map(shopCard).sort(openFirst), nextCursor);
+      if (product) {
+        filters.push({
+          "pod.products": product,
+          "pod.prices": { $elemMatch: { product, $or: [{ basePrice: { $gt: 0 } }, { bw: { $gt: 0 } }, { color: { $gt: 0 } }] } },
+        });
+      }
+      if (q?.trim()) filters.push(shopSearch(q));
+      const [{ items, nextCursor }, me] = await Promise.all([
+        findPage(db().businesses, {
+          filter: filters.length === 1 ? visibleShops : { $and: filters },
+          sortField: "publishedAt",
+          cursor,
+          limit,
+        }),
+        db().users.findOne({ _id: request.auth!.userId }, { projection: { home: 1 } }),
+      ]);
+      return page(request, items.map(shopCard).sort(nearFirst(me?.home?.city)), nextCursor);
     },
   );
 
