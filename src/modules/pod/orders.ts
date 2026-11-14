@@ -513,6 +513,9 @@ const FALLBACK_KEY = randomBytes(32);
 /** Signs checkout and file links. Without a JWT secret nobody can sign in anyway, so links only need to work until a restart. */
 export const signingKey = (app: FastifyInstance): Uint8Array => app.config.jwtSecret ?? FALLBACK_KEY;
 
+/** The app's own link schemes: Expo Go's, and the installed app's (`scheme` in the app's app.json). */
+const APP_SCHEMES = ["exp:", "exps:", "ruxstar:", "ruxstarapplicationservices:"];
+
 /** Where the checkout page may send a customer back to: Ruxstar's sites and the app's own links. */
 export function safeReturn(app: FastifyInstance, returnTo: string): string {
   let url: URL;
@@ -522,7 +525,7 @@ export function safeReturn(app: FastifyInstance, returnTo: string): string {
     throw new AppError("VALIDATION_FAILED", "returnTo must be a full link.", [{ path: "body/returnTo", message: "Not a link" }]);
   }
   const origins = new Set([app.config.siteUrl, ...app.config.corsOrigins]);
-  const appLink = ["exp:", "exps:", "ruxstar:"].includes(url.protocol);
+  const appLink = APP_SCHEMES.includes(url.protocol);
   if (!appLink && !origins.has(url.origin)) {
     throw new AppError("VALIDATION_FAILED", "returnTo must be on Ruxstar.", [{ path: "body/returnTo", message: "Not allowed" }]);
   }
