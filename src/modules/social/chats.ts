@@ -336,7 +336,8 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
     const viewer = me(request);
     const [[chat], members] = await Promise.all([chatViews(request, [mine]), d.chatMembers.find({ conversationId: conversation._id }).toArray()]);
     if (!chat) throw unavailable();
-    const authors = await authorsOf(d, members.map((m) => m.userId));
+    const peerSide = conversation.kind === "dm" ? members.find((m) => !m.userId.equals(viewer)) : undefined;
+    const [authors, activeAt] = await Promise.all([authorsOf(d, members.map((m) => m.userId)), activeAtOf(d, viewer, peerSide)]);
     const people = members
       .filter((m) => m.state !== "declined")
       .flatMap((m) => {
@@ -345,8 +346,7 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
         return [{ ...author, admin: conversation.adminIds.some((a) => a.equals(m.userId)), state: m.state === "request" ? ("request" as const) : ("active" as const), me: m.userId.equals(viewer) }];
       })
       .sort((a, b) => Number(b.me) - Number(a.me));
-    const peerSide = conversation.kind === "dm" ? members.find((m) => !m.userId.equals(viewer)) : undefined;
-    return { ...chat, people, seenAt: seenBy(peerSide), activeAt: await activeAtOf(d, viewer, peerSide) };
+    return { ...chat, people, seenAt: seenBy(peerSide), activeAt };
   }
 
   /** What a reply shows of the message it answers. */
@@ -493,10 +493,11 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
   }
 
   /** Starts or reopens a 1:1 chat. Someone who doesn't follow `me` gets it as a request. */
-  async function dmWith(viewer: ObjectId, them: ObjectId): Promise<{ conversation: Conversation; mine: Member; created: boolean }> {
+  /** `found` is the pair's chat when the caller already looked it up; leave it out to look here. */
+  async function dmWith(viewer: ObjectId, them: ObjectId, found?: Conversation | null): Promise<{ conversation: Conversation; mine: Member; created: boolean }> {
     const d = db();
     const pairKey = pairKeyOf(viewer, them);
-    const existing = await d.conversations.findOne({ pairKey });
+    const existing = found === undefined ? await d.conversations.findOne({ pairKey }) : found;
     if (!existing) {
       const now = new Date();
       const theirState = (await followersAmong(d, [them], viewer)).size ? "active" : "request";
@@ -539,14 +540,12 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
     }
     const conversation = existing ?? (await d.conversations.findOne({ pairKey }));
     if (!conversation) throw unavailable();
+    const side = await d.chatMembers.findOne({ conversationId: conversation._id, userId: viewer });
+    if (!side) throw unavailable();
+    if (side.state !== "declined") return { conversation, mine: side, created: false };
     // Opening a chat you declined means you want it after all.
-    const mine = await d.chatMembers.findOneAndUpdate(
-      { conversationId: conversation._id, userId: viewer, state: "declined" },
-      { $set: { state: "active" } },
-      { returnDocument: "after" },
-    ) ?? (await d.chatMembers.findOne({ conversationId: conversation._id, userId: viewer }));
-    if (!mine) throw unavailable();
-    return { conversation, mine, created: false };
+    const mine = await d.chatMembers.findOneAndUpdate({ _id: side._id, state: "declined" }, { $set: { state: "active" } }, { returnDocument: "after" });
+    return { conversation, mine: mine ?? side, created: false };
   }
 
   /** The people being added, checked: real accounts, not you, not blocked either way. */
@@ -656,9 +655,14 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
       const viewer = me(request);
       const them = new ObjectId(request.body.userId);
       if (them.equals(viewer)) throw new AppError("VALIDATION_FAILED", "You can't message yourself.", [{ path: "body/userId", message: "That's you" }]);
-      if (!(await reachable(d, [them])).size) throw new AppError("NOT_FOUND", "This account can't get messages.");
-      if (await blockBetween(d, viewer, them)) throw blockedError();
-      const { conversation, mine, created } = await dmWith(viewer, them);
+      const [found, block, existing] = await Promise.all([
+        reachable(d, [them]),
+        blockBetween(d, viewer, them),
+        d.conversations.findOne({ pairKey: pairKeyOf(viewer, them) }),
+      ]);
+      if (!found.size) throw new AppError("NOT_FOUND", "This account can't get messages.");
+      if (block) throw blockedError();
+      const { conversation, mine, created } = await dmWith(viewer, them, existing);
       return reply.status(created ? 201 : 200).send(ok(request, await detail(request, conversation, mine)));
     },
   );
