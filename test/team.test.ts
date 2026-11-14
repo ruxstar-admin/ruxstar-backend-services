@@ -100,7 +100,7 @@ describe("vendor team", () => {
     const work = (await call("GET", "/employment", kiran.token)).json().data;
     expect(work.places).toEqual([]);
     expect(work.invites).toMatchObject([{ id: member.id, business: { id, name: "Rao Prints", city: "Hyderabad" }, owner: { name: "Asha Rao" } }]);
-    expect(work.permissions).toHaveLength(11);
+    expect(work.permissions).toHaveLength(12);
 
     const accepted = await call("POST", `/employment/${member.id}/accept`, kiran.token);
     expect(accepted.statusCode).toBe(200);

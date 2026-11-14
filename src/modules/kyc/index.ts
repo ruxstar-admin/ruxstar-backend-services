@@ -19,6 +19,7 @@ import {
   verificationId,
 } from "./cases.js";
 import { CardResult, DigilockerResult, OverviewResult, PanBody } from "./contracts.js";
+import deliveryKyc from "./delivery.js";
 import { SELFIE_MAX_BYTES, toSelfie } from "./selfie.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
@@ -46,6 +47,8 @@ function checkTries(step?: { tries: number; at: Date }) {
 const failed = (path: string, message: string) => new AppError("KYC_CHECK_FAILED", message, [{ path, message }]);
 
 const kyc: FastifyPluginAsyncTypebox = async (app) => {
+  // Before the selfie parser below, so its own photo size limit applies.
+  await app.register(deliveryKyc, { prefix: "/delivery" });
   app.addContentTypeParser(/^image\//, { parseAs: "buffer", bodyLimit: SELFIE_MAX_BYTES }, (_request, body, done) => done(null, body));
 
   const db = () => requireDatabase(app.db);

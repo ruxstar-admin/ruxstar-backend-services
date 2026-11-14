@@ -23,6 +23,9 @@ import {
 } from "../pod/contracts.js";
 import { applyDue, dueApplied, refundPart } from "../pod/order-rules.js";
 import { fileLink, moveOrder, photoLinks, shopCanMove, shopOrderView, signingKey, type PhotoLinks } from "../pod/orders.js";
+import { AssignBody, DeliveryOptions } from "../delivery/contracts.js";
+import { riderHasIt } from "../delivery/stop.js";
+import { assignTrip, cancelTrip, deliveryOptions } from "../delivery/trips.js";
 import { WorkParams } from "../team/contracts.js";
 import { teamAccess } from "../team/team.js";
 
@@ -121,6 +124,7 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
       const { status, reason } = request.body;
       const { doc, place } = await order(request, request.params.id, status === "rejected" ? "orders.reject" : "orders.move");
       if (!shopCanMove(doc.status, status)) throw new AppError("ORDER_STATE");
+      riderHasIt(doc, status);
       if (status === "rejected" && !reason?.trim()) {
         throw new AppError("VALIDATION_FAILED", "Tell the customer why.", [{ path: "body/reason", message: "Tell the customer why." }]);
       }
@@ -153,6 +157,66 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
         ip: request.ip,
       });
       return ok(request, teamOrderView(done, photoLinks(app, request), place));
+    },
+  );
+
+  app.get(
+    "/orders/:id/delivery",
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ["employment"],
+        summary: "Who can deliver an order to a shop you work at",
+        description: 'Needs "Accept and move orders". The same choices as the owner.',
+        params: OrderParams,
+        response: { 200: DeliveryOptions, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const { doc } = await order(request, request.params.id, "orders.move");
+      return ok(request, await deliveryOptions(db(), doc));
+    },
+  );
+
+  app.post(
+    "/orders/:id/delivery",
+    {
+      preHandler: [requireAuth, idempotent],
+      schema: {
+        tags: ["employment"],
+        summary: "Send a ready order with someone on the team, or offer it to Ruxstar partners",
+        description: 'Needs "Accept and move orders". A partner\'s pay comes out of the shop\'s share at delivery.',
+        params: OrderParams,
+        body: AssignBody,
+        response: { 200: TeamOrderOne, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const { doc, place } = await order(request, request.params.id, "orders.move");
+      const updated = await assignTrip(app, db(), doc, request.body, { actor: actorOf(request), ip: request.ip });
+      return ok(request, teamOrderView(updated, photoLinks(app, request), place));
+    },
+  );
+
+  app.delete(
+    "/orders/:id/delivery",
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ["employment"],
+        summary: "Cancel a delivery before it is picked up",
+        description: 'Needs "Accept and move orders".',
+        params: OrderParams,
+        response: { 200: TeamOrderOne, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const { doc, place } = await order(request, request.params.id, "orders.move");
+      const updated = await cancelTrip(app, db(), doc, { actor: actorOf(request), ip: request.ip });
+      return ok(request, teamOrderView(updated, photoLinks(app, request), place));
     },
   );
 

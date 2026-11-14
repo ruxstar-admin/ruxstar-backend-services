@@ -10,6 +10,7 @@ import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { findPage } from "../../platform/pagination.js";
 import { appliedView, checkCode, offersFor, withCoupon, type CouponContext } from "../coupons/coupons.js";
+import { shopFeeOf } from "../delivery/rates.js";
 import {
   CheckoutLink,
   CreateOrderBody,
@@ -33,6 +34,7 @@ import {
   cleanName,
   countPages,
   deliversTo,
+  dropPoint,
   fileKey,
   fileLink,
   filesFor,
@@ -143,10 +145,15 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
       const shop = await orderableShop(db(), body.shopId, userId);
       const files = await filesFor(db(), userId, body.fileIds);
       const pages = files.reduce((sum, f) => sum + f.pages, 0);
-      const priced = priceOf(shop, body, pages, await chargesOf(db()));
+      // Only a per-km fee needs the customer on the map before they order.
+      const drop = shopFeeOf(shop).perKm > 0 ? await dropPoint(app, body.address) : null;
+      const priced = priceOf(shop, body, pages, await chargesOf(db()), drop);
       const ctx = couponContext(shop, userId, priced.price.items);
       const [check, offers] = await Promise.all([body.couponCode ? checkCode(db(), body.couponCode, ctx) : null, offersFor(db(), ctx)]);
-      const { units, unitPrice, extrasPerUnit, items, discount, coupon, platformFee, total } = withCoupon(priced.price, check?.coupon ?? null);
+      const { units, unitPrice, extrasPerUnit, items, discount, coupon, platformFee, delivery, deliveryKm, total } = withCoupon(
+        priced.price,
+        check?.coupon ?? null,
+      );
       return ok(request, {
         units,
         unitPrice,
@@ -155,6 +162,8 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
         discount: discount ?? 0,
         coupon: appliedView(coupon),
         platformFee,
+        delivery: delivery ?? 0,
+        deliveryKm: deliveryKm ?? null,
         total,
         pages,
         minOrder: priced.minOrder,
@@ -194,7 +203,8 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
         ]);
       }
       const files = await filesFor(database, userId, body.fileIds);
-      const priced = priceOf(shop, body, files.reduce((sum, f) => sum + f.pages, 0), await chargesOf(database));
+      const drop = await dropPoint(app, body.address);
+      const priced = priceOf(shop, body, files.reduce((sum, f) => sum + f.pages, 0), await chargesOf(database), drop);
       const check = body.couponCode ? await checkCode(database, body.couponCode, couponContext(shop, userId, priced.price.items)) : null;
       if (check?.problem) throw new AppError("COUPON_INVALID", check.problem, [{ path: "body/couponCode", message: check.problem }]);
       const price = withCoupon(priced.price, check?.coupon ?? null);
@@ -235,7 +245,7 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
           quantity: body.quantity,
           files: files.map((f) => ({ id: f._id, key: f.key, name: f.name, contentType: f.contentType, bytes: f.bytes, pages: f.pages })),
           price,
-          address: { ...body.address, name: body.address.name.trim(), line: body.address.line.trim(), city: body.address.city.trim() },
+          address: { ...body.address, name: body.address.name.trim(), line: body.address.line.trim(), city: body.address.city.trim(), point: drop },
           note: body.note?.trim() || null,
           status: "awaiting_payment",
           timeline: [{ status: "awaiting_payment", at: now, by: "customer" }],

@@ -1,6 +1,5 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import { ObjectId } from "mongodb";
-import sharp from "sharp";
 import { Errors } from "../../contracts/common.js";
 import { actorOf, writeAudit } from "../../platform/audit.js";
 import { requireAuth } from "../../platform/auth.js";
@@ -9,13 +8,13 @@ import type { PodProblemDoc, PodProblemKind } from "../../platform/db.js";
 import { ok } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
+import { toPrivateJpeg } from "../../platform/private-photo.js";
 import { notifyOrder } from "../notifications/notify.js";
 import { OrderOne, OrderParams, PROBLEM_PHOTO_MAX_BYTES, PROBLEM_PHOTOS_MAX, ProblemBody } from "./contracts.js";
 import { applyDue } from "./order-rules.js";
 import { canReport, orderView, photoLinks, problemPhotoKey } from "./orders.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
-const LONG_SIDE = 1600;
 
 export const PROBLEM_LABELS: Record<PodProblemKind, string> = {
   not_received: "Not received",
@@ -24,19 +23,6 @@ export const PROBLEM_LABELS: Record<PodProblemKind, string> = {
   damaged: "Arrived damaged",
   other: "Something else",
 };
-
-/** An upright JPEG without the camera's metadata, so no location leaves the customer's phone. */
-async function toProblemPhoto(input: Buffer): Promise<Buffer> {
-  try {
-    return await sharp(input, { failOn: "error", limitInputPixels: 40_000_000 })
-      .rotate()
-      .resize(LONG_SIDE, LONG_SIDE, { fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality: 82 })
-      .toBuffer();
-  } catch {
-    throw new AppError("PHOTO_INVALID");
-  }
-}
 
 /** A customer tells Ruxstar something went wrong with an order. The shop's share waits until Ruxstar settles it. */
 const problems: FastifyPluginAsyncTypebox = async (app) => {
@@ -135,7 +121,7 @@ const problems: FastifyPluginAsyncTypebox = async (app) => {
       const order = await mine(request.auth!.userId, request.params.id);
       if (order.problem?.status !== "open") throw new AppError("ORDER_STATE", "Report the problem first. Photos can't be added once Ruxstar has settled it.");
       if (order.problem.photos.length >= PROBLEM_PHOTOS_MAX) throw new AppError("CONFLICT", `Up to ${PROBLEM_PHOTOS_MAX} photos.`);
-      const jpeg = await toProblemPhoto(data);
+      const jpeg = await toPrivateJpeg(data);
       const id = new ObjectId();
       const key = problemPhotoKey(order._id, id);
       await app.printFiles.save(key, jpeg, "image/jpeg");

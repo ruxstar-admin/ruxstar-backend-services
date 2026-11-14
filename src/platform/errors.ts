@@ -59,6 +59,8 @@ export const ERROR_CODES = {
   SHOP_CLOSED: { status: 409, message: "This shop is closed right now. Try again when it opens." },
   COUPON_INVALID: { status: 422, message: "This coupon can't be used on this order." },
   ORDER_STATE: { status: 409, message: "This order has moved on. Refresh to see where it is." },
+  DROP_CODE_INVALID: { status: 422, message: "That code is not right. Ask the customer to read it again." },
+  JOB_TAKEN: { status: 409, message: "This delivery isn't available any more." },
   REPORT_CLOSED: { status: 409, message: "Problems can be reported up to 48 hours after delivery, or while an order is late." },
   PAYMENTS_UNAVAILABLE: { status: 503, message: "Payments are not available right now. Try again shortly." },
   // Chats

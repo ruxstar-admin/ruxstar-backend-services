@@ -10,9 +10,10 @@ import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { isModuleLive } from "../../platform/module-switch.js";
+import { deliveryRules } from "../delivery/rates.js";
 import { Done } from "../social/contracts.js";
 import { POST_PHOTO_MAX_BYTES } from "../social/photos.js";
-import { businessView, emptyPod, liveModules, missingOf, ownedBy, photoKeys, requireVendor, toLocation } from "./businesses.js";
+import { businessView, emptyPod, gstinModules, liveModules, missingOf, ownedBy, photoKeys, requireVendor, toLocation } from "./businesses.js";
 import { addPhoto, editDetails, editPod, incomplete, removePhoto, setOpen } from "./shop-edits.js";
 import { CATEGORIES, MAX_POD_CITIES, MAX_PRICE_TIERS, MAX_TURNAROUND_DAYS, PRODUCTS, TYPES, typeOf } from "./catalog.js";
 import {
@@ -62,7 +63,9 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
     return doc;
   }
 
-  const answer = async (doc: BusinessDoc) => businessView(doc, await isModuleLive(db(), doc.module));
+  const needsGstin = async (module: BusinessDoc["module"]) =>
+    Boolean((await db().moduleSettings.findOne({ module }, { projection: { gstinRequired: 1 } }))?.gstinRequired);
+  const answer = async (doc: BusinessDoc) => businessView(doc, await isModuleLive(db(), doc.module), await needsGstin(doc.module));
   const reload = async (id: ObjectId) => answer((await db().businesses.findOne({ _id: id }))!);
 
   app.get(
@@ -78,7 +81,10 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (request) => {
-      const docs = await db().moduleSettings.find({ module: { $in: CATEGORIES.map((c) => c.module) } }).toArray();
+      const [docs, rules] = await Promise.all([
+        db().moduleSettings.find({ module: { $in: CATEGORIES.map((c) => c.module) } }).toArray(),
+        deliveryRules(db()),
+      ]);
       return ok(request, {
         categories: CATEGORIES.map((category) => {
           const doc = docs.find((d) => d.module === category.module);
@@ -86,6 +92,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
             ...category,
             live: doc?.live ?? false,
             signupsOpen: Boolean(doc?.live && doc.signupsOpen),
+            gstinRequired: Boolean(doc?.gstinRequired),
             types: TYPES.filter((t) => t.module === category.module).map(({ module: _module, ...type }) => type),
           };
         }),
@@ -101,6 +108,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
           cities: MAX_POD_CITIES,
           turnaroundDays: MAX_TURNAROUND_DAYS,
           tiers: MAX_PRICE_TIERS,
+          deliveryFee: rules.shopFeeMax,
         },
       });
     },
@@ -118,11 +126,12 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (request) => {
-      const [docs, live] = await Promise.all([
+      const [docs, live, gstin] = await Promise.all([
         db().businesses.find({ ownerId: request.auth!.userId }).sort({ createdAt: -1 }).limit(MAX_BUSINESSES).toArray(),
         liveModules(db()),
+        gstinModules(db()),
       ]);
-      return page(request, docs.map((doc) => businessView(doc, live.has(doc.module))), null);
+      return page(request, docs.map((doc) => businessView(doc, live.has(doc.module), gstin.has(doc.module))), null);
     },
   );
 
@@ -172,7 +181,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
         ...stamp(),
       };
       await database.businesses.insertOne(doc);
-      return reply.status(201).send(ok(request, businessView(doc, true)));
+      return reply.status(201).send(ok(request, businessView(doc, true, await needsGstin(doc.module))));
     },
   );
 
@@ -294,7 +303,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
       const database = db();
       const doc = await owned(request, request.params.id);
       if (doc.status === "live") throw new AppError("CONFLICT", "This business is already live.");
-      const missing = missingOf(doc);
+      const missing = missingOf(doc, await needsGstin(doc.module));
       if (missing.length) throw incomplete(missing);
       if (!(await isModuleLive(database, doc.module))) throw new AppError("MODULE_OFF");
       await database.transaction(async (session) => {

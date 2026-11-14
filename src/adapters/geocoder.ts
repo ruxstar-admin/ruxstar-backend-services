@@ -4,6 +4,8 @@ import { AppError } from "../platform/errors.js";
 export interface Geocoder {
   /** The city or town at a point, or null when the point is not in one. */
   cityAt(lat: number, lng: number): Promise<string | null>;
+  /** Where a typed address is, or null when it can't be found. Never throws: a missing point only makes delivery less exact. */
+  locate(query: string): Promise<{ lat: number; lng: number } | null>;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -16,31 +18,40 @@ const CACHE_LIMIT = 5000;
  */
 export class NominatimGeocoder implements Geocoder {
   private readonly cache = new Map<string, { city: string | null; at: number }>();
+  private readonly places = new Map<string, { point: { lat: number; lng: number } | null; at: number }>();
   private nextSlot = 0;
 
   constructor(private readonly log: FastifyBaseLogger) {}
+
+  /** Waits for the next free second, or throws when the queue is already too long. */
+  private async slot() {
+    const now = Date.now();
+    const wait = Math.max(0, this.nextSlot - now);
+    if (wait > 5000) throw new AppError("LOCATION_UNAVAILABLE");
+    this.nextSlot = Math.max(now, this.nextSlot) + 1100;
+    if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+  }
+
+  private async get(url: string): Promise<unknown> {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "ruxstar-api/2.0 (+https://ruxstar.com)" },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    return res.json();
+  }
 
   async cityAt(lat: number, lng: number): Promise<string | null> {
     const point = `${lat.toFixed(2)},${lng.toFixed(2)}`;
     const hit = this.cache.get(point);
     if (hit && Date.now() - hit.at < DAY_MS) return hit.city;
 
-    const now = Date.now();
-    const wait = Math.max(0, this.nextSlot - now);
-    if (wait > 5000) throw new AppError("LOCATION_UNAVAILABLE");
-    this.nextSlot = Math.max(now, this.nextSlot) + 1100;
-    if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
-
+    await this.slot();
     const [plat, plng] = point.split(",");
     const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&addressdetails=1&accept-language=en&lat=${plat}&lon=${plng}`;
     let address: Record<string, string> = {};
     try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": "ruxstar-api/2.0 (+https://ruxstar.com)" },
-        signal: AbortSignal.timeout(6000),
-      });
-      if (!res.ok) throw new Error(`status ${res.status}`);
-      address = ((await res.json()) as { address?: Record<string, string> }).address ?? {};
+      address = ((await this.get(url)) as { address?: Record<string, string> }).address ?? {};
     } catch (err) {
       this.log.warn({ error: (err as Error).message }, "Nominatim lookup failed");
       throw new AppError("LOCATION_UNAVAILABLE");
@@ -50,6 +61,29 @@ export class NominatimGeocoder implements Geocoder {
     if (this.cache.size >= CACHE_LIMIT) this.cache.delete(this.cache.keys().next().value!);
     this.cache.set(point, { city, at: Date.now() });
     return city;
+  }
+
+  async locate(query: string): Promise<{ lat: number; lng: number } | null> {
+    const key = query.trim().toLowerCase().replace(/\s+/g, " ");
+    if (!key) return null;
+    const hit = this.places.get(key);
+    if (hit && Date.now() - hit.at < DAY_MS) return hit.point;
+
+    let point: { lat: number; lng: number } | null = null;
+    try {
+      await this.slot();
+      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=in&accept-language=en&q=${encodeURIComponent(key)}`;
+      const [first] = (await this.get(url)) as { lat?: string; lon?: string }[];
+      const lat = Number(first?.lat);
+      const lng = Number(first?.lon);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) point = { lat, lng };
+    } catch (err) {
+      this.log.warn({ error: (err as Error).message }, "Nominatim search failed");
+      return null;
+    }
+    if (this.places.size >= CACHE_LIMIT) this.places.delete(this.places.keys().next().value!);
+    this.places.set(key, { point, at: Date.now() });
+    return point;
   }
 }
 

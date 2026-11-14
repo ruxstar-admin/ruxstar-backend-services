@@ -73,7 +73,7 @@ describe("ruxstar console", () => {
 
     it("shows only the sections you may see", async () => {
       const full = (await call("GET", "/ruxstar/overview", admin.token)).json().data;
-      expect(full.kyc).toEqual({ waiting: 0 });
+      expect(full.kyc).toEqual({ waiting: 0, delivery: 0 });
       expect(full.businesses).toEqual({ total: 0, live: 0, suspended: 0 });
       expect(full.users.total).toBeGreaterThan(0);
       expect(full.modules).toHaveLength(6);

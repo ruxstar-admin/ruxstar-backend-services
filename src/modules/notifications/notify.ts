@@ -245,15 +245,45 @@ export async function notifyReview(
   }
 }
 
+/** Delivery news for a rider, which opens the job in the Ruxstar Delivery app. Logged, never thrown. */
+export async function notifyRider(
+  db: Database,
+  log: FastifyBaseLogger,
+  event: { to: ObjectId[]; actor: ObjectId; type: "delivery.offer" | "delivery.updated"; jobId: ObjectId; title: string; body: string },
+): Promise<void> {
+  if (!event.to.length) return;
+  const now = new Date();
+  const docs: NotificationDoc[] = event.to.map((userId) => ({
+    _id: new ObjectId(),
+    userId,
+    type: event.type,
+    actorId: event.actor,
+    title: clip(event.title, 60),
+    body: clip(event.body, 140),
+    link: { screen: "delivery_job", id: event.jobId.toHexString() },
+    readAt: null,
+    createdAt: now,
+  }));
+  try {
+    await db.notifications.insertMany(docs);
+    for (const doc of docs) announce(doc);
+  } catch (err) {
+    log.warn({ err: (err as Error).message, type: event.type }, "Notification not saved");
+  }
+}
+
 /** Tells a user their verification was decided. Logged, never thrown: the decision is already saved. */
 export async function notifyKycDecision(
   db: Database,
   log: FastifyBaseLogger,
-  event: { to: ObjectId; reviewer: ObjectId; decision: "approved" | "rejected" | "locked"; reason: string | null },
+  event: { to: ObjectId; reviewer: ObjectId; decision: "approved" | "rejected" | "locked"; reason: string | null; track?: "base" | "delivery" },
 ): Promise<void> {
+  const delivery = event.track === "delivery";
   const [title, body] =
     event.decision === "approved"
-      ? ["You are verified", "Your Ruxstar Card is ready and your vendor portal is open."]
+      ? delivery
+        ? ["You can deliver with Ruxstar", "Sign in to the Ruxstar Delivery app with this account to start taking orders."]
+        : ["You are verified", "Your Ruxstar Card is ready and your vendor portal is open."]
       : event.decision === "locked"
         ? ["Verification is on hold", "Contact support to continue."]
         : ["Verification needs a change", clip(event.reason ?? "Open verification to see what to fix.", 140)];
@@ -265,7 +295,7 @@ export async function notifyKycDecision(
       actorId: event.reviewer,
       title,
       body,
-      link: { screen: "verification", id: "base" },
+      link: { screen: "verification", id: delivery ? "delivery" : "base" },
       readAt: null,
       createdAt: new Date(),
     });

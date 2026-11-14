@@ -47,6 +47,7 @@ export const User = Strict({
   kyc: Strict({
     base: Type.String({ description: "none, pending, approved or rejected. Details at GET /v1/kyc" }),
     vendor: Type.String({ description: "none, pending, approved or rejected" }),
+    delivery: Type.String({ description: "Delivery partner verification: none, pending, approved or rejected. Details at GET /v1/kyc" }),
   }),
   card: Nullable(Strict({ id: Type.String({ description: "For example RUX-1A2B-3C4D. The full card is at GET /v1/kyc/card" }) })),
   stats: Stats,

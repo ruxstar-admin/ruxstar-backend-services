@@ -1,5 +1,6 @@
 import type { Filter } from "mongodb";
 import type { BusinessDoc, PodPrice, PostPhoto } from "../../platform/db.js";
+import { shopFeeOf } from "../delivery/rates.js";
 import { ratingOf } from "../reviews/reviews.js";
 import { unpricedOf } from "../vendor/businesses.js";
 import { PRODUCTS, typeOf } from "../vendor/catalog.js";
@@ -66,6 +67,7 @@ export function shopView(doc: BusinessDoc): Shop {
     cities: pod.serveAll ? [] : pod.cities,
     minOrder: pod.minOrder,
     notes: pod.notes,
+    deliveryFee: shopFeeOf(doc),
     catalog: PRODUCTS.flatMap((info) => {
       const price = priced.get(info.id);
       if (!price) return [];

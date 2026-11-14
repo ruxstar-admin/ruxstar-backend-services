@@ -3,6 +3,7 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { Config } from "../config.js";
 import { requireDatabase } from "../platform/context.js";
 import { AppError } from "../platform/errors.js";
+import { sweepOffers } from "./delivery/trips.js";
 import { sweepOrders } from "./pod/order-rules.js";
 import { sweepPayouts } from "./vendor/payouts.js";
 
@@ -38,10 +39,11 @@ export function jobs(auth: JobAuth | null): FastifyPluginAsync {
       const token = header?.startsWith("Bearer ") ? header.slice(7).trim() : "";
       if (!token || !(await auth(token))) throw new AppError("UNAUTHENTICATED");
       const db = requireDatabase(app.db);
+      const offers = await sweepOffers(app, db);
       const counts = await sweepOrders(app, db);
       const payouts = await sweepPayouts(app, db);
-      request.log.info({ job: "orders", ...counts, payouts }, "Order timers and payouts swept");
-      return { ok: true, ...counts, payouts };
+      request.log.info({ job: "orders", ...counts, payouts, offers }, "Order timers, delivery offers and payouts swept");
+      return { ok: true, ...counts, payouts, offers };
     });
   };
 }

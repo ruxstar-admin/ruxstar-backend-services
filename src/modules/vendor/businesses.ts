@@ -4,6 +4,7 @@ import type { Static } from "typebox";
 import { requireAuth } from "../../platform/auth.js";
 import type { BusinessDoc, BusinessLocation, BusinessPhoto, Database, PayoutMethodDoc, PodPrice, PodSetup } from "../../platform/db.js";
 import { AppError } from "../../platform/errors.js";
+import { FREE_DELIVERY } from "../delivery/rates.js";
 import { ratingOf } from "../reviews/reviews.js";
 import { productOf, type PodProduct } from "./catalog.js";
 import type { Business, Location, PayoutMethod, PodPriceBody, PodSetupBody } from "./contracts.js";
@@ -22,9 +23,10 @@ const priced = (p: PodPrice | undefined) => !!p && (p.model === "per_page" ? (p.
 
 export const unpricedOf = (pod: PodSetup) => pod.products.filter((product) => !priced(pod.prices.find((p) => p.product === product)));
 
-/** What still stops a business going live, all at once, as v1 did. */
-export function missingOf(doc: BusinessDoc): Business["missing"] {
+/** What still stops a business going live, all at once, as v1 did. A GSTIN only when Ruxstar asks for one in its category. */
+export function missingOf(doc: BusinessDoc, gstinRequired = false): Business["missing"] {
   const missing: Business["missing"] = [];
+  if (gstinRequired && !doc.gstin) missing.push("gstin");
   if (!doc.photos.length) missing.push("photo");
   if (!doc.phone) missing.push("phone");
   if (!doc.location) missing.push("location");
@@ -39,7 +41,7 @@ export function missingOf(doc: BusinessDoc): Business["missing"] {
 
 export const emptyPod = (): PodSetup => ({ products: [], serveAll: false, cities: [], turnaroundDays: 3, minOrder: 0, notes: null, prices: [] });
 
-export function businessView(doc: BusinessDoc, moduleLive: boolean): Business {
+export function businessView(doc: BusinessDoc, moduleLive: boolean, gstinRequired = false): Business {
   const pod = doc.module === "pod" ? (doc.pod ?? emptyPod()) : null;
   return {
     id: doc._id.toHexString(),
@@ -51,11 +53,11 @@ export function businessView(doc: BusinessDoc, moduleLive: boolean): Business {
     location: doc.location,
     gstin: doc.gstin,
     photos: doc.photos.map(({ id, url, width, height }) => ({ id, url, width, height })),
-    pod: pod ? { ...pod, unpriced: unpricedOf(pod) } : null,
+    pod: pod ? { ...pod, deliveryFee: pod.deliveryFee ?? FREE_DELIVERY, unpriced: unpricedOf(pod) } : null,
     status: doc.status,
     open: doc.open,
     moduleLive,
-    missing: missingOf(doc),
+    missing: doc.status === "draft" ? missingOf(doc, gstinRequired) : missingOf(doc),
     suspension: doc.suspension ? { reason: doc.suspension.reason, at: doc.suspension.at.toISOString() } : null,
     rating: ratingOf(doc),
     publishedAt: doc.publishedAt?.toISOString() ?? null,
@@ -119,6 +121,7 @@ export function nextPod(current: PodSetup | null, body: Static<typeof PodSetupBo
   if (body.turnaroundDays !== undefined) pod.turnaroundDays = body.turnaroundDays;
   if (body.minOrder !== undefined) pod.minOrder = body.minOrder;
   if (body.notes !== undefined) pod.notes = clean(body.notes);
+  if (body.deliveryFee !== undefined) pod.deliveryFee = { ...body.deliveryFee };
   if (body.prices !== undefined) {
     const sent = body.prices.map((price, i) => {
       if (!pod.products.includes(price.product)) throw invalid(`body/prices/${i}/product`, `Add ${productOf(price.product).label} to your products first.`);
@@ -134,6 +137,12 @@ export function nextPod(current: PodSetup | null, body: Static<typeof PodSetupBo
 /** Which modules are live, read once for a list of businesses. */
 export async function liveModules(db: Database): Promise<Set<string>> {
   const docs = await db.moduleSettings.find({ live: true }, { projection: { module: 1 } }).toArray();
+  return new Set(docs.map((d) => d.module));
+}
+
+/** Which modules need a GSTIN to publish. */
+export async function gstinModules(db: Database): Promise<Set<string>> {
+  const docs = await db.moduleSettings.find({ gstinRequired: true }, { projection: { module: 1 } }).toArray();
   return new Set(docs.map((d) => d.module));
 }
 

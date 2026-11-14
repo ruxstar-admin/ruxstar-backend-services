@@ -15,6 +15,12 @@ export const PERMISSIONS: { key: TeamPermission; label: string; hint: string | n
   { key: "orders.move", label: "Accept and move orders", hint: "Accept, printing, ready, out for delivery and delivered", needs: "orders.view" },
   { key: "orders.reject", label: "Turn down orders", hint: "Before accepting; the customer gets a full refund", needs: "orders.view" },
   { key: "orders.refund", label: "Refund part of an order", hint: "It comes out of the shop's share", needs: "orders.view" },
+  {
+    key: "orders.deliver",
+    label: "Deliver orders",
+    hint: "The shop can send them orders to take in the Ruxstar Delivery app. Needs delivery verification",
+    needs: "orders.view",
+  },
   { key: "earnings.view", label: "See the shop's earnings", hint: "The shop's share and Ruxstar's commission on each order", needs: "orders.view" },
   { key: "shop.open", label: "Open and close the shop", hint: null, needs: null },
   { key: "shop.catalog", label: "Change products, prices and delivery area", hint: null, needs: null },

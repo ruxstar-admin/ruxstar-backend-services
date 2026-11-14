@@ -28,6 +28,8 @@ const Notification = Strict({
     Type.Literal("review.posted"),
     Type.Literal("review.replied"),
     Type.Literal("review.removed"),
+    Type.Literal("delivery.offer"),
+    Type.Literal("delivery.updated"),
   ]),
   title: Type.String(),
   body: Type.String(),
@@ -46,10 +48,11 @@ const Notification = Strict({
         Type.Literal("work_order"),
         Type.Literal("reviews"),
         Type.Literal("work_reviews"),
+        Type.Literal("delivery_job"),
       ],
       {
         description:
-          "`verification` opens the KYC screen, `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team), `team` a business's Team in the vendor portal (`id` is the business), `work_order` an order to a shop you work at, in the Work area, `reviews` a business's reviews in the vendor portal (`id` is the business) and `work_reviews` the reviews of a shop you work at (`id` is the place on the team); `id` says which",
+          "`verification` opens the KYC screen (`id` is the track: base or delivery), `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team), `team` a business's Team in the vendor portal (`id` is the business), `work_order` an order to a shop you work at, in the Work area, `reviews` a business's reviews in the vendor portal (`id` is the business), `work_reviews` the reviews of a shop you work at (`id` is the place on the team) and `delivery_job` a delivery in the Ruxstar Delivery app; `id` says which",
       },
     ),
     id: Type.String(),

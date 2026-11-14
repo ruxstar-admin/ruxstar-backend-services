@@ -58,7 +58,10 @@ describe("kyc", () => {
     const user = await person();
     const res = await get("/v1/kyc", user.token);
     expect(res.statusCode).toBe(200);
-    expect(res.json().data).toEqual({ base: expect.objectContaining({ status: "not_started" }) });
+    expect(res.json().data).toEqual({
+      base: expect.objectContaining({ status: "not_started" }),
+      delivery: expect.objectContaining({ status: "not_started", identityVerified: false }),
+    });
     expect((await get("/v1/kyc/card", user.token)).statusCode).toBe(403);
   });
 

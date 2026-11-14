@@ -5,6 +5,8 @@ import type { Static } from "typebox";
 import { diffOf, writeAudit, type Diff } from "../../platform/audit.js";
 import type { AuditLogDoc, BusinessDoc, BusinessPhoto, Database } from "../../platform/db.js";
 import { AppError } from "../../platform/errors.js";
+import { deliveryRules } from "../delivery/rates.js";
+import { rupees } from "../pod/orders.js";
 import { toPostPhoto } from "../social/photos.js";
 import { emptyPod, missingOf, nextPod, photoKeys, toLocation, unpricedOf } from "./businesses.js";
 import { MAX_BUSINESS_PHOTOS, type Business, type PodSetupBody, type UpdateBusinessBody } from "./contracts.js";
@@ -23,6 +25,7 @@ const NEEDS: Record<Business["missing"][number], string> = {
   products: "Select at least one print category you offer",
   area: 'Add at least one service city or turn on "Serve everywhere"',
   pricing: "Set a price for every product you offer",
+  gstin: "Add your GSTIN. Ruxstar needs one for this category",
 };
 export const incomplete = (missing: Business["missing"]) =>
   new AppError(
@@ -63,6 +66,15 @@ export async function editPod(db: Database, doc: WithId<BusinessDoc>, body: Stat
   if (doc.module !== "pod") throw new AppError("CONFLICT", "Only print on demand businesses have this setup.");
   const before = doc.pod ?? emptyPod();
   const pod = nextPod(doc.pod, body);
+  if (body.deliveryFee) {
+    const max = (await deliveryRules(db)).shopFeeMax;
+    for (const part of ["base", "perKm"] as const) {
+      if (body.deliveryFee[part] > max[part]) {
+        const message = `Ruxstar allows up to ${rupees(max[part])}${part === "perKm" ? " a km" : ""}.`;
+        throw new AppError("VALIDATION_FAILED", message, [{ path: `body/deliveryFee/${part}`, message }]);
+      }
+    }
+  }
   if (doc.status === "live") {
     // A live shop can add a product before pricing it: customers only see priced products, so it
     // stays hidden until then. It still needs one priced product to stay sellable.

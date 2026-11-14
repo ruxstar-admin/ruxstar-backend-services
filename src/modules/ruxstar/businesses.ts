@@ -11,7 +11,7 @@ import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { findPage } from "../../platform/pagination.js";
 import { notifyBusinessHold } from "../notifications/notify.js";
-import { businessView, liveModules, payoutMethodView } from "../vendor/businesses.js";
+import { businessView, gstinModules, liveModules, payoutMethodView } from "../vendor/businesses.js";
 import { BusinessParams } from "../vendor/contracts.js";
 import { BusinessCaseOne, BusinessesQuery, BusinessRows, SuspendBody, type BusinessCase, type BusinessRow } from "./contracts.js";
 
@@ -34,15 +34,16 @@ const businesses: FastifyPluginAsyncTypebox = async (app) => {
   const db = () => requireDatabase(app.db);
 
   async function rows(docs: WithId<BusinessDoc>[]): Promise<BusinessRow[]> {
-    const [owners, live] = await Promise.all([
+    const [owners, live, gstin] = await Promise.all([
       db().users.find({ _id: { $in: docs.map((d) => d.ownerId) } }, { projection: OWNER_PROJECTION }).toArray(),
       liveModules(db()),
+      gstinModules(db()),
     ]);
     const byId = new Map(owners.map((u) => [u._id.toHexString(), u]));
     return docs.map((doc) => {
       const owner = byId.get(doc.ownerId.toHexString());
       return {
-        business: businessView(doc, live.has(doc.module)),
+        business: businessView(doc, live.has(doc.module), gstin.has(doc.module)),
         owner: owner
           ? {
               id: owner._id.toHexString(),

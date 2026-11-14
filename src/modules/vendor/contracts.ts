@@ -23,7 +23,7 @@ export const PodProductId = Type.Enum(POD_PRODUCTS);
 
 const Phone = Type.String({ pattern: "^[6-9][0-9]{9}$", description: "10-digit mobile number" });
 const Part = (max: number) => Type.Optional(Nullable(Type.String({ maxLength: max })));
-const Point = Strict({ lat: Type.Number({ minimum: -90, maximum: 90 }), lng: Type.Number({ minimum: -180, maximum: 180 }) });
+export const Point = Strict({ lat: Type.Number({ minimum: -90, maximum: 90 }), lng: Type.Number({ minimum: -180, maximum: 180 }) });
 
 export const Location = Strict({
   state: Type.String({ minLength: 2, maxLength: 60, description: "One of the catalog's states" }),
@@ -78,6 +78,14 @@ const PodPriceView = Strict({
   extras: Type.Array(Extra),
   tiers: Type.Array(Tier),
 });
+export const DeliveryFeeView = Strict(
+  {
+    base: Paise,
+    includedKm: Type.Integer({ minimum: 0, maximum: 50, description: "Km the base covers" }),
+    perKm: Paise,
+  },
+  { description: "What the shop charges customers to deliver: the base, then per km after includedKm. All 0 is free." },
+);
 const PodSetupView = Strict({
   products: Type.Array(PodProductId),
   serveAll: Type.Boolean({ description: "Takes orders from every city" }),
@@ -87,6 +95,7 @@ const PodSetupView = Strict({
   notes: Nullable(Type.String()),
   prices: Type.Array(PodPriceView),
   unpriced: Type.Array(PodProductId, { description: "Chosen products still without a price" }),
+  deliveryFee: DeliveryFeeView,
 });
 
 export const PodSetupBody = Strict(
@@ -98,14 +107,28 @@ export const PodSetupBody = Strict(
     minOrder: Type.Optional(Price),
     notes: Type.Optional(Nullable(Type.String({ maxLength: 1000 }))),
     prices: Type.Optional(Type.Array(PodPriceBody, { maxItems: POD_PRODUCTS.length, description: "Replaces the prices of the products sent" })),
+    deliveryFee: Type.Optional(
+      Strict(
+        { base: Price, includedKm: Type.Integer({ minimum: 0, maximum: 50 }), perKm: Price },
+        { description: "Up to the most Ruxstar allows, in the catalog's limits" },
+      ),
+    ),
   },
   { minProperties: 1 },
 );
 
 const Photo = Strict({ id: Type.String(), url: Type.String(), width: Type.Integer(), height: Type.Integer() });
 const Missing = Type.Union(
-  [Type.Literal("photo"), Type.Literal("phone"), Type.Literal("location"), Type.Literal("products"), Type.Literal("area"), Type.Literal("pricing")],
-  { description: "products, area and pricing are for print on demand" },
+  [
+    Type.Literal("photo"),
+    Type.Literal("phone"),
+    Type.Literal("location"),
+    Type.Literal("products"),
+    Type.Literal("area"),
+    Type.Literal("pricing"),
+    Type.Literal("gstin"),
+  ],
+  { description: "products, area and pricing are for print on demand; gstin when Ruxstar needs one for this category" },
 );
 
 export const Business = Strict({
@@ -199,6 +222,7 @@ export const Catalog = Envelope(
         description: Type.String(),
         live: Type.Boolean(),
         signupsOpen: Type.Boolean({ description: "Whether new businesses can be created in it" }),
+        gstinRequired: Type.Boolean({ description: "Publishing needs a verified GSTIN" }),
         types: Type.Array(
           Strict({
             id: BusinessTypeId,
@@ -229,6 +253,7 @@ export const Catalog = Envelope(
       cities: Type.Integer(),
       turnaroundDays: Type.Integer(),
       tiers: Type.Integer(),
+      deliveryFee: Strict({ base: Paise, perKm: Paise }, { description: "The most a shop can charge to deliver" }),
     }),
   }),
 );

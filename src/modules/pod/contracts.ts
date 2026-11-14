@@ -4,7 +4,7 @@ import { AppliedCoupon, Offer } from "../coupons/contracts.js";
 import { Rating } from "../reviews/contracts.js";
 import { Photo } from "../social/contracts.js";
 import { TeamPermission } from "../team/contracts.js";
-import { BusinessTypeId, PodProductId } from "../vendor/contracts.js";
+import { BusinessTypeId, DeliveryFeeView, PodProductId, Point } from "../vendor/contracts.js";
 
 const Nullable = <T extends TSchema>(schema: T, options?: { description: string }) => Type.Union([schema, Type.Null()], options);
 const PaiseNote = (description: string) => Type.Integer({ minimum: 0, description: `Amount in paise. ${description}` });
@@ -57,6 +57,7 @@ export const Shop = Strict({
   minOrder: Paise,
   notes: Nullable(Type.String()),
   catalog: Type.Array(ShopProduct, { description: "Products with a price, in catalog order" }),
+  deliveryFee: DeliveryFeeView,
 });
 export type Shop = Static<typeof Shop>;
 
@@ -119,19 +120,36 @@ const OrderChoice = {
   couponCode: Type.Optional(Type.String({ minLength: 1, maxLength: 20, description: "A coupon to take off the items; any case" })),
 };
 
+const Pincode = Type.String({ pattern: "^[1-9][0-9]{5}$" });
+const DropPoint = Type.Optional(
+  Nullable(Point, { description: "From the phone's location. Without it the address is looked up on the map, which is less exact." }),
+);
+
 export const QuoteBody = Strict({
   ...OrderChoice,
   fileIds: Type.Array(ObjectIdString, { maxItems: MAX_ORDER_FILES, uniqueItems: true, description: "Documents are priced by their pages; none counts as 1 page" }),
+  address: Type.Optional(
+    Strict(
+      {
+        line: Type.Optional(Type.String({ maxLength: 300 })),
+        city: Type.Optional(Type.String({ maxLength: 60 })),
+        pincode: Type.Optional(Pincode),
+        point: DropPoint,
+      },
+      { description: "Where it goes, as far as the customer has filled it in, to price delivery by distance" },
+    ),
+  ),
 });
 
-const Pincode = Type.String({ pattern: "^[1-9][0-9]{5}$" });
 export const OrderAddress = Strict({
   name: Type.String({ minLength: 2, maxLength: 80 }),
   phone: Type.String({ pattern: "^[6-9][0-9]{9}$", description: "10 digits" }),
   line: Type.String({ minLength: 5, maxLength: 300, description: "House, street and area" }),
   city: Type.String({ minLength: 2, maxLength: 60 }),
   pincode: Pincode,
+  point: DropPoint,
 });
+const OrderAddressView = Strict({ ...OrderAddress.properties, point: Nullable(Point) });
 
 const ReturnTo = Type.String({
   maxLength: 500,
@@ -155,7 +173,9 @@ const Price = Strict({
   discount: PaiseNote("Taken off the items by the coupon."),
   coupon: Nullable(AppliedCoupon),
   platformFee: Paise,
-  total: PaiseNote("The items less the discount, plus the platform fee."),
+  delivery: PaiseNote("The shop's delivery fee."),
+  deliveryKm: Nullable(Type.Integer({ minimum: 0 }), { description: "Road km the delivery fee was worked out on; null when not known" }),
+  total: PaiseNote("The items less the discount, plus delivery and the platform fee."),
 });
 
 const Refund = Strict({
@@ -216,7 +236,7 @@ const OrderCore = {
   colour: Nullable(Type.Union([Type.Literal("bw"), Type.Literal("color")])),
   quantity: Type.Integer(),
   files: Type.Array(PrintFile),
-  address: OrderAddress,
+  address: OrderAddressView,
   note: Nullable(Type.String()),
   status: OrderStatus,
   timeline: Type.Array(Strict({ status: OrderStatus, at: DateTime })),
@@ -237,13 +257,50 @@ const OrderCore = {
   updatedAt: DateTime,
 };
 
+export const DeliveryStatus = Type.Union(
+  [Type.Literal("offered"), Type.Literal("accepted"), Type.Literal("picked_up"), Type.Literal("delivered"), Type.Literal("cancelled")],
+  { description: "`offered` waits for a rider to accept; `cancelled` sent it back to the shop" },
+);
+export const Vehicle = Strict({ type: Type.Union([Type.Literal("bike"), Type.Literal("scooter")]), number: Type.String({ description: "The number plate" }) });
+const Rider = Strict({
+  name: Type.String(),
+  avatarUrl: Nullable(Type.String()),
+  phone: Type.String({ description: "To call them about the delivery" }),
+  vehicle: Vehicle,
+});
+const deliveryCore = {
+  carrier: Type.Union([Type.Literal("team"), Type.Literal("partner")], { description: "Someone on the shop's team, or a Ruxstar delivery partner" }),
+  status: DeliveryStatus,
+  rider: Nullable(Rider, { description: "Once someone accepted it" }),
+};
+
 /** A print order as its customer sees it. */
-export const Order = Strict({ ...OrderCore, price: Price });
+export const Order = Strict({
+  ...OrderCore,
+  price: Price,
+  delivery: Nullable(
+    Strict({
+      ...deliveryCore,
+      dropCode: Nullable(Type.String({ description: "Give it to the rider at the door; null once delivered or cancelled" })),
+    }),
+    { description: "Null while the shop delivers it itself" },
+  ),
+});
 export type Order = Static<typeof Order>;
 export const OrderOne = Envelope(Order);
 export const OrderList = ListEnvelope(Order);
 export const PlacedOrder = Envelope(Strict({ order: Order, checkoutUrl: Type.String({ description: "Open it to pay" }) }));
 export const CheckoutLink = Envelope(Strict({ checkoutUrl: Type.String() }));
+
+const ShopDelivery = Nullable(
+  Strict({
+    ...deliveryCore,
+    jobId: ObjectIdString,
+    pay: PaiseNote("To the Ruxstar partner, out of your share at delivery; 0 for your team"),
+    offerUntil: Nullable(DateTime, { description: "A partner offer nobody accepts is cancelled then" }),
+  }),
+  { description: "Null while the shop delivers it itself. The last job stays here after it is cancelled" },
+);
 
 /** The same order as the shop sees it, with what Ruxstar keeps and what the shop is paid. */
 export const ShopOrder = Strict({
@@ -252,12 +309,13 @@ export const ShopOrder = Strict({
     ...Price.properties,
     commissionBps: Type.Integer(),
     commission: PaiseNote("On the items, or on the items less the discount when the coupon is yours."),
-    payout: PaiseNote("Items less commission, and less the discount when the coupon is yours."),
-    payoutLeft: PaiseNote("The payout less partial refunds; 0 once the order is refunded, turned down or cancelled."),
+    payout: PaiseNote("Items and delivery less commission, and less the discount when the coupon is yours."),
+    payoutLeft: PaiseNote("The payout less partial refunds and a Ruxstar partner's pay; 0 once the order is refunded, turned down or cancelled."),
   }),
   releaseAt: Nullable(DateTime, { description: "When your share becomes available: 48 hours after delivery, later while a problem is open" }),
   releasedAt: Nullable(DateTime),
   refundable: PaiseNote("The most you can refund now; 0 once your share is released."),
+  delivery: ShopDelivery,
 });
 export type ShopOrder = Static<typeof ShopOrder>;
 export const ShopOrderOne = Envelope(ShopOrder);
@@ -276,6 +334,7 @@ export const TeamOrder = Strict({
   releaseAt: Nullable(DateTime),
   releasedAt: Nullable(DateTime),
   refundable: PaiseNote("The most you can refund now; 0 without permission to refund, or once the shop's share is released."),
+  delivery: ShopDelivery,
   placeId: ObjectIdString,
   permissions: Type.Array(TeamPermission, { description: "What you may do at this shop" }),
 });

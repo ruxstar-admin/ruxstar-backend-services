@@ -126,6 +126,13 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.ledgerEntries.createIndex({ txnId: 1, accountId: 1, bucket: 1 }, { unique: true }),
     db.ledgerEntries.createIndex({ accountId: 1, bucket: 1 }),
     db.ledgerEntries.createIndex({ accountId: 1, at: -1, _id: -1 }),
+    // Deliveries: an order's trips, a rider's trips newest first, the offers in a city, and one trip under way per rider.
+    db.deliveryJobs.createIndex({ orderId: 1, createdAt: -1 }),
+    db.deliveryJobs.createIndex({ riderId: 1, status: 1, updatedAt: -1, _id: -1 }),
+    db.deliveryJobs.createIndex({ status: 1, carrier: 1, city: 1, offerUntil: 1 }),
+    db.deliveryJobs.createIndex({ riderId: 1 }, { name: "one_trip_per_rider", unique: true, partialFilterExpression: { busy: true } }),
+    db.riderStates.createIndex({ online: 1, city: 1 }),
+    db.podOrders.createIndex({ "delivery.status": 1, "delivery.offerUntil": 1 }, { partialFilterExpression: { "delivery.status": "offered" } }),
   ]);
 }
 

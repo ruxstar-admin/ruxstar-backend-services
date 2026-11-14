@@ -8,6 +8,7 @@ import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { forgetModuleState } from "../../platform/module-switch.js";
+import { BUSINESS_MODULES, DEFAULT_OFFER_MINUTES, DEFAULT_RIDER_RATE, DEFAULT_SHOP_FEE_MAX } from "../delivery/rates.js";
 import { DEFAULT_MIN_PAYOUT, DEFAULT_PAYOUT_FEE } from "../vendor/payouts.js";
 import { ModuleParams, ModuleSettingsList, ModuleSettingsOne, ModuleSettingsPatch, type ModuleSettings } from "./contracts.js";
 import auditLog from "./audit-log.js";
@@ -34,6 +35,15 @@ const view = (doc: ModuleSettingsDoc): ModuleSettings => ({
   platformFee: doc.platformFee ?? 0,
   payouts: doc.module === "ledger" ? { fee: doc.payoutFee ?? DEFAULT_PAYOUT_FEE, minimum: doc.minPayout ?? DEFAULT_MIN_PAYOUT } : null,
   deliveryEnabled: doc.deliveryEnabled,
+  gstinRequired: BUSINESS_MODULES.includes(doc.module) ? Boolean(doc.gstinRequired) : null,
+  delivery:
+    doc.module === "delivery"
+      ? {
+          riderRate: doc.riderRate ?? DEFAULT_RIDER_RATE,
+          shopFeeMax: doc.shopFeeMax ?? DEFAULT_SHOP_FEE_MAX,
+          offerMinutes: doc.offerMinutes ?? DEFAULT_OFFER_MINUTES,
+        }
+      : null,
   permissionCatalog: doc.permissionCatalog,
   updatedAt: doc.updatedAt.toISOString(),
 });
@@ -96,6 +106,15 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
         if (payoutsChanged && module !== "ledger") {
           throw new AppError("VALIDATION_FAILED", "The payout fee and minimum are set on the ledger module.", [
             { path: "body/payoutFee", message: "Ledger only" },
+          ]);
+        }
+        if (changes.gstinRequired !== undefined && !BUSINESS_MODULES.includes(module)) {
+          throw new AppError("VALIDATION_FAILED", "GSTIN is set on business modules.", [{ path: "body/gstinRequired", message: "Business modules only" }]);
+        }
+        const deliveryField = (["riderRate", "shopFeeMax", "offerMinutes"] as const).find((k) => changes[k] !== undefined);
+        if (deliveryField && module !== "delivery") {
+          throw new AppError("VALIDATION_FAILED", "Delivery rates are set on the delivery module.", [
+            { path: `body/${deliveryField}`, message: "Delivery only" },
           ]);
         }
         const fee = changes.payoutFee ?? before.payoutFee ?? DEFAULT_PAYOUT_FEE;

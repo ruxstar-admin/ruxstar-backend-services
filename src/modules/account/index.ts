@@ -125,7 +125,7 @@ const view = (user: UserDoc): User => ({
     ruxstarStaff: Boolean(user.roles.ruxstarStaff),
     admin: Boolean(user.roles.admin),
   },
-  kyc: { base: user.kyc.base ?? "none", vendor: user.kyc.vendor ?? "none" },
+  kyc: { base: user.kyc.base ?? "none", vendor: user.kyc.vendor ?? "none", delivery: user.kyc.delivery ?? "none" },
   card: user.card ? { id: user.card.id } : null,
   stats: statsOf(user),
   showActivity: !user.hideActivity,

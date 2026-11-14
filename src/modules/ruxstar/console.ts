@@ -54,7 +54,13 @@ const consoleHome: FastifyPluginAsyncTypebox = async (app) => {
       const when = <T>(allowed: boolean, work: () => Promise<T>) => (allowed ? work() : Promise.resolve(null));
 
       const [kyc, reports, users, businesses, modules, orders, staff] = await Promise.all([
-        when(can("kyc.view"), async () => ({ waiting: await d.kycCases.countDocuments({ status: "submitted", track: "base" }) })),
+        when(can("kyc.view"), async () => {
+          const [identity, delivery] = await Promise.all([
+            d.kycCases.countDocuments({ status: "submitted", track: "base" }),
+            d.kycCases.countDocuments({ status: "submitted", track: "delivery" }),
+          ]);
+          return { waiting: identity + delivery, delivery };
+        }),
         when(can("reports.view"), async () => {
           const [[row], people, reviews] = await Promise.all([
             d.reports

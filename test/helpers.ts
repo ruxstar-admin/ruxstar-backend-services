@@ -38,6 +38,8 @@ export interface Stack {
   chatPhotos: Map<string, Buffer>;
   /** Phone notifications sent, and tokens that answer as removed apps. */
   pushes: { sent: PushMessage[]; uninstalled: Set<string> };
+  /** Where typed addresses are, by the exact query the geocoder is asked; others are not found. */
+  places: Map<string, { lat: number; lng: number }>;
   stop: () => Promise<void>;
 }
 
@@ -79,7 +81,8 @@ export async function startStack(
   };
   const emails = new Map<string, string>();
   const email: EmailSender = { sendCode: async (to, code) => void emails.set(to, code) };
-  const geocoder: Geocoder = { cityAt: async () => "Hyderabad" };
+  const places = new Map<string, { lat: number; lng: number }>();
+  const geocoder: Geocoder = { cityAt: async () => "Hyderabad", locate: async (query) => places.get(query) ?? null };
   const fakeBucket = (host: string) => {
     const objects = new Map<string, Buffer>();
     const store: PhotoStore = {
@@ -152,6 +155,7 @@ export async function startStack(
     printFiles,
     chatPhotos,
     pushes,
+    places,
     stop: async () => {
       await app.close();
       await replSet.stop();
