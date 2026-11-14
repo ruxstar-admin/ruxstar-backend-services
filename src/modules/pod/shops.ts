@@ -30,8 +30,9 @@ const pricedOf = (doc: BusinessDoc) => {
 
 export function shopCard(doc: BusinessDoc): ShopCard {
   const pod = doc.pod!;
+  const priced = pricedOf(doc);
   let from: { price: number; unit: "unit" | "page" } | null = null;
-  for (const price of pricedOf(doc)) {
+  for (const price of priced) {
     const value = lowest(price);
     if (value !== null && (!from || value < from.price)) from = { price: value, unit: price.model === "per_page" ? "page" : "unit" };
   }
@@ -49,7 +50,7 @@ export function shopCard(doc: BusinessDoc): ShopCard {
     fromPrice: from?.price ?? null,
     fromUnit: from?.unit ?? null,
     turnaroundDays: pod.turnaroundDays,
-    products: PRODUCTS.map((p) => p.id).filter((id) => pod.products.includes(id)),
+    products: PRODUCTS.map((p) => p.id).filter((id) => priced.some((p) => p.product === id)),
     rating: ratingOf(doc),
   };
 }

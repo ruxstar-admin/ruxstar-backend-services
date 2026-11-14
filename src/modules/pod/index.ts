@@ -50,7 +50,12 @@ const pod: FastifyPluginAsyncTypebox = async (app) => {
           ],
         });
       }
-      if (product) filters.push({ "pod.products": product });
+      if (product) {
+        filters.push({
+          "pod.products": product,
+          "pod.prices": { $elemMatch: { product, $or: [{ basePrice: { $gt: 0 } }, { bw: { $gt: 0 } }, { color: { $gt: 0 } }] } },
+        });
+      }
       if (q) filters.push({ name: { $regex: escapeRegex(q.trim()), $options: "i" } });
       const { items, nextCursor } = await findPage(db().businesses, {
         filter: filters.length === 1 ? visibleShops : { $and: filters },

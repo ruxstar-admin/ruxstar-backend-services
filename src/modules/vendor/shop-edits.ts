@@ -6,7 +6,7 @@ import { diffOf, writeAudit, type Diff } from "../../platform/audit.js";
 import type { AuditLogDoc, BusinessDoc, BusinessPhoto, Database } from "../../platform/db.js";
 import { AppError } from "../../platform/errors.js";
 import { toPostPhoto } from "../social/photos.js";
-import { emptyPod, missingOf, nextPod, photoKeys, toLocation } from "./businesses.js";
+import { emptyPod, missingOf, nextPod, photoKeys, toLocation, unpricedOf } from "./businesses.js";
 import { MAX_BUSINESS_PHOTOS, type Business, type PodSetupBody, type UpdateBusinessBody } from "./contracts.js";
 
 /** Who made the change: the owner from the vendor portal, or someone on the team from Work. */
@@ -64,7 +64,10 @@ export async function editPod(db: Database, doc: WithId<BusinessDoc>, body: Stat
   const before = doc.pod ?? emptyPod();
   const pod = nextPod(doc.pod, body);
   if (doc.status === "live") {
-    const missing = missingOf({ ...doc, pod });
+    // A live shop can add a product before pricing it: customers only see priced products, so it
+    // stays hidden until then. It still needs one priced product to stay sellable.
+    const sellable = unpricedOf(pod).length < pod.products.length;
+    const missing = missingOf({ ...doc, pod }).filter((field) => field !== "pricing" || !sellable);
     if (missing.length) throw incomplete(missing);
   }
   const diff = diffOf(before, pod);
