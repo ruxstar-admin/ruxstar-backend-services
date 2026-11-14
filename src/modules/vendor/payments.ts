@@ -5,7 +5,7 @@ import { ObjectId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { actorOf, writeAudit } from "../../platform/audit.js";
 import { requireDatabase } from "../../platform/context.js";
-import type { AuditLogDoc, Database, PayoutDoc, PayoutMethodDoc, PodOrderDoc, PodRefundDoc, Stamped } from "../../platform/db.js";
+import type { AuditLogDoc, Database, InvoiceRefDoc, PayoutDoc, PayoutMethodDoc, PodOrderDoc, PodRefundDoc, Stamped } from "../../platform/db.js";
 import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
@@ -13,6 +13,7 @@ import { findPage } from "../../platform/pagination.js";
 import { seal } from "../../platform/sealed.js";
 import { loadCase, NAME_MATCHES, verificationId } from "../kyc/cases.js";
 import { releaseEventShares } from "../events/orders.js";
+import { invoiceRefs } from "../invoices/views.js";
 import { vendorShare } from "../events/rules.js";
 import { releaseShare } from "../pod/order-rules.js";
 import { refundsOf, shopShareLeft } from "../pod/orders.js";
@@ -41,6 +42,13 @@ function refundOf(order: Pick<PodOrderDoc, "refund" | "refunds">, txnId: string)
   return (id ? refunds.find((r) => r.refundId === id) : refunds.find((r) => r.kind === "full")) ?? null;
 }
 const refundView = (r: PodRefundDoc | null) => (r ? { id: r.refundId, reason: r.reason, by: r.by } : null);
+
+/** The sale's GST invoice on a paid line, its credit note on a refund line. */
+function invoiceOf(refs: InvoiceRefDoc[] | undefined, kind: StatementLine["kind"], refundId: string | null) {
+  const sale = (refs ?? []).filter((r) => r.role === "supply");
+  const found = kind === "paid" ? sale.find((r) => r.kind !== "credit_note") : kind === "refund" ? sale.find((r) => r.refundId === refundId) : undefined;
+  return found ? invoiceRefs([found])[0]! : null;
+}
 /** UPI answers MATCH where bank checks grade the name. */
 const PAYOUT_NAME_MATCHES = new Set([...NAME_MATCHES, "MATCH"]);
 
@@ -243,14 +251,14 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
         database.podOrders
           .find(
             { _id: { $in: ids("pod_order") } },
-            { projection: { orderNo: 1, shopId: 1, productLabel: 1, "address.name": 1, "price.total": 1, payment: 1, refund: 1, refunds: 1 } },
+            { projection: { orderNo: 1, shopId: 1, productLabel: 1, "address.name": 1, "price.total": 1, payment: 1, refund: 1, refunds: 1, invoices: 1 } },
           )
           .toArray(),
         database.payouts.find({ _id: { $in: ids("payout") } }, { projection: { to: 1, fee: 1, status: 1, utr: 1 } }).toArray(),
         database.eventOrders
           .find(
             { _id: { $in: ids("event_order") } },
-            { projection: { orderNo: 1, businessId: 1, businessName: 1, eventTitle: 1, lines: 1, "price.total": 1, payment: 1, refund: 1 } },
+            { projection: { orderNo: 1, businessId: 1, businessName: 1, eventTitle: 1, lines: 1, "price.total": 1, payment: 1, refund: 1, invoices: 1 } },
           )
           .toArray(),
       ]);
@@ -300,6 +308,7 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
               },
               refund: kind === "refund" && order.refund ? { id: order.refund.refundId, reason: order.refund.reason, by: order.refund.by } : null,
               payout: null,
+              invoice: invoiceOf(order.invoices, kind, order.refund?.refundId ?? null),
             },
           ];
         }
@@ -307,6 +316,7 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
         if (!order) return [];
         const shop = shops.find((s) => s._id.equals(order.shopId));
         const kind = entry.kind === "payment" ? "paid" : entry.kind === "release" ? "available" : entry.kind === "rider_pay" ? "delivery" : "refund";
+        const refund = kind === "refund" ? refundOf(order, entry.txnId) : null;
         return [
           {
             ...base,
@@ -322,8 +332,9 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
               paymentId: order.payment.paymentId,
               paidAt: order.payment.paidAt?.toISOString() ?? null,
             },
-            refund: kind === "refund" ? refundView(refundOf(order, entry.txnId)) : null,
+            refund: refundView(refund),
             payout: null,
+            invoice: invoiceOf(order.invoices, kind, refund?.refundId ?? null),
           },
         ];
       });

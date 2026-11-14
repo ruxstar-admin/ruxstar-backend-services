@@ -5,6 +5,7 @@ import { writeAudit } from "../../platform/audit.js";
 import type { AuditLogDoc, Database, EventDoc, EventOrderDoc, EventTicketDoc, EventWaitDoc } from "../../platform/db.js";
 import { stamp } from "../../platform/db.js";
 import { AppError } from "../../platform/errors.js";
+import { creditOrder, invoiceEventOrder } from "../invoices/issue.js";
 import { notifyEvent } from "../notifications/notify.js";
 import { rupees, signingKey } from "../pod/orders.js";
 import type { CreateTicketsBody } from "./contracts.js";
@@ -271,6 +272,8 @@ export async function confirmTickets(app: FastifyInstance, db: Database, order: 
     if (!done) return null;
     await db.eventTickets.updateMany({ orderId: order._id, status: "awaiting_payment" }, { $set: { status: "valid", updatedAt: now } }, { session });
     for (const entry of eventLedger("payment", done, now)) await db.ledgerEntries.insertOne(entry, { session });
+    const issued = await invoiceEventOrder(db, done, session);
+    if (issued.length) done.invoices = [...(done.invoices ?? []), ...issued];
     return done;
   });
   if (!after) return (await db.eventOrders.findOne({ _id: order._id })) ?? order;
@@ -319,6 +322,10 @@ export async function cancelTickets(
     await db.eventTickets.updateMany({ orderId: order._id }, { $set: { status: "cancelled", updatedAt: now } }, { session });
     await returnSeats(db, order, session);
     if (paid) for (const entry of eventLedger("refund", done, now)) await db.ledgerEntries.insertOne(entry, { session });
+    if (refund) {
+      const credited = await creditOrder(db, "event_order", done._id, { id: refund.refundId, reason: refund.reason, amount: null }, session);
+      if (credited.length) done.invoices = [...(done.invoices ?? []), ...credited];
+    }
     if (by.kind !== "system") {
       await writeAudit(
         db,

@@ -1,5 +1,6 @@
 import { Type, type Static, type TSchema } from "typebox";
 import { DateTime, Envelope, ListEnvelope, ModuleName, ObjectIdString, PageQuery, Paise, Strict } from "../../contracts/common.js";
+import { InvoiceRef } from "../invoices/contracts.js";
 import { GSTIN_PATTERN } from "../kyc/contracts.js";
 import { Rating } from "../reviews/contracts.js";
 import { BUSINESS_TYPES, MAX_POD_CITIES, MAX_PRICE_TIERS, MAX_TURNAROUND_DAYS, POD_PRODUCTS } from "./catalog.js";
@@ -373,6 +374,9 @@ const StatementLine = Strict({
       utr: Nullable(Type.String({ description: "The bank's reference" })),
     }),
     { description: "Set on withdrawal lines" },
+  ),
+  invoice: Type.Optional(
+    Nullable(InvoiceRef, { description: "The GST invoice for a paid line, or the credit note for a refund line, when one was issued" }),
   ),
 });
 export type StatementLine = Static<typeof StatementLine>;

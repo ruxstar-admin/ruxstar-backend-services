@@ -20,6 +20,7 @@ import { ErrorEnvelope } from "./contracts/common.js";
 import { registerModules } from "./modules/index.js";
 import health from "./modules/health.js";
 import { usePush } from "./modules/notifications/push.js";
+import { invoiceFiles } from "./modules/invoices/routes.js";
 import { googleJobAuth, jobs, type JobAuth } from "./modules/jobs.js";
 import kycPhotoLinks from "./modules/kyc/photo-links.js";
 import checkout from "./modules/pod/checkout.js";
@@ -185,6 +186,7 @@ export async function buildApp({
   await app.register(chatPhotoLinks);
   await app.register(kycPhotoLinks);
   await app.register(supportPhotoLinks);
+  await app.register(invoiceFiles);
   await app.register(jobs(jobAuth ?? googleJobAuth(config)));
 
   if (config.env !== "prod") {

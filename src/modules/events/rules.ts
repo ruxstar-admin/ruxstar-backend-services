@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { ObjectId } from "mongodb";
 import type { Database, EventDoc, EventOrderDoc, EventRules, EventTicketDoc, LedgerEntryDoc } from "../../platform/db.js";
+import { invoiceRefs } from "../invoices/views.js";
 import { MAX_EVENT_DAYS, MAX_PER_ORDER, type EventCard, type TicketOrder } from "./contracts.js";
 
 export const DEFAULT_EVENT_RULES: EventRules = { refundHours: 24, waitlistHours: 2, maxTicketTypes: 5, maxQuestions: 3 };
@@ -188,6 +189,7 @@ export function ticketOrderView(
       status: t.status,
       checkedInAt: t.checkIns.at(-1)?.at.toISOString() ?? null,
     })),
+    invoices: invoiceRefs(order.invoices),
     createdAt: order.createdAt.toISOString(),
   };
 }

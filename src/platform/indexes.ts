@@ -173,6 +173,18 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.eventWaits.createIndex({ eventId: 1, tierId: 1, status: 1, createdAt: 1 }),
     db.eventWaits.createIndex({ customerId: 1, eventId: 1 }),
     db.eventWaits.createIndex({ status: 1, offeredUntil: 1 }),
+    // GST documents: one per order part or refund, numbers unique per series, an order's documents, and the lists for
+    // customers, vendors (all businesses or one) and the console (everything, one kind, or found by number or order).
+    db.invoices.createIndex({ key: 1 }, { unique: true }),
+    db.invoices.createIndex({ series: 1, number: 1 }, { unique: true }),
+    db.invoices.createIndex({ "source.id": 1, issuedAt: 1 }),
+    db.invoices.createIndex({ customerId: 1, issuedAt: -1, _id: -1 }),
+    db.invoices.createIndex({ vendorId: 1, role: 1, issuedAt: -1, _id: -1 }),
+    db.invoices.createIndex({ businessId: 1, role: 1, issuedAt: -1, _id: -1 }),
+    db.invoices.createIndex({ issuedAt: -1, _id: -1 }),
+    db.invoices.createIndex({ kind: 1, issuedAt: -1, _id: -1 }),
+    db.invoices.createIndex({ number: 1 }),
+    db.invoices.createIndex({ "source.orderNo": 1 }),
   ]);
 }
 

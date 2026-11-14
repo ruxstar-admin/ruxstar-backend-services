@@ -1,5 +1,6 @@
 import { Type, type Static, type TSchema } from "typebox";
 import { DateTime, Envelope, ListEnvelope, ObjectIdString, PageQuery, Paise, Strict } from "../../contracts/common.js";
+import { InvoiceRefs } from "../invoices/contracts.js";
 import { Point } from "../vendor/contracts.js";
 
 const Nullable = <T extends TSchema>(schema: T, options?: { description: string }) => Type.Union([schema, Type.Null()], options);
@@ -309,6 +310,7 @@ export const TicketOrder = Strict({
   cancelUntil: Nullable(DateTime, { description: "Cancel before this for a full refund" }),
   payBy: Nullable(DateTime, { description: "Unpaid orders give their seats back after this" }),
   tickets: Type.Array(TicketView),
+  invoices: InvoiceRefs,
   createdAt: DateTime,
 });
 export type TicketOrder = Static<typeof TicketOrder>;

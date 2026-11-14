@@ -18,6 +18,8 @@ import { AppError } from "../../platform/errors.js";
 import { isModuleLive } from "../../platform/module-switch.js";
 import { appliedView, giveBack, redeem } from "../coupons/coupons.js";
 import { rateFor, roadKm, shopFeeOf } from "../delivery/rates.js";
+import { creditOrder, invoicePodOrder } from "../invoices/issue.js";
+import { invoiceRefs } from "../invoices/views.js";
 import { notifyOrder } from "../notifications/notify.js";
 import { reviewUntil } from "../reviews/reviews.js";
 import { unpricedOf } from "../vendor/businesses.js";
@@ -403,18 +405,10 @@ export async function moveOrder(
   if (to === "rejected" || to === "cancelled") set.reason = extra.reason ?? null;
   const byKind = by.kind === "rider" ? "system" : by.kind;
   const push: Record<string, unknown> = { timeline: { status: to, at: now, by: byKind } };
-  if (refunding) {
-    const refund: PodRefundDoc = {
-      refundId: `rf_${order._id.toHexString()}`,
-      amount: order.price.total,
-      kind: "full",
-      reason: extra.reason ?? null,
-      by: byKind,
-      status: "pending",
-      at: now,
-    };
-    push.refunds = refund;
-  }
+  const refund: PodRefundDoc | null = refunding
+    ? { refundId: `rf_${order._id.toHexString()}`, amount: order.price.total, kind: "full", reason: extra.reason ?? null, by: byKind, status: "pending", at: now }
+    : null;
+  if (refund) push.refunds = refund;
 
   const moved = await db.transaction(async (session: ClientSession) => {
     const after = await db.podOrders.findOneAndUpdate(
@@ -428,6 +422,13 @@ export async function moveOrder(
     if (kind) for (const entry of ledgerFor(kind, after, now)) await db.ledgerEntries.insertOne(entry, { session });
     if (to === "placed") await redeem(db, after, session);
     if (refunding) await giveBack(db, after, session);
+    const issued =
+      to === "placed"
+        ? await invoicePodOrder(db, after, session)
+        : refund
+          ? await creditOrder(db, "pod_order", after._id, { id: refund.refundId, reason: refund.reason, amount: null }, session)
+          : [];
+    if (issued.length) after.invoices = [...(after.invoices ?? []), ...issued];
     if (extra.inside) await extra.inside(session, after);
     if (by.kind !== "system") {
       await writeAudit(
@@ -758,6 +759,7 @@ const core = (doc: PodOrderDoc, links: PhotoLinks) => ({
   reportUntil: doc.status === "delivered" && doc.deliveredAt && !doc.problem ? new Date(doc.deliveredAt.getTime() + HOLD_MS).toISOString() : null,
   reviewUntil: iso(reviewUntil(doc)),
   problem: problemView(doc, links),
+  invoices: invoiceRefs(doc.invoices),
   createdAt: doc.createdAt.toISOString(),
   updatedAt: doc.updatedAt.toISOString(),
 });

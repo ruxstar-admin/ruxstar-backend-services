@@ -11,6 +11,7 @@ import { forgetModuleState } from "../../platform/module-switch.js";
 import { BUSINESS_MODULES, DEFAULT_OFFER_MINUTES, DEFAULT_RIDER_RATE, DEFAULT_SHOP_FEE_MAX } from "../delivery/rates.js";
 import { DEFAULT_MIN_PAYOUT, DEFAULT_PAYOUT_FEE } from "../vendor/payouts.js";
 import { DEFAULT_EVENT_RULES } from "../events/rules.js";
+import { consoleInvoices } from "../invoices/routes.js";
 import { ModuleParams, ModuleSettingsList, ModuleSettingsOne, ModuleSettingsPatch, type ModuleSettings } from "./contracts.js";
 import auditLog from "./audit-log.js";
 import businesses from "./businesses.js";
@@ -69,6 +70,7 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(teams);
   await app.register(supportDesk);
   await app.register(events);
+  await app.register(consoleInvoices);
   await app.register(auditLog);
 
   app.get(

@@ -1,6 +1,7 @@
 import { Type, type Static, type TSchema } from "typebox";
 import { DateTime, Envelope, ListEnvelope, ObjectIdString, PageQuery, Paise, Strict } from "../../contracts/common.js";
 import { AppliedCoupon, Offer } from "../coupons/contracts.js";
+import { InvoiceRefs } from "../invoices/contracts.js";
 import { Rating } from "../reviews/contracts.js";
 import { Photo } from "../social/contracts.js";
 import { TeamPermission } from "../team/contracts.js";
@@ -273,6 +274,7 @@ const OrderCore = {
     description: "The last moment the customer can write or change a review: 30 days after delivery. Null when it can't be reviewed now",
   }),
   problem: Nullable(Problem),
+  invoices: InvoiceRefs,
   createdAt: DateTime,
   updatedAt: DateTime,
 };

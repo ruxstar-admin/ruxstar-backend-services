@@ -4,6 +4,7 @@ import { writeAudit } from "../../platform/audit.js";
 import type { AuditLogDoc, Database, PodOrderDoc, PodProblemDoc, PodRefundDoc } from "../../platform/db.js";
 import { AppError } from "../../platform/errors.js";
 import { giveBack } from "../coupons/coupons.js";
+import { creditOrder } from "../invoices/issue.js";
 import { notifyOrder } from "../notifications/notify.js";
 import {
   askForRefund,
@@ -153,6 +154,8 @@ export async function refundPart(
     );
     if (!after) return null;
     for (const entry of partialRefundLedger(after, refund)) await db.ledgerEntries.insertOne(entry, { session });
+    const credited = await creditOrder(db, "pod_order", after._id, { id: refund.refundId, reason: refund.reason, amount: refund.amount }, session);
+    if (credited.length) after.invoices = [...(after.invoices ?? []), ...credited];
     await writeAudit(
       db,
       {
@@ -236,6 +239,10 @@ export async function refundWhole(
     await stopTrip(db, session, order, "staff", "Ruxstar refunded the order.");
     for (const entry of ledgerFor("refund", after, now)) await db.ledgerEntries.insertOne(entry, { session });
     await giveBack(db, after, session);
+    if (amount > 0) {
+      const credited = await creditOrder(db, "pod_order", after._id, { id: refund.refundId, reason: refund.reason, amount: null }, session);
+      if (credited.length) after.invoices = [...(after.invoices ?? []), ...credited];
+    }
     await writeAudit(
       db,
       {

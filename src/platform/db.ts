@@ -711,6 +711,8 @@ export interface PodOrderDoc extends Stamped {
   problem?: PodProblemDoc | null;
   /** When the problem was reported; top level so the console can page by it. */
   problemAt?: Date | null;
+  /** The GST documents issued for it, oldest first. Missing before 15 Nov 2026. */
+  invoices?: InvoiceRefDoc[];
 }
 
 export type DeliveryJobStatus = "offered" | "accepted" | "picked_up" | "delivered" | "cancelled";
@@ -877,6 +879,128 @@ export interface EventOrderDoc extends Stamped {
   /** The organiser's share becomes available when the event ends. */
   releaseAt: Date | null;
   releasedAt: Date | null;
+  /** The GST documents issued for it, oldest first. Missing before 15 Nov 2026. */
+  invoices?: InvoiceRefDoc[];
+}
+
+export type InvoiceKind = "tax_invoice" | "bill_of_supply" | "credit_note";
+/** Modules with GST rules. `turf` and `ecommerce` have defaults ready for when they are built. */
+export type GstModule = "pod" | "events" | "coaching" | "stays" | "turf" | "ecommerce";
+
+/** A rate for one module, or for one product or kind of business in it. Units priced at or below `lowRate.upTo` use its rate. */
+export interface GstRate {
+  code: string;
+  codeKind: "hsn" | "sac";
+  rateBps: number;
+  lowRate: { upTo: number; rateBps: number } | null;
+}
+
+/** What Ruxstar sets for GST in one module (decision A8). Missing fields use the defaults in the invoices module. */
+export interface GstRules extends GstRate {
+  enabled: boolean;
+  /** `vendor`: the vendor sells and Ruxstar is the e-commerce operator. `ruxstar`: Ruxstar invoices the sale itself. */
+  seller: "vendor" | "ruxstar";
+  /** A vendor without a GSTIN: they issue a bill of supply, or Ruxstar issues the invoice and pays the tax (section 9(5)). */
+  withoutGstin: "bill_of_supply" | "ruxstar";
+  pricesIncludeTax: boolean;
+  /** Tax the operator collects at source on a registered vendor's sales. */
+  tcsBps: number;
+  items: (GstRate & { key: string; label: string })[];
+}
+
+/** Ruxstar's own details, printed on its invoices and as the operator on vendors'. */
+export interface GstSeller {
+  legalName: string;
+  tradeName: string;
+  gstin: string | null;
+  address: { line: string; city: string; state: string; pincode: string } | null;
+  /** The platform fee's SAC and rate. */
+  feeCode: string;
+  feeRateBps: number;
+}
+
+export interface InvoiceParty {
+  name: string;
+  legalName: string | null;
+  gstin: string | null;
+  address: string | null;
+  state: string | null;
+  /** The two-digit GST state code. */
+  stateCode: string | null;
+}
+
+export interface InvoiceLineDoc {
+  description: string;
+  code: string;
+  codeKind: "hsn" | "sac";
+  quantity: number;
+  /** Paise per unit, as charged. */
+  unitPrice: number;
+  /** Paise off the line by the seller, such as their coupon. */
+  discount: number;
+  rateBps: number;
+  taxable: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  /** Taxable value plus tax. */
+  total: number;
+}
+
+/**
+ * A GST document, numbered once and never changed afterwards except `credited`. Everything printed on it is copied in when it
+ * is issued, so later changes to settings, businesses or names never alter it.
+ */
+export interface InvoiceDoc extends Stamped {
+  _id: ObjectId;
+  /** One document per order part, or per refund and invoice: `pod_order:<id>:supply`, `credit:<invoice>:<refund>`. */
+  key: string;
+  kind: InvoiceKind;
+  /** Up to 16 characters, consecutive within `series`. */
+  number: string;
+  /** The counter it was numbered from: one per seller, document type and Indian financial year. */
+  series: string;
+  /** For example 2026-27. */
+  fy: string;
+  issuer: "vendor" | "ruxstar";
+  /** `supply`: what was bought; `fee`: Ruxstar's platform fee. */
+  role: "supply" | "fee";
+  module: GstModule;
+  source: { type: "pod_order" | "event_order"; id: ObjectId; orderNo: number };
+  businessId: ObjectId;
+  businessName: string;
+  vendorId: ObjectId;
+  customerId: ObjectId;
+  seller: InvoiceParty;
+  buyer: InvoiceParty;
+  /** Ruxstar as the e-commerce operator, on documents a vendor issues. */
+  operator: { name: string; gstin: string | null } | null;
+  placeOfSupply: { state: string; code: string } | null;
+  supply: "intra" | "inter";
+  /** Ruxstar pays the tax as the operator on a vendor's sale (section 9(5)). */
+  operatorPays: boolean;
+  lines: InvoiceLineDoc[];
+  totals: { taxable: number; cgst: number; sgst: number; igst: number; tax: number; total: number; ruxstarDiscount: number; payable: number };
+  tcs: { rateBps: number; amount: number } | null;
+  /** Credit notes: the invoice they reduce, and the refund behind them. */
+  against: { id: ObjectId; number: string; issuedAt: Date } | null;
+  refund: { id: string; reason: string | null } | null;
+  /** Invoices: paise credited back so far. */
+  credited: number;
+  notes: string[];
+  issuedAt: Date;
+}
+
+/** What an order keeps about each of its GST documents. */
+export interface InvoiceRefDoc {
+  id: ObjectId;
+  kind: InvoiceKind;
+  number: string;
+  issuer: "vendor" | "ruxstar";
+  role: "supply" | "fee";
+  total: number;
+  refundId: string | null;
+  issuedAt: Date;
 }
 
 /** One person's entry. The QR code holds a signed token; only its SHA-256 is stored, and is what scanners check offline. */
@@ -1284,6 +1408,9 @@ export class Database {
   }
   get eventWaits() {
     return this.db.collection<EventWaitDoc>("event_waitlist");
+  }
+  get invoices() {
+    return this.db.collection<InvoiceDoc>("invoices");
   }
 
   /** Runs `work` in a majority-committed transaction, retrying transient errors. */

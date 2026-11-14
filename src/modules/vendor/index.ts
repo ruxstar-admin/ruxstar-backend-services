@@ -35,6 +35,7 @@ import coupons from "./coupons.js";
 import events from "../events/manage.js";
 import { INDIA } from "./india.js";
 import orders from "./orders.js";
+import { vendorInvoices } from "../invoices/routes.js";
 import payments from "./payments.js";
 import reviews from "./reviews.js";
 import team from "./team.js";
@@ -49,6 +50,7 @@ const by = (request: FastifyRequest) => ({ actor: actorOf(request), ip: request.
 const vendor: FastifyPluginAsyncTypebox = async (app) => {
   app.addContentTypeParser(/^image\//, { parseAs: "buffer", bodyLimit: POST_PHOTO_MAX_BYTES }, (_request, body, done) => done(null, body));
   await app.register(payments);
+  await app.register(vendorInvoices);
   await app.register(orders);
   await app.register(coupons);
   await app.register(team);
