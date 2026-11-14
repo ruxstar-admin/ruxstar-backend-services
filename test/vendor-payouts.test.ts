@@ -79,7 +79,14 @@ describe("vendor withdrawals", () => {
 
     expect((await payments(owner)).balance).toEqual({ available: 0, pending: 0, paidOut: 50_000 });
     const lines = (await call("GET", "/vendor/payments/statement", owner.token)).json().data;
-    expect(lines[0]).toMatchObject({ kind: "withdrawal", amount: -50_000, module: "ledger", order: null, payout: { id: payout.id, to: "YES BANK ••1191" } });
+    expect(lines[0]).toMatchObject({
+      kind: "withdrawal",
+      amount: -50_000,
+      module: "ledger",
+      order: null,
+      refund: null,
+      payout: { id: payout.id, to: "YES BANK ••1191", fee: 590, status: "paid", utr: payout.utr },
+    });
     const entries = await stack.db.ledgerEntries.find({}).toArray();
     expect(entries.reduce((sum, e) => sum + e.signedPaise, 0)).toBe(0);
     expect(entries.find((e) => e.accountId === "ruxstar")).toMatchObject({ kind: "payout", signedPaise: 590 });

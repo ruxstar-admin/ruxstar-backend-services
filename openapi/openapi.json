@@ -23938,6 +23938,7 @@
                           "at",
                           "module",
                           "order",
+                          "refund",
                           "payout"
                         ],
                         "properties": {
@@ -23969,6 +23970,12 @@
                               {
                                 "type": "string",
                                 "enum": [
+                                  "delivery"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
                                   "withdrawal"
                                 ]
                               },
@@ -23979,11 +23986,11 @@
                                 ]
                               }
                             ],
-                            "description": "paid: an order's share arrived, pending until its hold ends. available: the hold ended and it can be withdrawn. refund: money went back to the customer out of your share. withdrawal: you withdrew it. returned: a withdrawal failed and came back."
+                            "description": "paid: an order's share arrived, pending until its hold ends. available: the hold ended and it can be withdrawn. refund: money went back to the customer out of your share. delivery: a Ruxstar delivery partner's pay for the order, out of your share. withdrawal: you withdrew it. returned: a withdrawal failed and came back."
                           },
                           "amount": {
                             "type": "integer",
-                            "description": "Paise; negative for refunds and withdrawals"
+                            "description": "Paise; negative for refunds, delivery pay and withdrawals"
                           },
                           "at": {
                             "type": "string",
@@ -24036,7 +24043,12 @@
                                 "required": [
                                   "id",
                                   "orderNo",
-                                  "business"
+                                  "business",
+                                  "label",
+                                  "customer",
+                                  "total",
+                                  "paymentId",
+                                  "paidAt"
                                 ],
                                 "properties": {
                                   "id": {
@@ -24071,6 +24083,41 @@
                                         "type": "null"
                                       }
                                     ]
+                                  },
+                                  "label": {
+                                    "type": "string",
+                                    "description": "What was ordered, for example T-Shirts"
+                                  },
+                                  "customer": {
+                                    "type": "string",
+                                    "description": "The name it was delivered to"
+                                  },
+                                  "total": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Amount in paise"
+                                  },
+                                  "paymentId": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "description": "The gateway's payment ID"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "paidAt": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "format": "date-time"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
                                   }
                                 },
                                 "additionalProperties": false
@@ -24081,13 +24128,77 @@
                             ],
                             "description": "Set on order lines"
                           },
+                          "refund": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "reason",
+                                  "by"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "description": "The gateway's refund ID"
+                                  },
+                                  "reason": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "by": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "customer"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "vendor"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "staff"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "system"
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Set on refund lines"
+                          },
                           "payout": {
                             "anyOf": [
                               {
                                 "type": "object",
                                 "required": [
                                   "id",
-                                  "to"
+                                  "to",
+                                  "fee",
+                                  "status",
+                                  "utr"
                                 ],
                                 "properties": {
                                   "id": {
@@ -24097,6 +24208,44 @@
                                   },
                                   "to": {
                                     "type": "string"
+                                  },
+                                  "fee": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "description": "Amount in paise"
+                                  },
+                                  "status": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "pending"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "paid"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "failed"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "utr": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "description": "The bank's reference"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
                                   }
                                 },
                                 "additionalProperties": false

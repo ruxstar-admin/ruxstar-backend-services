@@ -5,7 +5,7 @@ import { ObjectId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { actorOf, writeAudit } from "../../platform/audit.js";
 import { requireDatabase } from "../../platform/context.js";
-import type { AuditLogDoc, Database, PayoutDoc, PayoutMethodDoc, Stamped } from "../../platform/db.js";
+import type { AuditLogDoc, Database, PayoutDoc, PayoutMethodDoc, PodOrderDoc, PodRefundDoc, Stamped } from "../../platform/db.js";
 import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
@@ -13,7 +13,7 @@ import { findPage } from "../../platform/pagination.js";
 import { seal } from "../../platform/sealed.js";
 import { loadCase, NAME_MATCHES, verificationId } from "../kyc/cases.js";
 import { releaseShare } from "../pod/order-rules.js";
-import { shopShareLeft } from "../pod/orders.js";
+import { refundsOf, shopShareLeft } from "../pod/orders.js";
 import { payoutMethodView, requireVendor } from "./businesses.js";
 import { PayoutMethodBody, PayoutMethodResult, PayoutResult, Payments, Statement, StatementQuery, type Payout, type StatementLine } from "./contracts.js";
 import { failureText, methodsOf, payeeFilter, payoutRules, settleDue, withdraw, type Payee } from "./payouts.js";
@@ -31,6 +31,14 @@ export const payoutView = (p: PayoutDoc): Payout => ({
 });
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
+
+/** A partial refund's ledger lines carry its ID (`refund:<order>:<refund>`); a full refund's (`refund:<order>`) don't. */
+function refundOf(order: Pick<PodOrderDoc, "refund" | "refunds">, txnId: string): PodRefundDoc | null {
+  const refunds = refundsOf(order as PodOrderDoc);
+  const id = txnId.split(":")[2];
+  return (id ? refunds.find((r) => r.refundId === id) : refunds.find((r) => r.kind === "full")) ?? null;
+}
+const refundView = (r: PodRefundDoc | null) => (r ? { id: r.refundId, reason: r.reason, by: r.by } : null);
 /** UPI answers MATCH where bank checks grade the name. */
 const PAYOUT_NAME_MATCHES = new Set([...NAME_MATCHES, "MATCH"]);
 
@@ -217,8 +225,13 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
       });
       const ids = (type: "pod_order" | "payout") => items.filter((e) => e.source.type === type).map((e) => e.source.id);
       const [orders, payouts] = await Promise.all([
-        database.podOrders.find({ _id: { $in: ids("pod_order") } }, { projection: { orderNo: 1, shopId: 1 } }).toArray(),
-        database.payouts.find({ _id: { $in: ids("payout") } }, { projection: { to: 1 } }).toArray(),
+        database.podOrders
+          .find(
+            { _id: { $in: ids("pod_order") } },
+            { projection: { orderNo: 1, shopId: 1, productLabel: 1, "address.name": 1, "price.total": 1, payment: 1, refund: 1, refunds: 1 } },
+          )
+          .toArray(),
+        database.payouts.find({ _id: { $in: ids("payout") } }, { projection: { to: 1, fee: 1, status: 1, utr: 1 } }).toArray(),
       ]);
       const shops = await database.businesses
         .find({ _id: { $in: orders.map((o) => o.shopId) } }, { projection: { name: 1 } })
@@ -229,17 +242,37 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           const payout = payouts.find((p) => p._id.equals(entry.source.id));
           if (!payout) return [];
           const kind = entry.kind === "payout" ? "withdrawal" : "returned";
-          return [{ ...base, kind, module: "ledger", order: null, payout: { id: payout._id.toHexString(), to: payout.to } }];
+          return [
+            {
+              ...base,
+              kind,
+              module: "ledger",
+              order: null,
+              refund: null,
+              payout: { id: payout._id.toHexString(), to: payout.to, fee: payout.fee ?? 0, status: payout.status, utr: payout.utr },
+            },
+          ];
         }
         const order = orders.find((o) => o._id.equals(entry.source.id));
         if (!order) return [];
         const shop = shops.find((s) => s._id.equals(order.shopId));
+        const kind = entry.kind === "payment" ? "paid" : entry.kind === "release" ? "available" : entry.kind === "rider_pay" ? "delivery" : "refund";
         return [
           {
             ...base,
-            kind: entry.kind === "payment" ? "paid" : entry.kind === "release" ? "available" : "refund",
+            kind,
             module: "pod",
-            order: { id: order._id.toHexString(), orderNo: order.orderNo, business: shop ? { id: shop._id.toHexString(), name: shop.name } : null },
+            order: {
+              id: order._id.toHexString(),
+              orderNo: order.orderNo,
+              business: shop ? { id: shop._id.toHexString(), name: shop.name } : null,
+              label: order.productLabel,
+              customer: order.address.name,
+              total: order.price.total,
+              paymentId: order.payment.paymentId,
+              paidAt: order.payment.paidAt?.toISOString() ?? null,
+            },
+            refund: kind === "refund" ? refundView(refundOf(order, entry.txnId)) : null,
             payout: null,
           },
         ];

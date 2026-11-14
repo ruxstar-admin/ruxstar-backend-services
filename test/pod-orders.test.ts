@@ -487,11 +487,20 @@ describe("print orders", () => {
 
     const statement = (query = "") => call("GET", `/vendor/payments/statement${query}`, owner.token);
     const lines = (await statement()).json();
-    const ref = { id: order.id, orderNo: order.orderNo, business: { name: expect.any(String) } };
+    const ref = {
+      id: order.id,
+      orderNo: order.orderNo,
+      business: { name: expect.any(String) },
+      label: "T-Shirts",
+      customer: expect.any(String),
+      total: order.price.total,
+      paymentId: expect.any(String),
+      paidAt: expect.any(String),
+    };
     expect(lines.data).toMatchObject([
-      { kind: "available", amount: 274_000, module: "pod", order: ref },
-      { kind: "refund", amount: -50_000, order: ref },
-      { kind: "paid", amount: 324_000, order: ref },
+      { kind: "available", amount: 274_000, module: "pod", order: ref, refund: null },
+      { kind: "refund", amount: -50_000, order: ref, refund: { id: `rf_${order.id}_1`, reason: "Two shirts misprinted", by: "vendor" } },
+      { kind: "paid", amount: 324_000, order: ref, refund: null, payout: null },
     ]);
     const first = (await statement("?limit=2")).json();
     expect(first.data.map((l: { kind: string }) => l.kind)).toEqual(["available", "refund"]);

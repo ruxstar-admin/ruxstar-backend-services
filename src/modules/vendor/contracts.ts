@@ -325,14 +325,22 @@ export const StatementQuery = Strict({ ...PageQuery });
 const StatementLine = Strict({
   id: ObjectIdString,
   kind: Type.Union(
-    [Type.Literal("paid"), Type.Literal("available"), Type.Literal("refund"), Type.Literal("withdrawal"), Type.Literal("returned")],
+    [
+      Type.Literal("paid"),
+      Type.Literal("available"),
+      Type.Literal("refund"),
+      Type.Literal("delivery"),
+      Type.Literal("withdrawal"),
+      Type.Literal("returned"),
+    ],
     {
       description:
         "paid: an order's share arrived, pending until its hold ends. available: the hold ended and it can be withdrawn. " +
-        "refund: money went back to the customer out of your share. withdrawal: you withdrew it. returned: a withdrawal failed and came back.",
+        "refund: money went back to the customer out of your share. delivery: a Ruxstar delivery partner's pay for the order, out of your share. " +
+        "withdrawal: you withdrew it. returned: a withdrawal failed and came back.",
     },
   ),
-  amount: Type.Integer({ description: "Paise; negative for refunds and withdrawals" }),
+  amount: Type.Integer({ description: "Paise; negative for refunds, delivery pay and withdrawals" }),
   at: DateTime,
   module: ModuleName,
   order: Nullable(
@@ -340,10 +348,32 @@ const StatementLine = Strict({
       id: ObjectIdString,
       orderNo: Type.Integer(),
       business: Nullable(Strict({ id: ObjectIdString, name: Type.String() })),
+      label: Type.String({ description: "What was ordered, for example T-Shirts" }),
+      customer: Type.String({ description: "The name it was delivered to" }),
+      total: Paise,
+      paymentId: Nullable(Type.String({ description: "The gateway's payment ID" })),
+      paidAt: Nullable(DateTime),
     }),
     { description: "Set on order lines" },
   ),
-  payout: Nullable(Strict({ id: ObjectIdString, to: Type.String() }), { description: "Set on withdrawal lines" }),
+  refund: Nullable(
+    Strict({
+      id: Type.String({ description: "The gateway's refund ID" }),
+      reason: Nullable(Type.String()),
+      by: Type.Union([Type.Literal("customer"), Type.Literal("vendor"), Type.Literal("staff"), Type.Literal("system")]),
+    }),
+    { description: "Set on refund lines" },
+  ),
+  payout: Nullable(
+    Strict({
+      id: ObjectIdString,
+      to: Type.String(),
+      fee: Paise,
+      status: Type.Union([Type.Literal("pending"), Type.Literal("paid"), Type.Literal("failed")]),
+      utr: Nullable(Type.String({ description: "The bank's reference" })),
+    }),
+    { description: "Set on withdrawal lines" },
+  ),
 });
 export type StatementLine = Static<typeof StatementLine>;
 

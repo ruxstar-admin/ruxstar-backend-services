@@ -360,6 +360,8 @@ describe("delivery", () => {
         [`vendor:${owner.userId.toHexString()}`, "pending", -pay],
       ].sort(),
     );
+    const statement = (await call("GET", "/vendor/payments/statement", owner.token)).json().data;
+    expect(statement[0]).toMatchObject({ kind: "delivery", amount: -pay, order: { id: order.id }, refund: null });
     const shopSide = (await call("GET", `/vendor/orders/${order.id}`, owner.token)).json().data;
     expect(shopSide.price.payoutLeft).toBe(270_000 - pay);
     expect(shopSide.delivery).toMatchObject({ status: "delivered", rider: { name: "Asha" } });
