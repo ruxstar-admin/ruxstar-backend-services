@@ -36,7 +36,14 @@ const StoredStatus = Type.Union([Type.Literal("open"), Type.Literal("waiting"), 
 export const SupportStatus = Type.Union([Type.Literal("open"), Type.Literal("waiting"), Type.Literal("resolved"), Type.Literal("closed")], {
   description: "`waiting` is waiting on you. A resolved ticket can be reopened by replying for 7 days, then it is `closed`.",
 });
-const ContextType = Type.Union([Type.Literal("order"), Type.Literal("business"), Type.Literal("verification"), Type.Literal("post"), Type.Literal("coupon")]);
+const ContextType = Type.Union([
+  Type.Literal("order"),
+  Type.Literal("business"),
+  Type.Literal("verification"),
+  Type.Literal("post"),
+  Type.Literal("coupon"),
+  Type.Literal("delivery"),
+]);
 const Text = Type.String({ minLength: 1, maxLength: SUPPORT_TEXT_MAX });
 
 export const TicketParams = Strict({ id: ObjectIdString });
@@ -49,7 +56,10 @@ export const TicketCreate = Strict({
   context: Type.Optional(
     Strict(
       { type: ContextType, id: Type.String({ minLength: 1, maxLength: 40 }) },
-      { description: "What it is about: an order, business, coupon or post by id, or verification by track (base or delivery). It must be yours, except a post." },
+      {
+        description:
+          "What it is about: an order, business, coupon or post by id, verification by track (base or delivery), or a delivery job by id. It must be yours, except a post; a delivery must be one you are or were the rider on.",
+      },
     ),
   ),
 });
@@ -103,7 +113,7 @@ const staffFields = {
       type: ContextType,
       id: Type.String(),
       label: Type.String(),
-      state: Nullable(Type.String({ description: "Where it stands now, for example a verification case's status or a business's" })),
+      state: Nullable(Type.String({ description: "Where it stands now, for example a verification case's status, a business's or a delivery's" })),
       kycCaseId: Nullable(ObjectIdString),
     }),
   ),

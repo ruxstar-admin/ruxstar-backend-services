@@ -77207,6 +77207,12 @@
                                         "enum": [
                                           "coupon"
                                         ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "delivery"
+                                        ]
                                       }
                                     ]
                                   },
@@ -77439,6 +77445,12 @@
                             "enum": [
                               "coupon"
                             ]
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "delivery"
+                            ]
                           }
                         ]
                       },
@@ -77449,7 +77461,7 @@
                       }
                     },
                     "additionalProperties": false,
-                    "description": "What it is about: an order, business, coupon or post by id, or verification by track (base or delivery). It must be yours, except a post."
+                    "description": "What it is about: an order, business, coupon or post by id, verification by track (base or delivery), or a delivery job by id. It must be yours, except a post; a delivery must be one you are or were the rider on."
                   }
                 },
                 "additionalProperties": false
@@ -77634,6 +77646,12 @@
                                       "type": "string",
                                       "enum": [
                                         "coupon"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "delivery"
                                       ]
                                     }
                                   ]
@@ -77996,6 +78014,12 @@
                                       "type": "string",
                                       "enum": [
                                         "coupon"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "delivery"
                                       ]
                                     }
                                   ]
@@ -78380,6 +78404,12 @@
                                       "enum": [
                                         "coupon"
                                       ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "delivery"
+                                      ]
                                     }
                                   ]
                                 },
@@ -78752,6 +78782,12 @@
                                       "enum": [
                                         "coupon"
                                       ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "delivery"
+                                      ]
                                     }
                                   ]
                                 },
@@ -79113,6 +79149,12 @@
                                       "type": "string",
                                       "enum": [
                                         "coupon"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "delivery"
                                       ]
                                     }
                                   ]
@@ -99288,6 +99330,12 @@
                                         "enum": [
                                           "coupon"
                                         ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "delivery"
+                                        ]
                                       }
                                     ]
                                   },
@@ -99301,7 +99349,7 @@
                                     "anyOf": [
                                       {
                                         "type": "string",
-                                        "description": "Where it stands now, for example a verification case's status or a business's"
+                                        "description": "Where it stands now, for example a verification case's status, a business's or a delivery's"
                                       },
                                       {
                                         "type": "null"
@@ -99942,6 +99990,12 @@
                                       "enum": [
                                         "coupon"
                                       ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "delivery"
+                                      ]
                                     }
                                   ]
                                 },
@@ -99955,7 +100009,7 @@
                                   "anyOf": [
                                     {
                                       "type": "string",
-                                      "description": "Where it stands now, for example a verification case's status or a business's"
+                                      "description": "Where it stands now, for example a verification case's status, a business's or a delivery's"
                                     },
                                     {
                                       "type": "null"
@@ -100613,6 +100667,12 @@
                                       "enum": [
                                         "coupon"
                                       ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "delivery"
+                                      ]
                                     }
                                   ]
                                 },
@@ -100626,7 +100686,7 @@
                                   "anyOf": [
                                     {
                                       "type": "string",
-                                      "description": "Where it stands now, for example a verification case's status or a business's"
+                                      "description": "Where it stands now, for example a verification case's status, a business's or a delivery's"
                                     },
                                     {
                                       "type": "null"
@@ -101199,6 +101259,12 @@
                                       "enum": [
                                         "coupon"
                                       ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "delivery"
+                                      ]
                                     }
                                   ]
                                 },
@@ -101212,7 +101278,7 @@
                                   "anyOf": [
                                     {
                                       "type": "string",
-                                      "description": "Where it stands now, for example a verification case's status or a business's"
+                                      "description": "Where it stands now, for example a verification case's status, a business's or a delivery's"
                                     },
                                     {
                                       "type": "null"

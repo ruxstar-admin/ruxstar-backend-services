@@ -73,6 +73,8 @@ const supportDesk: FastifyPluginAsyncTypebox = async (app) => {
     } else if (id && context.type === "coupon") {
       const coupon = await d.coupons.findOne({ _id: id }, { projection: { active: 1, stoppedByRuxstar: 1 } });
       state = coupon ? (coupon.stoppedByRuxstar ? "stopped" : coupon.active ? "active" : "off") : null;
+    } else if (id && context.type === "delivery") {
+      state = (await d.deliveryJobs.findOne({ _id: id }, { projection: { status: 1 } }))?.status ?? null;
     }
     return { ...context, state, kycCaseId };
   }

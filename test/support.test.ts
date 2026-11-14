@@ -78,6 +78,46 @@ describe("support", () => {
     expect((await open(customer.token, { context: { type: "verification", id: "base" } })).statusCode).toBe(404);
   });
 
+  it("lets only the rider open a ticket about a delivery", async () => {
+    const rider = await person("Ravi Rider");
+    const other = await person("Other Rider");
+    const jobId = new ObjectId();
+    const place = { name: "Shop", phone: "9000000000", line: "MG Road", city: "Hyderabad", point: null };
+    await stack.db.deliveryJobs.insertOne({
+      _id: jobId,
+      orderId: new ObjectId(),
+      orderNo: 1042,
+      shopId: new ObjectId(),
+      vendorId: new ObjectId(),
+      carrier: "partner",
+      city: "hyderabad",
+      riderId: rider.userId,
+      placeId: null,
+      status: "picked_up",
+      offerUntil: null,
+      pickup: place,
+      drop: { ...place, name: "Customer", pincode: "500001" },
+      item: "Photo prints",
+      distanceKm: 3.2,
+      pay: 4000,
+      dropCode: "1234",
+      proof: null,
+      passedBy: [],
+      codeTries: 0,
+      cancel: null,
+      timeline: [],
+      ...stamp(),
+    });
+
+    const context = { type: "delivery", id: jobId.toHexString() };
+    expect((await open(other.token, { category: "orders", subject: "Customer not home", context })).statusCode).toBe(404);
+    const ticket = (await open(rider.token, { category: "orders", subject: "Customer not home", context })).json().data;
+    expect(ticket.context).toEqual({ ...context, label: "Delivery for Order #1042" });
+
+    const desk = (await call("GET", `/ruxstar/support/tickets/${ticket.id}`, admin.token)).json().data;
+    expect(desk.context).toMatchObject({ type: "delivery", state: "picked_up", kycCaseId: null });
+  });
+
   it("caps open tickets", async () => {
     const busy = await person("Busy Person");
     for (let i = 0; i < 5; i++) expect((await open(busy.token)).statusCode).toBe(200);

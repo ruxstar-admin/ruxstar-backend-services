@@ -950,7 +950,7 @@ export type SupportCategory = "orders" | "refunds" | "verification" | "business"
 export type SupportPriority = "urgent" | "high" | "normal" | "low";
 /** `waiting` is waiting on the customer. A resolved ticket reads as closed once `reopenUntil` has passed. */
 export type SupportStatus = "open" | "waiting" | "resolved";
-export type SupportContextType = "order" | "business" | "verification" | "post" | "coupon";
+export type SupportContextType = "order" | "business" | "verification" | "post" | "coupon" | "delivery";
 
 export interface SupportTicketDoc extends Stamped {
   _id: ObjectId;

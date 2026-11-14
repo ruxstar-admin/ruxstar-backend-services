@@ -103,6 +103,11 @@ export async function resolveContext(
       if (!found) throw notYours("verification");
       return { type: "verification", id: context.id, label: context.id === "delivery" ? "Delivery verification" : "Identity verification" };
     }
+    case "delivery": {
+      const job = await db.deliveryJobs.findOne({ _id: oid(context.id), riderId: userId }, { projection: { orderNo: 1 } });
+      if (!job) throw notYours("delivery");
+      return { type: "delivery", id: context.id, label: `Delivery for Order #${job.orderNo}` };
+    }
   }
 }
 
