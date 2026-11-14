@@ -26,14 +26,16 @@ export function mentionsIn(text: string): string[] {
 
 /**
  * Tells the people @mentioned in a post or comment. Never the author, never anyone blocked either way, and never someone in
- * `skip` (they were told another way). Answers who was told. Logged, never thrown: the post is already saved.
+ * `skip` (they were told another way). After an edit, `before` is the old text: only names it didn't have are told.
+ * Answers who was told. Logged, never thrown: the post is already saved.
  */
 export async function notifyMentions(
   db: Database,
   log: FastifyBaseLogger,
-  event: { text: string; actor: { id: ObjectId; name?: string }; postId: ObjectId; skip?: ObjectId[] },
+  event: { text: string; before?: string; actor: { id: ObjectId; name?: string }; postId: ObjectId; skip?: ObjectId[] },
 ): Promise<ObjectId[]> {
-  const usernames = mentionsIn(event.text);
+  const already = new Set(event.before === undefined ? [] : mentionsIn(event.before));
+  const usernames = mentionsIn(event.text).filter((name) => !already.has(name));
   if (usernames.length === 0) return [];
   try {
     const [people, blocked, actor] = await Promise.all([

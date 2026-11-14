@@ -16,6 +16,7 @@ import { notifyFollowersOfPost, notifyMentions } from "../notifications/notify-p
 import { teamAccess } from "../team/team.js";
 import {
   CommentCreate,
+  CommentPatch,
   CommentList,
   CommentResult,
   Done,
@@ -127,7 +128,16 @@ async function presentComments(db: Database, comments: WithId<PostCommentDoc>[],
   return comments.flatMap((comment) => {
     const author = authors.get(comment.authorId.toHexString());
     if (!author) return [];
-    return [{ id: comment._id.toHexString(), author, text: comment.text, createdAt: comment.createdAt.toISOString(), mine: !!me && comment.authorId.equals(me) }];
+    return [
+      {
+        id: comment._id.toHexString(),
+        author,
+        text: comment.text,
+        createdAt: comment.createdAt.toISOString(),
+        editedAt: comment.editedAt?.toISOString() ?? null,
+        mine: !!me && comment.authorId.equals(me),
+      },
+    ];
   });
 }
 
@@ -468,6 +478,7 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
       );
       if (!updated) throw removed();
       const [view] = await present(db, [updated], userId);
+      void notifyMentions(db, app.log, { text, before: post.text, actor: { id: post.authorId }, postId: post._id });
       return ok(request, view!);
     },
   );
@@ -602,6 +613,43 @@ const social: FastifyPluginAsyncTypebox = async (app) => {
       void notifyPostEvent(db, app.log, { type: "post.comment", to: post.authorId, actor: { id: userId, name: comment!.author.name }, postId: post._id, excerpt: text });
       void notifyMentions(db, app.log, { text, actor: { id: userId, name: comment!.author.name }, postId: post._id, skip: [post.authorId] });
       return reply.status(201).send(ok(request, comment!));
+    },
+  );
+
+  app.patch(
+    "/comments/:id",
+    {
+      preHandler: requireAuth,
+      config: limit(10, 30),
+      schema: {
+        tags: ["social"],
+        summary: "Change the text of your comment",
+        description: "Only the person who wrote it. People newly @mentioned are told; those already in it aren't told again.",
+        params: IdParams,
+        body: CommentPatch,
+        response: { 200: CommentResult, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const db = requireDatabase(app.db);
+      const userId = request.auth!.userId;
+      const text = tidy(request.body.text);
+      if (!text) throw new AppError("VALIDATION_FAILED", "Write a comment, or delete it.", [{ path: "body/text", message: "Empty comment" }]);
+      const comment = await db.postComments.findOne({ _id: new ObjectId(request.params.id), status: "live" });
+      if (!comment) throw new AppError("NOT_FOUND", "This comment was removed.");
+      if (!comment.authorId.equals(userId)) throw new AppError("FORBIDDEN", "You can only edit your own comments.");
+      const post = await livePost(db, comment.postId.toHexString());
+      const now = new Date();
+      const updated = await db.postComments.findOneAndUpdate(
+        { _id: comment._id, status: "live" },
+        { $set: { text, editedAt: now, updatedAt: now } },
+        { returnDocument: "after" },
+      );
+      if (!updated) throw new AppError("NOT_FOUND", "This comment was removed.");
+      const [view] = await presentComments(db, [updated], userId);
+      void notifyMentions(db, app.log, { text, before: comment.text, actor: { id: userId, name: view!.author.name }, postId: post._id, skip: [post.authorId] });
+      return ok(request, view!);
     },
   );
 

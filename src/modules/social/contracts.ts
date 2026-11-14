@@ -59,6 +59,7 @@ export const Comment = Strict({
   author: Author,
   text: Type.String(),
   createdAt: DateTime,
+  editedAt: Type.Union([DateTime, Type.Null()], { description: "When the author last changed the text" }),
   mine: Type.Boolean(),
 });
 export type Comment = Static<typeof Comment>;
@@ -80,6 +81,7 @@ export const PostCreate = Strict({
 });
 export const PostPatch = Strict({ text: Type.String({ maxLength: POST_TEXT_MAX }) });
 export const CommentCreate = Strict({ text: Type.String({ minLength: 1, maxLength: COMMENT_TEXT_MAX }) });
+export const CommentPatch = CommentCreate;
 
 export const ReportReason = Type.Union(["spam", "fake", "abuse", "undelivered", "other"].map((r) => Type.Literal(r)));
 export const ReportBody = Strict({ reason: ReportReason });

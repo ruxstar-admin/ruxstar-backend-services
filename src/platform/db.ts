@@ -317,6 +317,7 @@ export interface PostCommentDoc extends Stamped {
   authorId: ObjectId;
   text: string;
   status: "live" | "deleted";
+  editedAt?: Date | null;
 }
 
 export type ReportReason = "spam" | "fake" | "abuse" | "undelivered" | "other";

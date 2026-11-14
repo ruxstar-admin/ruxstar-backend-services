@@ -196,6 +196,13 @@ describe("likes, saves, comments and reports", () => {
     const inbox = (await call("GET", "/notifications", author)).json().data;
     expect(inbox.map((n: { body: string }) => n.body)).toEqual(["Vik Rao: How long did it take?"]);
 
+    expect(comment.editedAt).toBeNull();
+    expect((await call("PATCH", `/social/comments/${comment.id}`, author, { text: "Not mine to change" })).statusCode).toBe(403);
+    expect((await call("PATCH", `/social/comments/${comment.id}`, guest, { text: "   " })).statusCode).toBe(400);
+    const changed = (await call("PATCH", `/social/comments/${comment.id}`, guest, { text: " How long did it take, start to finish? " })).json().data;
+    expect(changed).toMatchObject({ id: comment.id, text: "How long did it take, start to finish?", editedAt: expect.any(String) });
+    expect((await call("GET", `/social/posts/${post.id}/comments`)).json().data[1].text).toBe("How long did it take, start to finish?");
+
     const stranger = await person("Other Person");
     expect((await call("DELETE", `/social/comments/${comment.id}`, stranger)).statusCode).toBe(403);
     expect((await call("DELETE", `/social/comments/${comment.id}`, author)).json().data.done).toBe(true);
@@ -255,9 +262,19 @@ describe("mentions and new posts", () => {
     expect(sent(followerPhone)).toEqual(["Mira Shah posted"]);
     expect(sent(blockedPhone)).toEqual([]);
 
-    await call("POST", `/social/posts/${post.id}/comments`, friend, { text: `@${author.username} @${follower.username} look` });
+    const comment = (await call("POST", `/social/posts/${post.id}/comments`, friend, { text: `@${author.username} @${follower.username} look` })).json().data;
     await vi.waitFor(async () => expect(await mentions(follower)).toHaveLength(1));
     expect(await mentions(author)).toEqual([]);
+
+    const late = await person("Ravi Late");
+    await call("PATCH", `/social/posts/${post.id}`, author, { text: `${text} @${late.username}` });
+    await vi.waitFor(async () => expect(await mentions(late)).toHaveLength(1));
+    expect(await mentions(friend)).toHaveLength(1);
+
+    const edited = await call("PATCH", `/social/comments/${comment.id}`, friend, { text: `@${follower.username} @${late.username} look again` });
+    expect(edited.json().data).toMatchObject({ text: `@${follower.username} @${late.username} look again`, editedAt: expect.any(String), mine: true });
+    await vi.waitFor(async () => expect(await mentions(late)).toHaveLength(2));
+    expect(await mentions(follower)).toHaveLength(1);
   });
 });
 
