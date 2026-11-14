@@ -212,6 +212,8 @@ describe("vendor withdrawals", () => {
     expect((await check(admin.token)).json().data).toMatchObject({ status: "paid", utr: expect.any(String), paidAt: expect.any(String) });
     expect((await check(admin.token)).json().error.code).toBe("CONFLICT");
     expect((await call("GET", "/ruxstar/payouts?status=paid", admin.token)).json().data.map((p: { id: string }) => p.id)).toEqual([payout.id]);
+    const checks = await stack.db.auditLogs.find({ action: "payout.check", "target.id": new ObjectId(payout.id) }).sort({ _id: 1 }).toArray();
+    expect(checks.map((c) => c.diff.status ?? null)).toEqual([null, { from: "pending", to: "paid" }]);
   });
 
   it("takes the fee and minimum Ruxstar sets on the ledger module", async () => {

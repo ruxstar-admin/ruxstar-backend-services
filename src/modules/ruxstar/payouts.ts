@@ -1,7 +1,7 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import { ObjectId, type WithId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
-import { actorOf } from "../../platform/audit.js";
+import { actorOf, writeAudit } from "../../platform/audit.js";
 import { requireRuxstar } from "../../platform/auth.js";
 import { requireDatabase } from "../../platform/context.js";
 import type { PayoutDoc, PodOrderDoc } from "../../platform/db.js";
@@ -131,7 +131,19 @@ const payouts: FastifyPluginAsyncTypebox = async (app) => {
       const doc = await db().payouts.findOne({ _id: new ObjectId(request.params.id) });
       if (!doc) throw new AppError("NOT_FOUND", "Payout not found.");
       if (doc.status !== "pending") throw new AppError("CONFLICT", doc.status === "paid" ? "This payout was already paid." : "This payout already failed.");
-      const [row] = await payoutRows([await settlePayout(app, db(), doc)]);
+      const after = await settlePayout(app, db(), doc);
+      await writeAudit(db(), {
+        actor: actorOf(request),
+        scope: { module: payeeOf(doc) === "rider" ? "delivery" : "ledger" },
+        action: "payout.check",
+        target: { type: "payout", id: doc._id },
+        diff: {
+          ...(after.status !== doc.status ? { status: { from: doc.status, to: after.status } } : {}),
+          ...(after.attempts !== doc.attempts ? { attempts: { from: doc.attempts, to: after.attempts } } : {}),
+        },
+        ip: request.ip,
+      });
+      const [row] = await payoutRows([after]);
       return ok(request, row!);
     },
   );

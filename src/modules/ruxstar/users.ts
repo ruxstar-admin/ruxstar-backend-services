@@ -103,7 +103,8 @@ const users: FastifyPluginAsyncTypebox = async (app) => {
     const { update, diff, signOut, holdReports } = change(user);
     await database.transaction(async (session) => {
       const now = new Date();
-      await database.users.updateOne({ _id: user._id }, { ...update, $currentDate: { updatedAt: true } }, { session });
+      const { matchedCount } = await database.users.updateOne({ _id: user._id, status: user.status }, { ...update, $currentDate: { updatedAt: true } }, { session });
+      if (!matchedCount) throw new AppError("CONFLICT");
       if (signOut) {
         const ended = await database.sessions.updateMany(
           { userId: user._id, revokedAt: null },
