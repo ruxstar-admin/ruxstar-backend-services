@@ -39,6 +39,7 @@ import {
   fileLink,
   filesFor,
   moveOrder,
+  nextOrderNo,
   orderableShop,
   orderView,
   photoLinks,
@@ -232,7 +233,7 @@ const orders: FastifyPluginAsyncTypebox = async (app) => {
         if (claimed.modifiedCount !== files.length) throw new AppError("ORDER_INVALID", "One of these files is in another order. Upload it again.");
         const order: PodOrderDoc = {
           _id: id,
-          orderNo: await database.nextNumber("pod-order", session),
+          orderNo: await nextOrderNo(database, session),
           customerId: userId,
           shopId: shop._id,
           vendorId: shop.ownerId,

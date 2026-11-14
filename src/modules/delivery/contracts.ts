@@ -58,7 +58,8 @@ export const Job = Strict({
   shop: Place,
   drop: Place,
   item: Type.String({ description: "What is being carried, for example Business cards × 200" }),
-  distanceKm: Nullable(Type.Integer()),
+  distanceKm: Nullable(Type.Integer({ description: "Road km from the shop to the drop" })),
+  dropNear: Nullable(Point, { description: "Roughly where the drop is, to about 1 km, for the map before the job is yours" }),
   pay: Paise,
   offerUntil: Nullable(DateTime),
   proof: Type.Boolean({ description: "A photo at the door was added" }),
@@ -107,8 +108,12 @@ export const Earnings = Envelope(
     }),
     today: Paise,
     week: Paise,
-    trips: Type.Integer({ minimum: 0 }),
-    recent: Type.Array(Strict({ jobId: ObjectIdString, orderNo: Type.Integer(), pay: Paise, at: DateTime }), { description: "Newest first, up to 20" }),
+    trips: Type.Integer({ minimum: 0, description: "Ruxstar partner deliveries, ever" }),
+    teamTrips: Type.Integer({ minimum: 0, description: "Deliveries for shops you're on the team of, ever. Their shop pays for these outside Ruxstar" }),
+    recent: Type.Array(
+      Strict({ jobId: ObjectIdString, orderNo: Type.Integer(), carrier: Carrier, shop: Type.String(), pay: Paise, at: DateTime }),
+      { description: "Your deliveries, newest first, up to 20. Team ones have no pay in Ruxstar" },
+    ),
     upcoming: Type.Array(
       Strict({
         orderId: ObjectIdString,

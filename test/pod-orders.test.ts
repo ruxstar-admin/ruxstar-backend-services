@@ -198,6 +198,7 @@ describe("print orders", () => {
     const customer = await signIn(stack);
     const { order, checkoutUrl } = await placed(customer, shopId);
     expect(order.status).toBe("awaiting_payment");
+    expect(String(order.orderNo)).toMatch(/^1\d{7}$/);
     expect(order.price).toMatchObject({ items: 360_000, total: 360_500 });
     expect(checkoutUrl).toMatch(/\/pay\/[a-f0-9]{24}\?/);
 

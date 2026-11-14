@@ -355,6 +355,7 @@ export function jobView(job: DeliveryJobDoc, riderId: ObjectId): Job {
     },
     item: job.item,
     distanceKm: job.distanceKm,
+    dropNear: job.drop.point ? { lat: Math.round(job.drop.point.lat * 100) / 100, lng: Math.round(job.drop.point.lng * 100) / 100 } : null,
     pay: job.pay,
     offerUntil: job.status === "offered" ? iso(job.offerUntil) : null,
     proof: !!job.proof,

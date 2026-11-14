@@ -318,6 +318,12 @@ describe("delivery", () => {
     expect(await stack.db.ledgerEntries.countDocuments({ kind: "rider_pay" })).toBe(0);
     expect((await call("GET", "/delivery/jobs?view=past", kiran.token)).json().data.map((j: { id: string }) => j.id)).toEqual([jobId]);
     expect((await call("GET", "/delivery/me", kiran.token)).json().data).toMatchObject({ active: null, today: { trips: 1, earned: 0 }, teams: [{ placeId }] });
+    expect((await call("GET", "/delivery/earnings", kiran.token)).json().data).toMatchObject({
+      today: 0,
+      trips: 0,
+      teamTrips: 1,
+      recent: [{ jobId, orderNo: order.orderNo, carrier: "team", pay: 0 }],
+    });
   }, 90_000);
 
   it("offers a ready order to Ruxstar partners in the city; the first to accept gets it and is paid out of the shop's share", async () => {
@@ -342,7 +348,10 @@ describe("delivery", () => {
     expect(offered.json().data.delivery.offerUntil).not.toBeNull();
     expect(offered.json().data.refundable).toBe(270_000 - pay);
     for (const u of [asha, bala]) expect((await sent(u, "delivery.offer")).length).toBe(1);
-    const jobId = (await call("GET", "/delivery/offers", bala.token)).json().data[0].id as string;
+    const offer = (await call("GET", "/delivery/offers", bala.token)).json().data[0];
+    const jobId = offer.id as string;
+    expect(offer.drop.point).toBeNull();
+    expect(offer.dropNear).toEqual({ lat: Math.round(DROP_POINT.lat * 100) / 100, lng: Math.round(DROP_POINT.lng * 100) / 100 });
 
     expect((await step(asha, jobId, "accept")).json().data.status).toBe("accepted");
     expect((await step(bala, jobId, "accept")).json().error.code).toBe("JOB_TAKEN");
@@ -372,6 +381,8 @@ describe("delivery", () => {
       today: pay,
       week: pay,
       trips: 1,
+      teamTrips: 0,
+      recent: [{ jobId, orderNo: order.orderNo, carrier: "partner", pay }],
       upcoming: [{ orderId: order.id, orderNo: order.orderNo, amount: pay, held: false }],
       withdrawal: { minimum: 10_000, fee: 590 },
       payoutMethod: null,

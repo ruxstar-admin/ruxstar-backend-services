@@ -204,6 +204,11 @@ export function priceOf(
 
 const HOUR_MS = 60 * 60_000;
 const DAY_MS = 24 * HOUR_MS;
+/** Orders are numbered from here, so every order number has 8 digits: the first reads 10000001. */
+const FIRST_ORDER_NO = 10_000_000;
+
+export const nextOrderNo = async (db: Database, session?: ClientSession) =>
+  FIRST_ORDER_NO + (await db.nextNumber("pod-order", session));
 /** A paid order the shop hasn't accepted by then is cancelled and refunded. */
 export const ACCEPT_WINDOW_MS = 6 * HOUR_MS;
 /** After delivery, the shop's share waits this long, so a customer can report a problem first. */

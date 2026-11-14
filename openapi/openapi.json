@@ -72171,6 +72171,7 @@
                                 "drop",
                                 "item",
                                 "distanceKm",
+                                "dropNear",
                                 "pay",
                                 "offerUntil",
                                 "proof",
@@ -72384,12 +72385,41 @@
                                 "distanceKm": {
                                   "anyOf": [
                                     {
-                                      "type": "integer"
+                                      "type": "integer",
+                                      "description": "Road km from the shop to the drop"
                                     },
                                     {
                                       "type": "null"
                                     }
                                   ]
+                                },
+                                "dropNear": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "lat",
+                                        "lng"
+                                      ],
+                                      "properties": {
+                                        "lat": {
+                                          "type": "number",
+                                          "minimum": -90,
+                                          "maximum": 90
+                                        },
+                                        "lng": {
+                                          "type": "number",
+                                          "minimum": -180,
+                                          "maximum": 180
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Roughly where the drop is, to about 1 km, for the map before the job is yours"
                                 },
                                 "pay": {
                                   "type": "integer",
@@ -72755,6 +72785,7 @@
                                 "drop",
                                 "item",
                                 "distanceKm",
+                                "dropNear",
                                 "pay",
                                 "offerUntil",
                                 "proof",
@@ -72968,12 +72999,41 @@
                                 "distanceKm": {
                                   "anyOf": [
                                     {
-                                      "type": "integer"
+                                      "type": "integer",
+                                      "description": "Road km from the shop to the drop"
                                     },
                                     {
                                       "type": "null"
                                     }
                                   ]
+                                },
+                                "dropNear": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "lat",
+                                        "lng"
+                                      ],
+                                      "properties": {
+                                        "lat": {
+                                          "type": "number",
+                                          "minimum": -90,
+                                          "maximum": 90
+                                        },
+                                        "lng": {
+                                          "type": "number",
+                                          "minimum": -180,
+                                          "maximum": 180
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "Roughly where the drop is, to about 1 km, for the map before the job is yours"
                                 },
                                 "pay": {
                                   "type": "integer",
@@ -73213,6 +73273,7 @@
                           "drop",
                           "item",
                           "distanceKm",
+                          "dropNear",
                           "pay",
                           "offerUntil",
                           "proof",
@@ -73426,12 +73487,41 @@
                           "distanceKm": {
                             "anyOf": [
                               {
-                                "type": "integer"
+                                "type": "integer",
+                                "description": "Road km from the shop to the drop"
                               },
                               {
                                 "type": "null"
                               }
                             ]
+                          },
+                          "dropNear": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "lat",
+                                  "lng"
+                                ],
+                                "properties": {
+                                  "lat": {
+                                    "type": "number",
+                                    "minimum": -90,
+                                    "maximum": 90
+                                  },
+                                  "lng": {
+                                    "type": "number",
+                                    "minimum": -180,
+                                    "maximum": 180
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Roughly where the drop is, to about 1 km, for the map before the job is yours"
                           },
                           "pay": {
                             "type": "integer",
@@ -73676,6 +73766,7 @@
                           "drop",
                           "item",
                           "distanceKm",
+                          "dropNear",
                           "pay",
                           "offerUntil",
                           "proof",
@@ -73889,12 +73980,41 @@
                           "distanceKm": {
                             "anyOf": [
                               {
-                                "type": "integer"
+                                "type": "integer",
+                                "description": "Road km from the shop to the drop"
                               },
                               {
                                 "type": "null"
                               }
                             ]
+                          },
+                          "dropNear": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "lat",
+                                  "lng"
+                                ],
+                                "properties": {
+                                  "lat": {
+                                    "type": "number",
+                                    "minimum": -90,
+                                    "maximum": 90
+                                  },
+                                  "lng": {
+                                    "type": "number",
+                                    "minimum": -180,
+                                    "maximum": 180
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Roughly where the drop is, to about 1 km, for the map before the job is yours"
                           },
                           "pay": {
                             "type": "integer",
@@ -74105,6 +74225,7 @@
                         "drop",
                         "item",
                         "distanceKm",
+                        "dropNear",
                         "pay",
                         "offerUntil",
                         "proof",
@@ -74318,12 +74439,41 @@
                         "distanceKm": {
                           "anyOf": [
                             {
-                              "type": "integer"
+                              "type": "integer",
+                              "description": "Road km from the shop to the drop"
                             },
                             {
                               "type": "null"
                             }
                           ]
+                        },
+                        "dropNear": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "lat",
+                                "lng"
+                              ],
+                              "properties": {
+                                "lat": {
+                                  "type": "number",
+                                  "minimum": -90,
+                                  "maximum": 90
+                                },
+                                "lng": {
+                                  "type": "number",
+                                  "minimum": -180,
+                                  "maximum": 180
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Roughly where the drop is, to about 1 km, for the map before the job is yours"
                         },
                         "pay": {
                           "type": "integer",
@@ -74523,6 +74673,7 @@
                         "drop",
                         "item",
                         "distanceKm",
+                        "dropNear",
                         "pay",
                         "offerUntil",
                         "proof",
@@ -74736,12 +74887,41 @@
                         "distanceKm": {
                           "anyOf": [
                             {
-                              "type": "integer"
+                              "type": "integer",
+                              "description": "Road km from the shop to the drop"
                             },
                             {
                               "type": "null"
                             }
                           ]
+                        },
+                        "dropNear": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "lat",
+                                "lng"
+                              ],
+                              "properties": {
+                                "lat": {
+                                  "type": "number",
+                                  "minimum": -90,
+                                  "maximum": 90
+                                },
+                                "lng": {
+                                  "type": "number",
+                                  "minimum": -180,
+                                  "maximum": 180
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Roughly where the drop is, to about 1 km, for the map before the job is yours"
                         },
                         "pay": {
                           "type": "integer",
@@ -74941,6 +75121,7 @@
                         "drop",
                         "item",
                         "distanceKm",
+                        "dropNear",
                         "pay",
                         "offerUntil",
                         "proof",
@@ -75154,12 +75335,41 @@
                         "distanceKm": {
                           "anyOf": [
                             {
-                              "type": "integer"
+                              "type": "integer",
+                              "description": "Road km from the shop to the drop"
                             },
                             {
                               "type": "null"
                             }
                           ]
+                        },
+                        "dropNear": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "lat",
+                                "lng"
+                              ],
+                              "properties": {
+                                "lat": {
+                                  "type": "number",
+                                  "minimum": -90,
+                                  "maximum": 90
+                                },
+                                "lng": {
+                                  "type": "number",
+                                  "minimum": -180,
+                                  "maximum": 180
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Roughly where the drop is, to about 1 km, for the map before the job is yours"
                         },
                         "pay": {
                           "type": "integer",
@@ -75359,6 +75569,7 @@
                         "drop",
                         "item",
                         "distanceKm",
+                        "dropNear",
                         "pay",
                         "offerUntil",
                         "proof",
@@ -75572,12 +75783,41 @@
                         "distanceKm": {
                           "anyOf": [
                             {
-                              "type": "integer"
+                              "type": "integer",
+                              "description": "Road km from the shop to the drop"
                             },
                             {
                               "type": "null"
                             }
                           ]
+                        },
+                        "dropNear": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "lat",
+                                "lng"
+                              ],
+                              "properties": {
+                                "lat": {
+                                  "type": "number",
+                                  "minimum": -90,
+                                  "maximum": 90
+                                },
+                                "lng": {
+                                  "type": "number",
+                                  "minimum": -180,
+                                  "maximum": 180
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Roughly where the drop is, to about 1 km, for the map before the job is yours"
                         },
                         "pay": {
                           "type": "integer",
@@ -75777,6 +76017,7 @@
                         "drop",
                         "item",
                         "distanceKm",
+                        "dropNear",
                         "pay",
                         "offerUntil",
                         "proof",
@@ -75990,12 +76231,41 @@
                         "distanceKm": {
                           "anyOf": [
                             {
-                              "type": "integer"
+                              "type": "integer",
+                              "description": "Road km from the shop to the drop"
                             },
                             {
                               "type": "null"
                             }
                           ]
+                        },
+                        "dropNear": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "lat",
+                                "lng"
+                              ],
+                              "properties": {
+                                "lat": {
+                                  "type": "number",
+                                  "minimum": -90,
+                                  "maximum": 90
+                                },
+                                "lng": {
+                                  "type": "number",
+                                  "minimum": -180,
+                                  "maximum": 180
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Roughly where the drop is, to about 1 km, for the map before the job is yours"
                         },
                         "pay": {
                           "type": "integer",
@@ -76216,6 +76486,7 @@
                         "drop",
                         "item",
                         "distanceKm",
+                        "dropNear",
                         "pay",
                         "offerUntil",
                         "proof",
@@ -76429,12 +76700,41 @@
                         "distanceKm": {
                           "anyOf": [
                             {
-                              "type": "integer"
+                              "type": "integer",
+                              "description": "Road km from the shop to the drop"
                             },
                             {
                               "type": "null"
                             }
                           ]
+                        },
+                        "dropNear": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "lat",
+                                "lng"
+                              ],
+                              "properties": {
+                                "lat": {
+                                  "type": "number",
+                                  "minimum": -90,
+                                  "maximum": 90
+                                },
+                                "lng": {
+                                  "type": "number",
+                                  "minimum": -180,
+                                  "maximum": 180
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Roughly where the drop is, to about 1 km, for the map before the job is yours"
                         },
                         "pay": {
                           "type": "integer",
@@ -76656,6 +76956,7 @@
                         "drop",
                         "item",
                         "distanceKm",
+                        "dropNear",
                         "pay",
                         "offerUntil",
                         "proof",
@@ -76869,12 +77170,41 @@
                         "distanceKm": {
                           "anyOf": [
                             {
-                              "type": "integer"
+                              "type": "integer",
+                              "description": "Road km from the shop to the drop"
                             },
                             {
                               "type": "null"
                             }
                           ]
+                        },
+                        "dropNear": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "lat",
+                                "lng"
+                              ],
+                              "properties": {
+                                "lat": {
+                                  "type": "number",
+                                  "minimum": -90,
+                                  "maximum": 90
+                                },
+                                "lng": {
+                                  "type": "number",
+                                  "minimum": -180,
+                                  "maximum": 180
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Roughly where the drop is, to about 1 km, for the map before the job is yours"
                         },
                         "pay": {
                           "type": "integer",
@@ -77058,6 +77388,7 @@
                         "today",
                         "week",
                         "trips",
+                        "teamTrips",
                         "recent",
                         "upcoming",
                         "withdrawal",
@@ -77103,7 +77434,13 @@
                         },
                         "trips": {
                           "type": "integer",
-                          "minimum": 0
+                          "minimum": 0,
+                          "description": "Ruxstar partner deliveries, ever"
+                        },
+                        "teamTrips": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Deliveries for shops you're on the team of, ever. Their shop pays for these outside Ruxstar"
                         },
                         "recent": {
                           "type": "array",
@@ -77112,6 +77449,8 @@
                             "required": [
                               "jobId",
                               "orderNo",
+                              "carrier",
+                              "shop",
                               "pay",
                               "at"
                             ],
@@ -77123,6 +77462,26 @@
                               },
                               "orderNo": {
                                 "type": "integer"
+                              },
+                              "carrier": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "team"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "partner"
+                                    ]
+                                  }
+                                ],
+                                "description": "`team` is someone on the shop's team; `partner` is a Ruxstar delivery partner, paid out of the shop's share"
+                              },
+                              "shop": {
+                                "type": "string"
                               },
                               "pay": {
                                 "type": "integer",
@@ -77136,7 +77495,7 @@
                             },
                             "additionalProperties": false
                           },
-                          "description": "Newest first, up to 20"
+                          "description": "Your deliveries, newest first, up to 20. Team ones have no pay in Ruxstar"
                         },
                         "upcoming": {
                           "type": "array",

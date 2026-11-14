@@ -316,7 +316,7 @@ const delivery: FastifyPluginAsyncTypebox = async (app) => {
       const now = new Date();
       await releaseRiderPayFor(db(), riderId, now);
       await settleDue(app, db(), riderId, now);
-      const [ledger, today, week, trips, recent, holding, rules, method, payouts, paid] = await Promise.all([
+      const [ledger, today, week, trips, teamTrips, recent, holding, rules, method, payouts, paid] = await Promise.all([
         db()
           .ledgerEntries.aggregate<{ _id: "pending" | "withdrawable"; total: number }>([
             { $match: { accountId: riderAccount(riderId) } },
@@ -326,7 +326,8 @@ const delivery: FastifyPluginAsyncTypebox = async (app) => {
         earnedSince(riderId, startOfDay()),
         earnedSince(riderId, startOfDay(6)),
         db().deliveryJobs.countDocuments({ riderId, status: "delivered", carrier: "partner" }),
-        db().deliveryJobs.find({ riderId, status: "delivered", carrier: "partner" }).sort({ updatedAt: -1 }).limit(20).toArray(),
+        db().deliveryJobs.countDocuments({ riderId, status: "delivered", carrier: "team" }),
+        db().deliveryJobs.find({ riderId, status: "delivered" }).sort({ updatedAt: -1 }).limit(20).toArray(),
         db().podOrders.find(heldRiderPay(riderId)).sort({ "delivery.releaseAt": 1 }).limit(20).toArray(),
         payoutRules(db(), "rider"),
         db().riderPayoutMethods.findOne({ userId: riderId }),
@@ -348,7 +349,15 @@ const delivery: FastifyPluginAsyncTypebox = async (app) => {
         today,
         week,
         trips,
-        recent: recent.map((j) => ({ jobId: j._id.toHexString(), orderNo: j.orderNo, pay: j.pay, at: j.updatedAt.toISOString() })),
+        teamTrips,
+        recent: recent.map((j) => ({
+          jobId: j._id.toHexString(),
+          orderNo: j.orderNo,
+          carrier: j.carrier,
+          shop: j.pickup.name,
+          pay: j.carrier === "partner" ? j.pay : 0,
+          at: j.updatedAt.toISOString(),
+        })),
         upcoming: holding.map((o) => ({
           orderId: o._id.toHexString(),
           orderNo: o.orderNo,
