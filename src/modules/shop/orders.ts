@@ -64,6 +64,9 @@ export const itemsText = (o: Pick<ShopOrderDoc, "lines">) => {
   return `${lineLabel(first)} × ${first.quantity}${o.lines.length > 1 ? ` and ${count(o.lines.length - 1, "more item")}` : ""}`;
 };
 
+/** Every unit across the order's lines, for the rider. */
+export const unitsOf = (o: Pick<ShopOrderDoc, "lines">) => o.lines.reduce((sum, line) => sum + line.quantity, 0);
+
 /** The owner, and verified team members with `permission`: who hears about the shop's orders. */
 export async function shopPeople(db: Database, o: Pick<ShopOrderDoc, "_id" | "businessId" | "vendorId">, permission: TeamPermission = "store.orders") {
   const places = await db.employments.find({ businessId: o.businessId, status: "active", current: true, permissions: permission }, { projection: { userId: 1 } }).toArray();

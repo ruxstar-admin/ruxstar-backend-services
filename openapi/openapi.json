@@ -196110,6 +196110,23 @@
                                 "orderNo": {
                                   "type": "integer"
                                 },
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "print"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "shop"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "`print` is a print order; `shop` is a local shop's order"
+                                },
                                 "carrier": {
                                   "anyOf": [
                                     {
@@ -196303,6 +196320,11 @@
                                 "item": {
                                   "type": "string",
                                   "description": "What is being carried, for example Business cards × 200"
+                                },
+                                "itemCount": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "description": "Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing when not known"
                                 },
                                 "distanceKm": {
                                   "anyOf": [
@@ -196724,6 +196746,23 @@
                                 "orderNo": {
                                   "type": "integer"
                                 },
+                                "kind": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "print"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "shop"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "`print` is a print order; `shop` is a local shop's order"
+                                },
                                 "carrier": {
                                   "anyOf": [
                                     {
@@ -196917,6 +196956,11 @@
                                 "item": {
                                   "type": "string",
                                   "description": "What is being carried, for example Business cards × 200"
+                                },
+                                "itemCount": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "description": "Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing when not known"
                                 },
                                 "distanceKm": {
                                   "anyOf": [
@@ -197212,6 +197256,23 @@
                           "orderNo": {
                             "type": "integer"
                           },
+                          "kind": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "print"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop"
+                                ]
+                              }
+                            ],
+                            "description": "`print` is a print order; `shop` is a local shop's order"
+                          },
                           "carrier": {
                             "anyOf": [
                               {
@@ -197405,6 +197466,11 @@
                           "item": {
                             "type": "string",
                             "description": "What is being carried, for example Business cards × 200"
+                          },
+                          "itemCount": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "description": "Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing when not known"
                           },
                           "distanceKm": {
                             "anyOf": [
@@ -197705,6 +197771,23 @@
                           "orderNo": {
                             "type": "integer"
                           },
+                          "kind": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "print"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "shop"
+                                ]
+                              }
+                            ],
+                            "description": "`print` is a print order; `shop` is a local shop's order"
+                          },
                           "carrier": {
                             "anyOf": [
                               {
@@ -197898,6 +197981,11 @@
                           "item": {
                             "type": "string",
                             "description": "What is being carried, for example Business cards × 200"
+                          },
+                          "itemCount": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "description": "Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing when not known"
                           },
                           "distanceKm": {
                             "anyOf": [
@@ -198164,6 +198252,23 @@
                         "orderNo": {
                           "type": "integer"
                         },
+                        "kind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "print"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "shop"
+                              ]
+                            }
+                          ],
+                          "description": "`print` is a print order; `shop` is a local shop's order"
+                        },
                         "carrier": {
                           "anyOf": [
                             {
@@ -198357,6 +198462,11 @@
                         "item": {
                           "type": "string",
                           "description": "What is being carried, for example Business cards × 200"
+                        },
+                        "itemCount": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "description": "Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing when not known"
                         },
                         "distanceKm": {
                           "anyOf": [
@@ -198612,6 +198722,23 @@
                         "orderNo": {
                           "type": "integer"
                         },
+                        "kind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "print"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "shop"
+                              ]
+                            }
+                          ],
+                          "description": "`print` is a print order; `shop` is a local shop's order"
+                        },
                         "carrier": {
                           "anyOf": [
                             {
@@ -198805,6 +198932,11 @@
                         "item": {
                           "type": "string",
                           "description": "What is being carried, for example Business cards × 200"
+                        },
+                        "itemCount": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "description": "Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing when not known"
                         },
                         "distanceKm": {
                           "anyOf": [
@@ -199060,6 +199192,23 @@
                         "orderNo": {
                           "type": "integer"
                         },
+                        "kind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "print"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "shop"
+                              ]
+                            }
+                          ],
+                          "description": "`print` is a print order; `shop` is a local shop's order"
+                        },
                         "carrier": {
                           "anyOf": [
                             {
@@ -199253,6 +199402,11 @@
                         "item": {
                           "type": "string",
                           "description": "What is being carried, for example Business cards × 200"
+                        },
+                        "itemCount": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "description": "Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing when not known"
                         },
                         "distanceKm": {
                           "anyOf": [
@@ -199508,6 +199662,23 @@
                         "orderNo": {
                           "type": "integer"
                         },
+                        "kind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "print"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "shop"
+                              ]
+                            }
+                          ],
+                          "description": "`print` is a print order; `shop` is a local shop's order"
+                        },
                         "carrier": {
                           "anyOf": [
                             {
@@ -199701,6 +199872,11 @@
                         "item": {
                           "type": "string",
                           "description": "What is being carried, for example Business cards × 200"
+                        },
+                        "itemCount": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "description": "Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing when not known"
                         },
                         "distanceKm": {
                           "anyOf": [
@@ -199956,6 +200132,23 @@
                         "orderNo": {
                           "type": "integer"
                         },
+                        "kind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "print"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "shop"
+                              ]
+                            }
+                          ],
+                          "description": "`print` is a print order; `shop` is a local shop's order"
+                        },
                         "carrier": {
                           "anyOf": [
                             {
@@ -200149,6 +200342,11 @@
                         "item": {
                           "type": "string",
                           "description": "What is being carried, for example Business cards × 200"
+                        },
+                        "itemCount": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "description": "Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing when not known"
                         },
                         "distanceKm": {
                           "anyOf": [
@@ -200425,6 +200623,23 @@
                         "orderNo": {
                           "type": "integer"
                         },
+                        "kind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "print"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "shop"
+                              ]
+                            }
+                          ],
+                          "description": "`print` is a print order; `shop` is a local shop's order"
+                        },
                         "carrier": {
                           "anyOf": [
                             {
@@ -200618,6 +200833,11 @@
                         "item": {
                           "type": "string",
                           "description": "What is being carried, for example Business cards × 200"
+                        },
+                        "itemCount": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "description": "Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing when not known"
                         },
                         "distanceKm": {
                           "anyOf": [
@@ -200895,6 +201115,23 @@
                         "orderNo": {
                           "type": "integer"
                         },
+                        "kind": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "print"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "shop"
+                              ]
+                            }
+                          ],
+                          "description": "`print` is a print order; `shop` is a local shop's order"
+                        },
                         "carrier": {
                           "anyOf": [
                             {
@@ -201088,6 +201325,11 @@
                         "item": {
                           "type": "string",
                           "description": "What is being carried, for example Business cards × 200"
+                        },
+                        "itemCount": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "description": "Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing when not known"
                         },
                         "distanceKm": {
                           "anyOf": [
@@ -201385,6 +201627,28 @@
                               "orderNo": {
                                 "type": "integer"
                               },
+                              "kind": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "print"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "shop"
+                                    ]
+                                  }
+                                ],
+                                "description": "`print` is a print order; `shop` is a local shop's order"
+                              },
+                              "itemCount": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "description": "Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing when not known"
+                              },
                               "carrier": {
                                 "anyOf": [
                                   {
@@ -201438,6 +201702,28 @@
                               },
                               "orderNo": {
                                 "type": "integer"
+                              },
+                              "kind": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "print"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "shop"
+                                    ]
+                                  }
+                                ],
+                                "description": "`print` is a print order; `shop` is a local shop's order"
+                              },
+                              "itemCount": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "description": "Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing when not known"
                               },
                               "amount": {
                                 "type": "integer",
@@ -201967,6 +202253,28 @@
                                   },
                                   "orderNo": {
                                     "type": "integer"
+                                  },
+                                  "kind": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "print"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "shop"
+                                        ]
+                                      }
+                                    ],
+                                    "description": "`print` is a print order; `shop` is a local shop's order"
+                                  },
+                                  "itemCount": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "description": "Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing when not known"
                                   }
                                 },
                                 "additionalProperties": false

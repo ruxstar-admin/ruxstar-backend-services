@@ -42,6 +42,13 @@ export const AssignBody = Type.Union([
 
 // The rider's side, in the Ruxstar Delivery app.
 
+const Kind = Type.Optional(
+  Type.Union([Type.Literal("print"), Type.Literal("shop")], { description: "`print` is a print order; `shop` is a local shop's order" }),
+);
+const ItemCount = Type.Optional(
+  Type.Integer({ minimum: 1, description: "Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing when not known" }),
+);
+
 const Place = Strict({
   name: Type.String(),
   phone: Nullable(Type.String({ description: "Shown once the job is yours" })),
@@ -53,11 +60,13 @@ const Place = Strict({
 export const Job = Strict({
   id: ObjectIdString,
   orderNo: Type.Integer(),
+  kind: Kind,
   carrier: Carrier,
   status: DeliveryStatus,
   shop: Place,
   drop: Place,
   item: Type.String({ description: "What is being carried, for example Business cards × 200" }),
+  itemCount: ItemCount,
   distanceKm: Nullable(Type.Integer({ description: "Road km from the shop to the drop" })),
   dropNear: Nullable(Point, { description: "Roughly where the drop is, to about 1 km, for the map before the job is yours" }),
   pay: Paise,
@@ -111,13 +120,24 @@ export const Earnings = Envelope(
     trips: Type.Integer({ minimum: 0, description: "Ruxstar partner deliveries, ever" }),
     teamTrips: Type.Integer({ minimum: 0, description: "Deliveries for shops you're on the team of, ever. Their shop pays for these outside Ruxstar" }),
     recent: Type.Array(
-      Strict({ jobId: ObjectIdString, orderNo: Type.Integer(), carrier: Carrier, shop: Type.String(), pay: Paise, at: DateTime }),
+      Strict({
+        jobId: ObjectIdString,
+        orderNo: Type.Integer(),
+        kind: Kind,
+        itemCount: ItemCount,
+        carrier: Carrier,
+        shop: Type.String(),
+        pay: Paise,
+        at: DateTime,
+      }),
       { description: "Your deliveries, newest first, up to 20. Team ones have no pay in Ruxstar" },
     ),
     upcoming: Type.Array(
       Strict({
         orderId: ObjectIdString,
         orderNo: Type.Integer(),
+        kind: Kind,
+        itemCount: ItemCount,
         amount: Paise,
         availableAt: DateTime,
         held: Type.Boolean({ description: "The customer said it never arrived; it waits until Ruxstar settles that" }),
@@ -144,7 +164,7 @@ const RiderStatementLine = Strict({
   }),
   amount: Type.Integer({ description: "Paise; negative for withdrawals" }),
   at: DateTime,
-  order: Nullable(Strict({ id: ObjectIdString, orderNo: Type.Integer() }), { description: "Set on delivery lines" }),
+  order: Nullable(Strict({ id: ObjectIdString, orderNo: Type.Integer(), kind: Kind, itemCount: ItemCount }), { description: "Set on delivery lines" }),
   payout: Nullable(Strict({ id: ObjectIdString, to: Type.String() }), { description: "Set on withdrawal lines" }),
 });
 export type RiderStatementLine = Static<typeof RiderStatementLine>;

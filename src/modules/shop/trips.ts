@@ -8,7 +8,7 @@ import { OPEN_TRIP, tripActive } from "../delivery/stop.js";
 import { cityKey, dropCode, endBeforePickup, OFFER_FANOUT, riderProfile } from "../delivery/trips.js";
 import { notifyRider, notifyShop } from "../notifications/notify.js";
 import { HOLD_MS, rupees } from "../pod/orders.js";
-import { itemsText, moveShopOrder, shopPeople } from "./orders.js";
+import { itemsText, moveShopOrder, shopPeople, unitsOf } from "./orders.js";
 import { riderHeldOf, shopRiderPayLedger, vendorLeftOf } from "./rules.js";
 
 type By = { actor: AuditLogDoc["actor"]; ip: string | null };
@@ -129,6 +129,7 @@ export async function assignShopTrip(app: FastifyInstance, db: Database, o: Shop
     },
     drop: { name: address.name, phone: address.phone, line: address.line, city: address.city, pincode: address.pincode, point: address.point },
     item: itemsText(o),
+    itemCount: unitsOf(o),
     distanceKm,
     pay,
     dropCode: dropCode(),

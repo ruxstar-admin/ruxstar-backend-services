@@ -481,12 +481,14 @@ describe("shop", () => {
     expect(offered.statusCode).toBe(200);
     expect(offered.json().data.delivery).toMatchObject({ carrier: "partner", status: "offered", pay });
     const offers = (await call("GET", "/delivery/offers", rider.token)).json().data;
-    expect(offers).toMatchObject([{ orderNo: order.orderNo, item: "Cotton T-shirt (S, Red) × 2", pay, shop: { name: "Asha Fashions" } }]);
+    expect(offers).toMatchObject([{ orderNo: order.orderNo, kind: "shop", item: "Cotton T-shirt (S, Red) × 2", itemCount: 2, pay, shop: { name: "Asha Fashions" } }]);
     const jobId = offers[0].id as string;
     const step = (path: string, body?: object) => call("POST", `/delivery/jobs/${jobId}/${path}`, rider.token, body);
     expect((await move(owner, order.id, "out_for_delivery")).json().error.message).toBe("A rider has this delivery. Cancel it first to deliver the order yourself.");
 
     expect((await step("accept")).json().data.status).toBe("accepted");
+    expect((await call("GET", `/delivery/jobs/${jobId}`, rider.token)).json().data).toMatchObject({ kind: "shop", itemCount: 2 });
+    expect((await call("GET", "/delivery/jobs", rider.token)).json().data).toMatchObject([{ id: jobId, kind: "shop", itemCount: 2 }]);
     expect((await step("pickup")).json().data.status).toBe("picked_up");
     const tracking = (await call("GET", `/shop/orders/${order.id}`, customer.token)).json().data;
     expect(tracking).toMatchObject({ status: "out_for_delivery", delivery: { carrier: "partner", status: "picked_up", rider: { name: "Suresh" } } });
@@ -505,7 +507,13 @@ describe("shop", () => {
     expect(riderLedger.map((e) => [e.accountId, e.signedPaise]).sort()).toEqual([[`rider:${rider.userId.toHexString()}`, pay], [`vendor:${owner.userId.toHexString()}`, -pay]].sort());
     expect((await call("GET", `/shop/desk/orders/${order.id}`, owner.token)).json().data).toMatchObject({ vendorShare: 99_800 + DELIVERY - 9_980 - pay, delivery: { status: "delivered", pay } });
     const earnings = (await call("GET", "/delivery/earnings", rider.token)).json().data;
-    expect(earnings).toMatchObject({ balance: { pending: pay }, upcoming: [{ orderId: order.id, amount: pay }] });
+    expect(earnings).toMatchObject({
+      balance: { pending: pay },
+      recent: [{ jobId, kind: "shop", itemCount: 2 }],
+      upcoming: [{ orderId: order.id, kind: "shop", itemCount: 2, amount: pay }],
+    });
+    const lines = (await call("GET", "/delivery/earnings/statement", rider.token)).json().data;
+    expect(lines).toMatchObject([{ kind: "earned", amount: pay, order: { id: order.id, kind: "shop", itemCount: 2 } }]);
     expect((await call("GET", "/vendor/payments/statement", owner.token)).json().data[0]).toMatchObject({ kind: "delivery", module: "shop", amount: -pay });
   }, 90_000);
 

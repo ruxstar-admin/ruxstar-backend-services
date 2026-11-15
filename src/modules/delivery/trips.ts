@@ -170,6 +170,7 @@ export async function assignTrip(
     },
     drop: { ...order.address, point: order.address.point ?? null },
     item: `${order.productLabel} × ${order.quantity}`,
+    itemCount: order.quantity,
     distanceKm,
     pay,
     dropCode: dropCode(),
@@ -334,12 +335,19 @@ export async function expireOffer(app: FastifyInstance, db: Database, order: Pod
 
 const iso = (at: Date | null | undefined) => at?.toISOString() ?? null;
 
+/** Whether the trip carries a print order or a local shop's, and how many pieces when the job knows. */
+export const kindOf = (job: Pick<DeliveryJobDoc, "orderType" | "itemCount">) => ({
+  kind: forShop(job) ? ("shop" as const) : ("print" as const),
+  ...(job.itemCount ? { itemCount: job.itemCount } : {}),
+});
+
 /** A job as a rider sees it. Before it is theirs, the customer's name, phone and street stay hidden. */
 export function jobView(job: DeliveryJobDoc, riderId: ObjectId): Job {
   const mine = !!job.riderId?.equals(riderId) && job.status !== "offered";
   return {
     id: job._id.toHexString(),
     orderNo: job.orderNo,
+    ...kindOf(job),
     carrier: job.carrier,
     status: job.status,
     shop: {

@@ -905,6 +905,8 @@ export interface DeliveryJobDoc extends Stamped {
   pickup: { name: string; phone: string; line: string; city: string; point: { lat: number; lng: number } | null };
   drop: { name: string; phone: string; line: string; city: string; pincode: string; point: { lat: number; lng: number } | null };
   item: string;
+  /** Pieces to carry: a print order's quantity, or every unit across a shop order's lines. Missing on jobs from before 15 Nov 2026. */
+  itemCount?: number;
   distanceKm: number | null;
   pay: number;
   /** The customer reads it out at the door. */

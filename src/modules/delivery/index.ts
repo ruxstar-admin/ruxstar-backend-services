@@ -10,6 +10,7 @@ import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { findPage } from "../../platform/pagination.js";
 import { PRIVATE_PHOTO_MAX_BYTES } from "../../platform/private-photo.js";
+import { unitsOf } from "../shop/orders.js";
 import { payoutMethodView } from "../vendor/businesses.js";
 import { PayoutMethodBody, PayoutMethodResult, PayoutResult } from "../vendor/contracts.js";
 import { payoutView, setPayoutMethod } from "../vendor/payments.js";
@@ -30,7 +31,7 @@ import {
 } from "./contracts.js";
 import { heldRiderPay, releaseRiderPayFor, riderPayHeld } from "./pay.js";
 import { deliveryRules } from "./rates.js";
-import { acceptJob, addProof, deliver, jobFor, jobView, offersFor, passJob, pickUp, riderCancel, riderProfile } from "./trips.js";
+import { acceptJob, addProof, deliver, jobFor, jobView, kindOf, offersFor, passJob, pickUp, riderCancel, riderProfile } from "./trips.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 const limit = (perMinutes: number, max: number) => ({ rateLimit: { max, timeWindow: perMinutes * 60_000 } });
@@ -354,14 +355,31 @@ const delivery: FastifyPluginAsyncTypebox = async (app) => {
         recent: recent.map((j) => ({
           jobId: j._id.toHexString(),
           orderNo: j.orderNo,
+          ...kindOf(j),
           carrier: j.carrier,
           shop: j.pickup.name,
           pay: j.carrier === "partner" ? j.pay : 0,
           at: j.updatedAt.toISOString(),
         })),
         upcoming: [
-          ...holding.map((o) => ({ orderId: o._id.toHexString(), orderNo: o.orderNo, amount: o.delivery!.pay, availableAt: o.delivery!.releaseAt!, held: riderPayHeld(o) })),
-          ...shopHolding.map((o) => ({ orderId: o._id.toHexString(), orderNo: o.orderNo, amount: o.delivery!.pay, availableAt: o.delivery!.releaseAt!, held: false })),
+          ...holding.map((o) => ({
+            orderId: o._id.toHexString(),
+            orderNo: o.orderNo,
+            kind: "print" as const,
+            itemCount: o.quantity,
+            amount: o.delivery!.pay,
+            availableAt: o.delivery!.releaseAt!,
+            held: riderPayHeld(o),
+          })),
+          ...shopHolding.map((o) => ({
+            orderId: o._id.toHexString(),
+            orderNo: o.orderNo,
+            kind: "shop" as const,
+            itemCount: unitsOf(o),
+            amount: o.delivery!.pay,
+            availableAt: o.delivery!.releaseAt!,
+            held: false,
+          })),
         ]
           .sort((a, b) => a.availableAt.getTime() - b.availableAt.getTime())
           .slice(0, 20)
@@ -419,11 +437,14 @@ const delivery: FastifyPluginAsyncTypebox = async (app) => {
       });
       const ids = (type: "pod_order" | "shop_order" | "payout") => items.filter((e) => e.source.type === type).map((e) => e.source.id);
       const [podOrders, shopOrders, payouts] = await Promise.all([
-        database.podOrders.find({ _id: { $in: ids("pod_order") } }, { projection: { orderNo: 1 } }).toArray(),
-        database.shopOrders.find({ _id: { $in: ids("shop_order") } }, { projection: { orderNo: 1 } }).toArray(),
+        database.podOrders.find({ _id: { $in: ids("pod_order") } }, { projection: { orderNo: 1, quantity: 1 } }).toArray(),
+        database.shopOrders.find({ _id: { $in: ids("shop_order") } }, { projection: { orderNo: 1, "lines.quantity": 1 } }).toArray(),
         database.payouts.find({ _id: { $in: ids("payout") } }, { projection: { to: 1 } }).toArray(),
       ]);
-      const orders: { _id: ObjectId; orderNo: number }[] = [...podOrders, ...shopOrders];
+      const orders = [
+        ...podOrders.map((o) => ({ _id: o._id, orderNo: o.orderNo, kind: "print" as const, itemCount: o.quantity })),
+        ...shopOrders.map((o) => ({ _id: o._id, orderNo: o.orderNo, kind: "shop" as const, itemCount: unitsOf(o) })),
+      ];
       const lines = items.flatMap((entry): RiderStatementLine[] => {
         const base = { id: entry._id.toHexString(), amount: entry.signedPaise, at: entry.at.toISOString() };
         if (entry.source.type === "payout") {
@@ -436,7 +457,14 @@ const delivery: FastifyPluginAsyncTypebox = async (app) => {
         if (!order) return [];
         // Pay from before the hold arrived straight in the available balance, so it reads as earned too.
         const kind = entry.kind === "rider_release" ? "available" : "earned";
-        return [{ ...base, kind, order: { id: order._id.toHexString(), orderNo: order.orderNo }, payout: null }];
+        return [
+          {
+            ...base,
+            kind,
+            order: { id: order._id.toHexString(), orderNo: order.orderNo, kind: order.kind, ...(order.itemCount ? { itemCount: order.itemCount } : {}) },
+            payout: null,
+          },
+        ];
       });
       return page(request, lines, nextCursor);
     },

@@ -316,7 +316,8 @@ describe("delivery", () => {
     const after = (await call("GET", `/pod/orders/${order.id}`, customer.token)).json().data;
     expect(after).toMatchObject({ status: "delivered", delivery: { status: "delivered", dropCode: null } });
     expect(await stack.db.ledgerEntries.countDocuments({ kind: "rider_pay" })).toBe(0);
-    expect((await call("GET", "/delivery/jobs?view=past", kiran.token)).json().data.map((j: { id: string }) => j.id)).toEqual([jobId]);
+    expect((await call("GET", "/delivery/jobs?view=past", kiran.token)).json().data).toMatchObject([{ id: jobId, kind: "print", itemCount: 12 }]);
+    expect((await call("GET", `/delivery/jobs/${jobId}`, kiran.token)).json().data).toMatchObject({ kind: "print", itemCount: 12 });
     expect((await call("GET", "/delivery/me", kiran.token)).json().data).toMatchObject({ active: null, today: { trips: 1, earned: 0 }, teams: [{ placeId }] });
     expect((await call("GET", "/delivery/earnings", kiran.token)).json().data).toMatchObject({
       today: 0,
@@ -350,6 +351,7 @@ describe("delivery", () => {
     for (const u of [asha, bala]) expect((await sent(u, "delivery.offer")).length).toBe(1);
     const offer = (await call("GET", "/delivery/offers", bala.token)).json().data[0];
     const jobId = offer.id as string;
+    expect(offer).toMatchObject({ kind: "print", itemCount: 12 });
     expect(offer.drop.point).toBeNull();
     expect(offer.dropNear).toEqual({ lat: Math.round(DROP_POINT.lat * 100) / 100, lng: Math.round(DROP_POINT.lng * 100) / 100 });
 
@@ -382,8 +384,8 @@ describe("delivery", () => {
       week: pay,
       trips: 1,
       teamTrips: 0,
-      recent: [{ jobId, orderNo: order.orderNo, carrier: "partner", pay }],
-      upcoming: [{ orderId: order.id, orderNo: order.orderNo, amount: pay, held: false }],
+      recent: [{ jobId, orderNo: order.orderNo, kind: "print", itemCount: 12, carrier: "partner", pay }],
+      upcoming: [{ orderId: order.id, orderNo: order.orderNo, kind: "print", itemCount: 12, amount: pay, held: false }],
       withdrawal: { minimum: 10_000, fee: 590 },
       payoutMethod: null,
       payouts: [],
@@ -464,6 +466,7 @@ describe("delivery", () => {
       ["earned", pay],
       ["earned", pay],
     ]);
+    expect(lines.at(-1).order).toMatchObject({ kind: "print", itemCount: 12 });
     expect(await stack.db.notifications.findOne({ userId: asha.userId, type: "payout.updated", "link.screen": "delivery_earnings" })).not.toBeNull();
 
     // The console lists it with vendors' withdrawals, marked as a partner's; the shop's own Payments doesn't show it.
