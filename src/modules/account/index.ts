@@ -148,7 +148,7 @@ const publicView = (user: UserDoc): PublicProfile => ({
 });
 
 /** Password managers fill the saved phone number into the first text box; a name needs letters. */
-function checkName(name: string | undefined) {
+export function checkName(name: string | undefined) {
   if (name === undefined) return;
   if (!/\p{L}/u.test(name) || /\d{6,}/.test(name)) {
     throw new AppError("VALIDATION_FAILED", undefined, [{ path: "body/name", message: "Enter your name, not a number." }]);

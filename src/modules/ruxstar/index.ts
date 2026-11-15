@@ -40,7 +40,7 @@ import users from "./users.js";
 
 const ORDER = ["pod", "events", "coaching", "stays", "turf", "shop", "delivery", "ledger"];
 /** Vendors' withdrawals are set on the ledger module, delivery partners' on the delivery module. */
-const PAYOUT_MODULES: string[] = ["ledger", "delivery"];
+export const PAYOUT_MODULES: string[] = ["ledger", "delivery"];
 
 const view = (doc: ModuleSettingsDoc): ModuleSettings => ({
   module: doc.module,

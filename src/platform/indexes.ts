@@ -330,6 +330,19 @@ async function ensureVerifiedEmailIndex(db: Database): Promise<void> {
   await db.users.createIndex({ email: 1 }, { unique: true, partialFilterExpression: filter });
 }
 
+/** A module's settings row as it starts: switched off, with no commission or platform fee. */
+export const newModuleSettings = (module: SwitchableModule, now = new Date()): Omit<ModuleSettingsDoc, "_id"> => ({
+  module,
+  live: false,
+  signupsOpen: false,
+  commissionBps: 0,
+  platformFee: 0,
+  deliveryEnabled: false,
+  permissionCatalog: [],
+  updatedBy: null,
+  ...stamp(now),
+});
+
 /**
  * New modules start switched off. Existing settings are never overwritten. When another instance
  * seeds at the same moment, its rows win and the duplicate-key errors here are expected.
@@ -337,20 +350,9 @@ async function ensureVerifiedEmailIndex(db: Database): Promise<void> {
 export async function seedModuleSettings(db: Database): Promise<void> {
   const now = new Date();
   await db.moduleSettings.bulkWrite(
-    SWITCHABLE_MODULES.map((module) => {
-      const defaults: Omit<ModuleSettingsDoc, "_id"> = {
-        module,
-        live: false,
-        signupsOpen: false,
-        commissionBps: 0,
-        platformFee: 0,
-        deliveryEnabled: false,
-        permissionCatalog: [],
-        updatedBy: null,
-        ...stamp(now),
-      };
-      return { updateOne: { filter: { module }, update: { $setOnInsert: defaults }, upsert: true } };
-    }),
+    SWITCHABLE_MODULES.map((module) => ({
+      updateOne: { filter: { module }, update: { $setOnInsert: newModuleSettings(module, now) }, upsert: true },
+    })),
     { ordered: false },
   ).catch((err: unknown) => {
     const errors = err instanceof MongoBulkWriteError ? [err.writeErrors].flat() : [];

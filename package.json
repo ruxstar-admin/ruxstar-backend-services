@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "openapi": "tsx scripts/openapi.ts",
-    "create-admin": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/create-admin.ts"
+    "create-admin": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/create-admin.ts",
+    "setup:prod": "tsx scripts/setup-prod.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.3",
