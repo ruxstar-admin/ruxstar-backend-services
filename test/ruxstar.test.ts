@@ -32,6 +32,7 @@ describe("ruxstar module settings", () => {
       "coaching",
       "stays",
       "turf",
+      "shop",
       "delivery",
       "ledger",
     ]);

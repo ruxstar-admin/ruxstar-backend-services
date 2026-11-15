@@ -42,6 +42,13 @@ const MOVED: Record<string, (no: string) => string> = {
   delivered: (no) => `Marked order ${no} delivered`,
   cancelled: (no) => `Cancelled order ${no}`,
 };
+const STORE_MOVED: Record<string, (no: string) => string> = {
+  accepted: (no) => `Accepted order ${no}`,
+  packed: (no) => `Packed order ${no}`,
+  out_for_delivery: (no) => `Sent order ${no} out for delivery`,
+  ready_for_pickup: (no) => `Marked order ${no} ready for pickup`,
+  delivered: (no) => `Marked order ${no} delivered`,
+};
 
 /** "a, b and c" */
 const listOf = (items: string[]) => (items.length < 2 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
@@ -188,6 +195,28 @@ export function lineOf(e: Entry, refs: Refs): string {
       return "Removed a room";
     case "stay_bed.status":
       return `Marked a bed ${d.status?.to === "closed" ? "full" : "free"}`;
+    case "shop_order.status":
+      return STORE_MOVED[String(d.status?.to ?? "")]?.(no) ?? `Moved order ${no}`;
+    case "shop_order.cancel":
+      return `Cancelled order ${no}${reason}`;
+    case "shop_order.return_request":
+      return `The customer asked to return order ${no}`;
+    case "shop_order.return_decide":
+      return d.return?.to === "approved" ? `Accepted the return of order ${no}` : `Turned down the return of order ${no}`;
+    case "shop_order.return_refund":
+      return `Refunded the return of order ${no}`;
+    case "shop_product.create":
+      return `Added the product ${String(d.title?.to ?? "")}`;
+    case "shop_product.update":
+      return d.variants ? "Changed a product's variants" : "Changed a product";
+    case "shop_product.stock":
+      return "Changed a product's stock";
+    case "shop_product.delete":
+      return `Deleted the product ${String(d.title?.from ?? "")}`;
+    case "shop_product.take_down":
+      return `Ruxstar took down a product${reason}`;
+    case "shop.setup":
+      return "Changed delivery, pickup or returns";
     default:
       return "Made a change";
   }
@@ -196,12 +225,13 @@ export function lineOf(e: Entry, refs: Refs): string {
 async function present(db: Database, business: { _id: ObjectId; ownerId: ObjectId }, items: Entry[]): Promise<ActivityEntry[]> {
   const targets = (type: string) => items.flatMap((e) => (e.target.type === type && typeof e.target.id !== "string" ? [e.target.id] : []));
   const actorIds = items.flatMap((e) => (e.actor.id ? [e.actor.id] : []));
-  const [orders, tickets, enrolments, bookings, reservations, coupons, places, crew] = await Promise.all([
+  const [orders, tickets, enrolments, bookings, reservations, storeOrders, coupons, places, crew] = await Promise.all([
     db.podOrders.find({ _id: { $in: targets("pod_order") } }, { projection: { orderNo: 1 } }).toArray(),
     db.eventOrders.find({ _id: { $in: targets("event_order") } }, { projection: { orderNo: 1 } }).toArray(),
     db.coachingOrders.find({ _id: { $in: targets("coaching_order") } }, { projection: { orderNo: 1 } }).toArray(),
     db.turfBookings.find({ _id: { $in: targets("turf_booking") } }, { projection: { orderNo: 1 } }).toArray(),
     db.staysReservations.find({ _id: { $in: targets("stay_reservation") } }, { projection: { orderNo: 1 } }).toArray(),
+    db.shopOrders.find({ _id: { $in: targets("shop_order") } }, { projection: { orderNo: 1 } }).toArray(),
     db.coupons.find({ _id: { $in: targets("coupon") } }, { projection: { code: 1 } }).toArray(),
     db.employments.find({ _id: { $in: targets("employment") }, businessId: business._id }, { projection: { userId: 1 } }).toArray(),
     db.employments.find({ businessId: business._id, userId: { $in: actorIds } }, { projection: { userId: 1 } }).toArray(),
@@ -215,7 +245,7 @@ async function present(db: Database, business: { _id: ObjectId; ownerId: ObjectI
     return u?.name || (u?.username ? `@${u.username}` : "Someone");
   };
   const refs: Refs = {
-    orders: new Map([...orders, ...tickets, ...enrolments, ...bookings, ...reservations].map((o) => [o._id.toHexString(), o.orderNo])),
+    orders: new Map([...orders, ...tickets, ...enrolments, ...bookings, ...reservations, ...storeOrders].map((o) => [o._id.toHexString(), o.orderNo])),
     coupons: new Map(coupons.map((c) => [c._id.toHexString(), c.code])),
     people: new Map(places.map((p) => [p._id.toHexString(), nameOf(p.userId)])),
   };

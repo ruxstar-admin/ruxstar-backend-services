@@ -13,6 +13,7 @@ import type {
   InvoiceParty,
   InvoiceRefDoc,
   PodOrderDoc,
+  ShopOrderDoc,
   StayReservationDoc,
   TurfBookingDoc,
 } from "../../platform/db.js";
@@ -146,6 +147,7 @@ async function remember(db: Database, type: SourceType, id: ObjectId, refs: Invo
   else if (type === "coaching_order") await db.coachingOrders.updateOne({ _id: id }, update, { session });
   else if (type === "turf_booking") await db.turfBookings.updateOne({ _id: id }, update, { session });
   else if (type === "stay_reservation") await db.staysReservations.updateOne({ _id: id }, update, { session });
+  else if (type === "shop_order") await db.shopOrders.updateOne({ _id: id }, update, { session });
   else await db.eventOrders.updateOne({ _id: id }, update, { session });
 }
 
@@ -485,6 +487,67 @@ export async function invoiceStayReservation(db: Database, r: StayReservationDoc
     },
     session,
   );
+}
+
+export async function invoiceShopOrder(db: Database, order: ShopOrderDoc, session: ClientSession): Promise<InvoiceRefDoc[]> {
+  const business = await db.businesses.findOne({ _id: order.businessId }, { session });
+  const customer = await db.users.findOne({ _id: order.customerId }, { session, projection: { name: 1 } });
+  // Goods go where they're delivered; a pickup is supplied at the shop.
+  const state = (order.address ? stateOfPlace(order.address.city, order.address.pincode) : null) ?? business?.location?.state ?? null;
+  const discount = order.price.discount;
+  const vendorFunded = order.price.coupon?.fundedBy === "vendor";
+  const offs = vendorFunded ? spread(order.lines.map((l) => l.unitPrice * l.quantity), discount) : order.lines.map(() => 0);
+  return issue(
+    db,
+    {
+      module: "ecommerce",
+      source: { type: "shop_order", id: order._id, orderNo: order.orderNo },
+      business,
+      businessId: order.businessId,
+      businessName: business?.name ?? order.businessName,
+      vendorId: order.vendorId,
+      customerId: order.customerId,
+      buyer: party({ name: order.address?.name ?? customer?.name ?? order.customerName, legalName: null, gstin: null, address: null, state }),
+      supplyState: state,
+      feeState: state,
+      lines: (rules) => {
+        const base = rateFor(rules, null);
+        const lines = order.lines.map((l, i): DraftLine => {
+          const rate = { ...base, ...(l.tax.hsn ? { code: l.tax.hsn, codeKind: "hsn" as const } : {}), ...(l.tax.rateBps !== null ? { rateBps: l.tax.rateBps, lowRate: null } : {}) };
+          const value = l.unitPrice * l.quantity;
+          const options = l.options.map((o) => o.value).join(", ");
+          return {
+            description: `${l.title}${options ? ` (${options})` : ""}`,
+            code: rate.code,
+            codeKind: rate.codeKind,
+            quantity: l.quantity,
+            unitPrice: l.unitPrice,
+            discount: offs[i]!,
+            value: value - offs[i]!,
+            rateBps: bpsAt(rate, l.unitPrice),
+          };
+        });
+        // Delivery is part of the same supply, so it takes the first item's rate.
+        const first = lines[0]!;
+        const delivery = order.price.delivery;
+        return delivery > 0 ? [...lines, { ...first, description: "Delivery", quantity: 1, unitPrice: delivery, discount: 0, value: delivery }] : lines;
+      },
+      platformFee: order.price.platformFee,
+      ruxstarDiscount: order.price.coupon?.fundedBy === "ruxstar" ? discount : 0,
+    },
+    session,
+  );
+}
+
+/** Shares `amount` across parts by their size; the last takes what rounding leaves. */
+function spread(parts: number[], amount: number): number[] {
+  const whole = parts.reduce((s, p) => s + p, 0);
+  let left = amount;
+  return parts.map((p, i) => {
+    const part = i === parts.length - 1 ? left : Math.min(left, whole ? Math.round((amount * p) / whole) : 0);
+    left -= part;
+    return part;
+  });
 }
 
 /** Shares `amount` across lines by their totals; the last line takes what rounding leaves. */

@@ -2,7 +2,7 @@ import { MongoBulkWriteError } from "mongodb";
 import type { Database, ModuleSettingsDoc, SwitchableModule } from "./db.js";
 import { stamp } from "./db.js";
 
-export const SWITCHABLE_MODULES: readonly SwitchableModule[] = ["pod", "events", "coaching", "stays", "turf", "delivery", "ledger"];
+export const SWITCHABLE_MODULES: readonly SwitchableModule[] = ["pod", "events", "coaching", "stays", "turf", "shop", "delivery", "ledger"];
 /** Notifications are deleted after this many days. */
 export const NOTIFICATION_DAYS = 90;
 
@@ -260,6 +260,29 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.staysReservations.createIndex({ releaseAt: 1 }, { partialFilterExpression: { releaseAt: { $type: "date" } } }),
     db.staysReservations.createIndex({ "refund.status": 1 }, { partialFilterExpression: { "refund.status": "pending" } }),
     db.staysReservations.createIndex({ "objection.status": 1, "objection.at": -1 }, { partialFilterExpression: { "objection.status": "open" } }),
+    // Local shops: live products of a city (newest first, or a shop's), a business's products, the console's list; orders by
+    // number, payment, customer, shop and status, the timers (holds, acceptance, release), refunds to retry, open returns,
+    // and partner trips and their pay, as for print orders.
+    db.shopProducts.createIndex({ status: 1, city: 1, createdAt: -1, _id: -1 }),
+    db.shopProducts.createIndex({ businessId: 1, status: 1, createdAt: -1, _id: -1 }),
+    db.shopProducts.createIndex({ createdAt: -1, _id: -1 }),
+    db.shopOrders.createIndex({ orderNo: 1 }, { unique: true }),
+    db.shopOrders.createIndex({ "payment.gatewayOrderId": 1 }, { unique: true }),
+    db.shopOrders.createIndex({ customerId: 1, createdAt: -1, _id: -1 }),
+    db.shopOrders.createIndex({ businessId: 1, status: 1, createdAt: -1, _id: -1 }),
+    db.shopOrders.createIndex({ createdAt: -1, _id: -1 }),
+    db.shopOrders.createIndex({ status: 1, holdUntil: 1 }),
+    db.shopOrders.createIndex({ status: 1, acceptBy: 1 }),
+    db.shopOrders.createIndex({ releaseAt: 1 }, { partialFilterExpression: { releaseAt: { $type: "date" } } }),
+    db.shopOrders.createIndex({ vendorId: 1, releaseAt: 1 }, { partialFilterExpression: { releaseAt: { $type: "date" } } }),
+    db.shopOrders.createIndex({ "refunds.status": 1 }, { partialFilterExpression: { "refunds.status": "pending" } }),
+    db.shopOrders.createIndex({ "return.status": 1, "return.requestedAt": -1 }, { partialFilterExpression: { "return.status": { $type: "string" } } }),
+    db.shopOrders.createIndex({ "delivery.status": 1, "delivery.offerUntil": 1 }, { partialFilterExpression: { "delivery.status": "offered" } }),
+    db.shopOrders.createIndex({ "delivery.releasedAt": 1, "delivery.releaseAt": 1 }, { partialFilterExpression: { "delivery.releaseAt": { $type: "date" } } }),
+    db.shopOrders.createIndex(
+      { "delivery.rider.id": 1, "delivery.releasedAt": 1, "delivery.releaseAt": 1 },
+      { partialFilterExpression: { "delivery.releaseAt": { $type: "date" } } },
+    ),
     // GST documents: one per order part or refund, numbers unique per series, an order's documents, and the lists for
     // customers, vendors (all businesses or one) and the console (everything, one kind, or found by number or order),
     // each also by module. The `from`/`to` filters are ranges on `issuedAt`, the sort key, so they use the same indexes.

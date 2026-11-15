@@ -80,24 +80,29 @@ interface History {
 
 async function historyOf(db: Database, customerId: ObjectId, couponIds: ObjectId[]): Promise<History> {
   const unpaidFilter = { customerId, status: "awaiting_payment" as const, "price.coupon.id": { $in: couponIds }, createdAt: { $gt: new Date(Date.now() - UNPAID_HOLD_MS) } };
-  const [redemptions, unpaid, unpaidClasses, unpaidTickets, unpaidSlots, unpaidStays, orderedFrom, enrolledAt, bookedAt, playedAt, stayedAt] = await Promise.all([
+  const [redemptions, unpaid, unpaidClasses, unpaidTickets, unpaidSlots, unpaidStays, unpaidCarts, orderedFrom, enrolledAt, bookedAt, playedAt, stayedAt, boughtAt] = await Promise.all([
     db.couponRedemptions.find({ couponId: { $in: couponIds }, customerId }, { projection: { couponId: 1 } }).toArray(),
     db.podOrders.find(unpaidFilter, { projection: { "price.coupon.id": 1 } }).toArray(),
     db.coachingOrders.find(unpaidFilter, { projection: { "price.coupon.id": 1 } }).toArray(),
     db.eventOrders.find(unpaidFilter, { projection: { "price.coupon.id": 1 } }).toArray(),
     db.turfBookings.find(unpaidFilter, { projection: { "price.coupon.id": 1 } }).toArray(),
     db.staysReservations.find(unpaidFilter, { projection: { "price.coupon.id": 1 } }).toArray(),
+    db.shopOrders.find(unpaidFilter, { projection: { "price.coupon.id": 1 } }).toArray(),
     db.podOrders.distinct("shopId", { customerId, status: { $in: PAID } }),
     db.coachingOrders.distinct("businessId", { customerId, "payment.paidAt": { $type: "date" } }),
     db.eventOrders.distinct("businessId", { customerId, "payment.paidAt": { $type: "date" } }),
     db.turfBookings.distinct("businessId", { customerId, "payment.paidAt": { $type: "date" } }),
     db.staysReservations.distinct("businessId", { customerId, "payment.paidAt": { $type: "date" } }),
+    db.shopOrders.distinct("businessId", { customerId, "payment.paidAt": { $type: "date" } }),
   ]);
   const ids = [
     ...redemptions.map((r) => r.couponId),
-    ...[...unpaid, ...unpaidClasses, ...unpaidTickets, ...unpaidSlots, ...unpaidStays].map((o) => o.price.coupon!.id),
+    ...[...unpaid, ...unpaidClasses, ...unpaidTickets, ...unpaidSlots, ...unpaidStays, ...unpaidCarts].map((o) => o.price.coupon!.id),
   ];
-  return { uses: (couponId) => ids.filter((id) => id.equals(couponId)).length, orderedFrom: [...orderedFrom, ...enrolledAt, ...bookedAt, ...playedAt, ...stayedAt] };
+  return {
+    uses: (couponId) => ids.filter((id) => id.equals(couponId)).length,
+    orderedFrom: [...orderedFrom, ...enrolledAt, ...bookedAt, ...playedAt, ...stayedAt, ...boughtAt],
+  };
 }
 
 const WHERE: Partial<Record<SwitchableModule, string>> = {
@@ -106,6 +111,7 @@ const WHERE: Partial<Record<SwitchableModule, string>> = {
   coaching: "classes",
   turf: "turf bookings",
   stays: "PG and hostel stays",
+  shop: "local shop orders",
 };
 
 function problemOf(coupon: CouponDoc, ctx: CouponContext, history: History, now: Date): Problem | null {
@@ -362,7 +368,7 @@ async function modulesOf(db: Database, businessIds: ObjectId[]): Promise<Switcha
   return COUPON_MODULES.filter((m) => modules.includes(m));
 }
 /** Modules whose orders take coupons. A new module adds itself here once its checkout calls `checkCode`, `redeem` and `giveBack`. */
-export const COUPON_MODULES: SwitchableModule[] = ["pod", "events", "coaching", "turf", "stays"];
+export const COUPON_MODULES: SwitchableModule[] = ["pod", "events", "coaching", "turf", "stays", "shop"];
 
 /** A vendor's own businesses that take coupons, by id, for the coupon's `businessIds`. */
 export async function vendorShops(db: Database, vendorId: ObjectId, ids: string[]): Promise<ObjectId[]> {
@@ -371,7 +377,7 @@ export async function vendorShops(db: Database, vendorId: ObjectId, ids: string[
     .find({ _id: { $in: objectIds }, ownerId: vendorId, module: { $in: COUPON_MODULES as BusinessDoc["module"][] } }, { projection: { _id: 1 } })
     .toArray();
   ids.forEach((id, i) => {
-    if (!found.some((b) => b._id.toHexString() === id)) throw invalid(`body/businessIds/${i}`, "Pick one of your print shops, events, coaching, turf or stays businesses.");
+    if (!found.some((b) => b._id.toHexString() === id)) throw invalid(`body/businessIds/${i}`, "Pick one of your print shops, events, coaching, turf, stays or local shop businesses.");
   });
   return objectIds;
 }

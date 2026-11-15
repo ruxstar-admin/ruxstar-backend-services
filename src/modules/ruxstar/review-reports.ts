@@ -208,14 +208,14 @@ const reviewReports: FastifyPluginAsyncTypebox = async (app) => {
             actor: actorOf(request),
             scope: { module: moduleOf(review), businessId: review.shopId },
             action: "review.remove",
-            target: { type: review.orderType ?? "pod_order", id: review.orderId },
+            target: { type: review.orderType ?? "pod_order", id: review.parentId ?? review.orderId },
             diff: { status: { from: "live", to: "removed" }, reason: { from: null, to: reason } },
             ip: request.ip,
           },
           session,
         );
       });
-      await refreshRating(database, review.shopId);
+      await refreshRating(database, review.shopId, review.listing);
       await notifyReview(database, request.log, {
         to: review.customerId,
         actor: request.auth!.userId,

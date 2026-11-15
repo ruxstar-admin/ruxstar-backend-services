@@ -84,7 +84,7 @@ const delivery: FastifyPluginAsyncTypebox = async (app) => {
       vehicle: profile.vehicle,
       online: !!state?.online,
       city: state?.city ?? null,
-      partnerOffers: rules.partners,
+      partnerOffers: rules.partners || rules.shopPartners,
       active: active ? jobView(active, riderId) : null,
       today: { trips, earned },
       teams: places.map((p) => ({
@@ -316,7 +316,7 @@ const delivery: FastifyPluginAsyncTypebox = async (app) => {
       const now = new Date();
       await releaseRiderPayFor(db(), riderId, now);
       await settleDue(app, db(), riderId, now);
-      const [ledger, today, week, trips, teamTrips, recent, holding, rules, method, payouts, paid] = await Promise.all([
+      const [ledger, today, week, trips, teamTrips, recent, holding, shopHolding, rules, method, payouts, paid] = await Promise.all([
         db()
           .ledgerEntries.aggregate<{ _id: "pending" | "withdrawable"; total: number }>([
             { $match: { accountId: riderAccount(riderId) } },
@@ -329,6 +329,7 @@ const delivery: FastifyPluginAsyncTypebox = async (app) => {
         db().deliveryJobs.countDocuments({ riderId, status: "delivered", carrier: "team" }),
         db().deliveryJobs.find({ riderId, status: "delivered" }).sort({ updatedAt: -1 }).limit(20).toArray(),
         db().podOrders.find(heldRiderPay(riderId)).sort({ "delivery.releaseAt": 1 }).limit(20).toArray(),
+        db().shopOrders.find(heldRiderPay(riderId)).sort({ "delivery.releaseAt": 1 }).limit(20).toArray(),
         payoutRules(db(), "rider"),
         db().riderPayoutMethods.findOne({ userId: riderId }),
         db()
@@ -358,13 +359,13 @@ const delivery: FastifyPluginAsyncTypebox = async (app) => {
           pay: j.carrier === "partner" ? j.pay : 0,
           at: j.updatedAt.toISOString(),
         })),
-        upcoming: holding.map((o) => ({
-          orderId: o._id.toHexString(),
-          orderNo: o.orderNo,
-          amount: o.delivery!.pay,
-          availableAt: o.delivery!.releaseAt!.toISOString(),
-          held: riderPayHeld(o),
-        })),
+        upcoming: [
+          ...holding.map((o) => ({ orderId: o._id.toHexString(), orderNo: o.orderNo, amount: o.delivery!.pay, availableAt: o.delivery!.releaseAt!, held: riderPayHeld(o) })),
+          ...shopHolding.map((o) => ({ orderId: o._id.toHexString(), orderNo: o.orderNo, amount: o.delivery!.pay, availableAt: o.delivery!.releaseAt!, held: false })),
+        ]
+          .sort((a, b) => a.availableAt.getTime() - b.availableAt.getTime())
+          .slice(0, 20)
+          .map((u) => ({ ...u, availableAt: u.availableAt.toISOString() })),
         withdrawal: rules,
         payoutMethod: method ? payoutMethodView(method) : null,
         payouts: payouts.map(payoutView),
@@ -416,11 +417,13 @@ const delivery: FastifyPluginAsyncTypebox = async (app) => {
         cursor: request.query.cursor,
         limit: request.query.limit,
       });
-      const ids = (type: "pod_order" | "payout") => items.filter((e) => e.source.type === type).map((e) => e.source.id);
-      const [orders, payouts] = await Promise.all([
+      const ids = (type: "pod_order" | "shop_order" | "payout") => items.filter((e) => e.source.type === type).map((e) => e.source.id);
+      const [podOrders, shopOrders, payouts] = await Promise.all([
         database.podOrders.find({ _id: { $in: ids("pod_order") } }, { projection: { orderNo: 1 } }).toArray(),
+        database.shopOrders.find({ _id: { $in: ids("shop_order") } }, { projection: { orderNo: 1 } }).toArray(),
         database.payouts.find({ _id: { $in: ids("payout") } }, { projection: { to: 1 } }).toArray(),
       ]);
+      const orders: { _id: ObjectId; orderNo: number }[] = [...podOrders, ...shopOrders];
       const lines = items.flatMap((entry): RiderStatementLine[] => {
         const base = { id: entry._id.toHexString(), amount: entry.signedPaise, at: entry.at.toISOString() };
         if (entry.source.type === "payout") {

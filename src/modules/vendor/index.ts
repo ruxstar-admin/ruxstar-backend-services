@@ -36,6 +36,8 @@ import events from "../events/manage.js";
 import coaching from "../coaching/manage.js";
 import turf from "../turf/manage.js";
 import stays from "../stays/manage.js";
+import shop from "../shop/manage.js";
+import { emptyShop } from "../shop/rules.js";
 import { INDIA } from "./india.js";
 import orders from "./orders.js";
 import { vendorInvoices } from "../invoices/routes.js";
@@ -61,6 +63,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(coaching);
   await app.register(turf);
   await app.register(stays);
+  await app.register(shop);
   await app.register(activity);
   await app.register(reviews);
 
@@ -183,6 +186,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
         phone,
         location,
         pod: module === "pod" ? emptyPod() : null,
+        ...(module === "shop" ? { shop: emptyShop() } : {}),
         gstin: null,
         photos: [],
         status: "draft",

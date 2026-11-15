@@ -17,6 +17,8 @@ import { releaseTurfShares } from "../turf/orders.js";
 import { keptOf } from "../turf/rules.js";
 import { releaseStayShares } from "../stays/orders.js";
 import { vendorShareOf as stayShare } from "../stays/rules.js";
+import { releaseShopShares } from "../shop/orders.js";
+import { vendorLeftOf as storeShareLeft } from "../shop/rules.js";
 import { vendorShare as coachingShare } from "../coaching/rules.js";
 import { releaseEventShares } from "../events/orders.js";
 import { invoiceRefs } from "../invoices/views.js";
@@ -155,8 +157,9 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
       await releaseCoachingShares(app, db(), { vendorId }, now);
       await releaseTurfShares(app, db(), { vendorId }, now);
       await releaseStayShares(app, db(), { vendorId }, now);
+      await releaseShopShares(app, db(), { vendorId }, now);
       await settleDue(app, db(), vendorId, now);
-      const [method, payouts, paid, ledger, holding, tickets, places, slots, stays, rules] = await Promise.all([
+      const [method, payouts, paid, ledger, holding, tickets, places, slots, stays, stores, rules] = await Promise.all([
         db().payoutMethods.findOne({ userId: vendorId }),
         db()
           .payouts.find({ vendorId, ...payeeFilter("vendor") })
@@ -199,6 +202,11 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           .sort({ from: 1 })
           .limit(20)
           .toArray(),
+        db()
+          .shopOrders.find({ vendorId, status: "delivered", releasedAt: null, releaseAt: { $type: "date" } }, { projection: { orderNo: 1, price: 1, delivery: 1, refunds: 1, releaseAt: 1, return: 1 } })
+          .sort({ releaseAt: 1 })
+          .limit(20)
+          .toArray(),
         payoutRules(db()),
       ]);
       const sum = (bucket: "pending" | "withdrawable") => ledger.find((row) => row._id === bucket)?.total ?? 0;
@@ -234,6 +242,15 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
               amount: stayShare(r),
               availableAt: (r.releaseAt ?? now).toISOString(),
               held: r.objection?.status === "open",
+            })),
+          ...stores
+            .filter((o) => storeShareLeft(o) > 0)
+            .map((o) => ({
+              orderId: o._id.toHexString(),
+              orderNo: o.orderNo,
+              amount: storeShareLeft(o),
+              availableAt: o.releaseAt!.toISOString(),
+              held: o.return?.status === "requested" || o.return?.status === "approved",
             })),
         ]
           .sort((a, b) => a.availableAt.localeCompare(b.availableAt))
@@ -291,9 +308,9 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
         cursor: request.query.cursor,
         limit: request.query.limit,
       });
-      const ids = (type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "payout") =>
+      const ids = (type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "shop_order" | "payout") =>
         items.filter((e) => e.source.type === type).map((e) => e.source.id);
-      const [orders, payouts, eventOrders, coachingOrders, turfBookings, stayReservations] = await Promise.all([
+      const [orders, payouts, eventOrders, coachingOrders, turfBookings, stayReservations, storeOrders] = await Promise.all([
         database.podOrders
           .find(
             { _id: { $in: ids("pod_order") } },
@@ -327,6 +344,12 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           .find(
             { _id: { $in: ids("stay_reservation") } },
             { projection: { orderNo: 1, businessId: 1, businessName: 1, propertyName: 1, roomName: 1, customerName: 1, "price.total": 1, payment: 1, refund: 1, invoices: 1 } },
+          )
+          .toArray(),
+        database.shopOrders
+          .find(
+            { _id: { $in: ids("shop_order") } },
+            { projection: { orderNo: 1, businessId: 1, businessName: 1, lines: 1, customerName: 1, "price.total": 1, payment: 1, refunds: 1, invoices: 1 } },
           )
           .toArray(),
       ]);
@@ -454,6 +477,35 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
               refund: kind === "refund" && order.refund ? { id: order.refund.refundId, reason: order.refund.reason, by: order.refund.by } : null,
               payout: null,
               invoice: invoiceOf(order.invoices, kind, order.refund?.refundId ?? null),
+            },
+          ];
+        }
+        if (entry.source.type === "shop_order") {
+          const order = storeOrders.find((o) => o._id.equals(entry.source.id));
+          if (!order) return [];
+          const kind = entry.kind === "payment" ? "paid" : entry.kind === "release" ? "available" : entry.kind === "rider_pay" ? "delivery" : "refund";
+          // A return's refund line carries its refund id: `refund:<order>:<refundId>`; a full refund's is `refund:<order>`.
+          const refundId = entry.txnId.split(":")[2];
+          const refund = kind === "refund" ? (order.refunds.find((r) => (refundId ? r.refundId === refundId : r.kind === "full")) ?? null) : null;
+          const first = order.lines[0]!;
+          return [
+            {
+              ...base,
+              kind,
+              module: "shop",
+              order: {
+                id: order._id.toHexString(),
+                orderNo: order.orderNo,
+                business: { id: order.businessId.toHexString(), name: order.businessName },
+                label: order.lines.length > 1 ? `${first.title} and ${order.lines.length - 1} more` : first.title,
+                customer: order.customerName,
+                total: order.price.total,
+                paymentId: order.payment.paymentId,
+                paidAt: order.payment.paidAt?.toISOString() ?? null,
+              },
+              refund: refund ? { id: refund.refundId, reason: refund.reason, by: refund.by === "rider" ? "system" : refund.by } : null,
+              payout: null,
+              invoice: invoiceOf(order.invoices, kind, refund?.refundId ?? null),
             },
           ];
         }

@@ -7,20 +7,22 @@ import { AppError } from "../../platform/errors.js";
 import { toPrivateJpeg } from "../../platform/private-photo.js";
 import { notifyOrder, notifyRider } from "../notifications/notify.js";
 import { HOLD_MS, moveOrder, riderHeld, riderPayLedger, rupees, shopShareLeft } from "../pod/orders.js";
+import { shopDelivered, shopPickedUp, shopTripBack, sweepShopOffers, tellStore } from "../shop/trips.js";
 import type { Job } from "./contracts.js";
 import { deliveryRules, rateFor, roadKm, type DeliveryRules } from "./rates.js";
 import { OPEN_TRIP, tripActive } from "./stop.js";
 
 const MAX_CODE_TRIES = 5;
 /** Partner offers go to at most this many riders at once. */
-const OFFER_FANOUT = 100;
+export const OFFER_FANOUT = 100;
 
 type Rider = NonNullable<OrderDelivery["rider"]>;
 type By = { actor: AuditLogDoc["actor"]; ip: string | null };
 
-const cityKey = (city: string | null | undefined) => city?.trim().toLowerCase() ?? "";
-const dropCode = () => String(randomInt(0, 10_000)).padStart(4, "0");
-const vehicleLine = (r: Rider) => `${r.vehicle.type === "bike" ? "Bike" : "Scooter"} ${r.vehicle.number}`;
+export const cityKey = (city: string | null | undefined) => city?.trim().toLowerCase() ?? "";
+export const dropCode = () => String(randomInt(0, 10_000)).padStart(4, "0");
+export const vehicleLine = (r: Rider) => `${r.vehicle.type === "bike" ? "Bike" : "Scooter"} ${r.vehicle.number}`;
+const forShop = (job: Pick<DeliveryJobDoc, "orderType">) => job.orderType === "shop_order";
 
 /** A delivery-verified person as a shop and its customer see them, or null when they can't deliver. */
 export async function riderProfile(db: Database, userId: ObjectId): Promise<Rider | null> {
@@ -237,9 +239,9 @@ export async function assignTrip(
 }
 
 /** Ends a trip that hasn't been picked up: the job is cancelled and the order is the shop's to deliver again. */
-async function endBeforePickup(
+export async function endBeforePickup(
   db: Database,
-  job: Pick<DeliveryJobDoc, "_id" | "orderId">,
+  job: Pick<DeliveryJobDoc, "_id" | "orderId" | "orderType">,
   from: DeliveryJobDoc["status"][],
   cancel: NonNullable<DeliveryJobDoc["cancel"]>,
   extra: { session?: ClientSession; jobFilter?: Record<string, unknown> } = {},
@@ -251,11 +253,10 @@ async function endBeforePickup(
       { session },
     );
     if (res.matchedCount === 0) throw new AppError("JOB_TAKEN");
-    await db.podOrders.updateOne(
-      { _id: job.orderId, "delivery.jobId": job._id },
-      { $set: { "delivery.status": "cancelled", updatedAt: cancel.at } },
-      { session },
-    );
+    const filter = { _id: job.orderId, "delivery.jobId": job._id };
+    const update = { $set: { "delivery.status": "cancelled" as const, updatedAt: cancel.at } };
+    if (forShop(job)) await db.shopOrders.updateOne(filter, update, { session });
+    else await db.podOrders.updateOne(filter, update, { session });
   };
   if (extra.session) await run(extra.session);
   else await db.transaction(run);
@@ -296,9 +297,11 @@ export async function cancelTrip(app: FastifyInstance, db: Database, order: PodO
   return (await db.podOrders.findOne({ _id: order._id }))!;
 }
 
-/** The shop hears about its delivery, as owner. */
+/** The shop hears about its delivery, as owner; a local shop's desk team too. */
 const tellShop = (app: FastifyInstance, db: Database, job: DeliveryJobDoc, actor: ObjectId, title: string, body: string) =>
-  notifyOrder(db, app.log, { to: job.vendorId, actor, orderId: job.orderId, type: "order.updated", forShop: true, title, body });
+  forShop(job)
+    ? tellStore(app, db, job, actor, title, body)
+    : notifyOrder(db, app.log, { to: job.vendorId, actor, orderId: job.orderId, type: "order.updated", forShop: true, title, body });
 
 export const offerExpired = (order: PodOrderDoc, now = new Date()) =>
   order.delivery?.status === "offered" && !!order.delivery.offerUntil && order.delivery.offerUntil <= now;
@@ -369,9 +372,10 @@ export function jobView(job: DeliveryJobDoc, riderId: ObjectId): Job {
 export async function offersFor(db: Database, riderId: ObjectId, now = new Date()) {
   const state = await db.riderStates.findOne({ _id: riderId });
   const rules = await deliveryRules(db);
+  const kinds = rules.partners && rules.shopPartners ? {} : rules.partners ? { orderType: { $exists: false } } : { orderType: "shop_order" as const };
   const partner =
-    state?.online && state.city && rules.partners
-      ? { carrier: "partner" as const, status: "offered" as const, city: state.city, offerUntil: { $gt: now }, passedBy: { $ne: riderId } }
+    state?.online && state.city && (rules.partners || rules.shopPartners)
+      ? { carrier: "partner" as const, status: "offered" as const, city: state.city, offerUntil: { $gt: now }, passedBy: { $ne: riderId }, ...kinds }
       : null;
   const team = { carrier: "team" as const, status: "offered" as const, riderId };
   return db.deliveryJobs
@@ -421,11 +425,10 @@ export async function acceptJob(app: FastifyInstance, db: Database, job: Deliver
         { session, returnDocument: "after" },
       );
       if (!after) throw new AppError("JOB_TAKEN");
-      const res = await db.podOrders.updateOne(
-        { _id: job.orderId, status: "ready", "delivery.jobId": job._id, "delivery.status": "offered" },
-        { $set: { "delivery.status": "accepted", "delivery.rider": rider, "delivery.offerUntil": null, updatedAt: now } },
-        { session },
-      );
+      const update = { $set: { "delivery.status": "accepted" as const, "delivery.rider": rider, "delivery.offerUntil": null, updatedAt: now } };
+      const res = forShop(job)
+        ? await db.shopOrders.updateOne({ _id: job.orderId, status: "packed", "delivery.jobId": job._id, "delivery.status": "offered" }, update, { session })
+        : await db.podOrders.updateOne({ _id: job.orderId, status: "ready", "delivery.jobId": job._id, "delivery.status": "offered" }, update, { session });
       if (res.matchedCount === 0) throw new AppError("JOB_TAKEN");
       return after;
     });
@@ -465,6 +468,10 @@ const mustHave = (job: DeliveryJobDoc, riderId: ObjectId, status: DeliveryJobDoc
 /** The rider has the parcel: the order is out for delivery and the customer gets the code to give at the door. */
 export async function pickUp(app: FastifyInstance, db: Database, job: DeliveryJobDoc, riderId: ObjectId): Promise<DeliveryJobDoc> {
   mustHave(job, riderId, ["accepted"]);
+  if (forShop(job)) {
+    await shopPickedUp(app, db, job, riderId);
+    return (await db.deliveryJobs.findOne({ _id: job._id }))!;
+  }
   const order = await orderOf(db, job);
   if (order.status !== "ready") throw new AppError("ORDER_STATE");
   const now = new Date();
@@ -518,6 +525,10 @@ export async function deliver(app: FastifyInstance, db: Database, job: DeliveryJ
     await db.deliveryJobs.updateOne({ _id: job._id }, { $inc: { codeTries: 1 } });
     throw new AppError("DROP_CODE_INVALID");
   }
+  if (forShop(job)) {
+    await shopDelivered(app, db, job, riderId);
+    return (await db.deliveryJobs.findOne({ _id: job._id }))!;
+  }
   const order = await orderOf(db, job);
   if (order.status !== "out_for_delivery") throw new AppError("ORDER_STATE");
   const now = new Date();
@@ -554,6 +565,8 @@ export async function riderCancel(app: FastifyInstance, db: Database, job: Deliv
   const cancel = { by: "rider" as const, reason, at: now };
   if (job.status === "accepted") {
     await endBeforePickup(db, job, ["accepted"], cancel, { jobFilter: { riderId } });
+  } else if (forShop(job)) {
+    await shopTripBack(app, db, job, riderId, cancel);
   } else {
     const order = await orderOf(db, job);
     if (order.status !== "out_for_delivery") throw new AppError("ORDER_STATE");
@@ -588,5 +601,6 @@ export async function sweepOffers(app: FastifyInstance, db: Database, now = new 
       app.log.error({ err: (err as Error).message, order: order._id.toHexString() }, "Offer expiry failed; it is retried on the next run");
     }
   }
-  return { checked: due.length, expired };
+  const shops = await sweepShopOffers(app, db, now);
+  return { checked: due.length + shops.checked, expired: expired + shops.expired };
 }

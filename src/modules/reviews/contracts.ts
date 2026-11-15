@@ -22,11 +22,12 @@ export type Rating = Static<typeof Rating>;
 const Stars = Type.Integer({ minimum: 1, maximum: 5 });
 const Reply = Strict({ text: Type.String(), at: DateTime, editedAt: Nullable(DateTime) });
 const Author = Strict({ id: ObjectIdString, name: Type.String(), username: Nullable(Type.String()), avatarUrl: Nullable(Type.String()) });
-export const ReviewModuleName = Type.Union([Type.Literal("pod"), Type.Literal("events"), Type.Literal("coaching"), Type.Literal("turf"), Type.Literal("stays")], {
-  description: "The kind of business: print, events, coaching, turf or stays (PG and hostels)",
-});
+export const ReviewModuleName = Type.Union(
+  [Type.Literal("pod"), Type.Literal("events"), Type.Literal("coaching"), Type.Literal("turf"), Type.Literal("stays"), Type.Literal("shop")],
+  { description: "The kind of business: print, events, coaching, turf, stays (PG and hostels) or a local shop" },
+);
 const Listing = Strict({
-  type: Type.Union([Type.Literal("event"), Type.Literal("course"), Type.Literal("ground"), Type.Literal("property")]),
+  type: Type.Union([Type.Literal("event"), Type.Literal("course"), Type.Literal("ground"), Type.Literal("property"), Type.Literal("product")]),
   id: ObjectIdString,
 });
 

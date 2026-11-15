@@ -82,6 +82,21 @@ const CATALOGS: Partial<Record<BusinessDoc["module"], PermissionInfo[]>> = {
     { key: "stays.listing", label: "Edit the listing and prices", hint: "Details, food, facilities, house rules and room prices", needs: null },
     { key: "reviews.reply", label: "Reply to reviews", hint: "Answer customers' reviews of the business", needs: null },
   ].map(info),
+  shop: [
+    { key: "store.orders", label: "See orders", hint: "New and past orders, with the customer's address and phone", needs: null },
+    { key: "store.move", label: "Accept, pack and hand over orders", hint: "Accepted, packed, ready for pickup, out for delivery and delivered", needs: "store.orders" },
+    { key: "store.cancel", label: "Cancel orders", hint: "Before delivery; the customer gets a full refund", needs: "store.orders" },
+    { key: "store.returns", label: "Handle returns", hint: "Approve or turn down a return, and mark it received to refund it", needs: "store.orders" },
+    {
+      key: "orders.deliver",
+      label: "Deliver orders",
+      hint: "The shop can send them orders to take in the Ruxstar Delivery app. Needs delivery verification",
+      needs: "store.orders",
+    },
+    { key: "store.stock", label: "Update stock", hint: "How many of each size or colour are left", needs: null },
+    { key: "store.products", label: "Add and change products", hint: "Titles, photos, options, prices and stock", needs: "store.stock" },
+    { key: "reviews.reply", label: "Reply to reviews", hint: "Answer customers' reviews of the shop", needs: null },
+  ].map(info),
 };
 
 /** Every permission once, for labelling places at any kind of business. */

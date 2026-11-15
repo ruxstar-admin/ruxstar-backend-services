@@ -8,13 +8,14 @@ import kyc from "./kyc/index.js";
 import notifications from "./notifications/index.js";
 import pod from "./pod/index.js";
 import ruxstar from "./ruxstar/index.js";
+import shop from "./shop/index.js";
 import social from "./social/index.js";
 import stays from "./stays/index.js";
 import support from "./support/index.js";
 import turf from "./turf/index.js";
 import vendor from "./vendor/index.js";
 
-/** The 15 resources, each mounted at `/v1/<name>`. A module is added here once it has routes. */
+/** The 16 resources, each mounted at `/v1/<name>`. A module is added here once it has routes. */
 export const RESOURCES = [
   "account",
   "kyc",
@@ -26,6 +27,7 @@ export const RESOURCES = [
   "coaching",
   "stays",
   "turf",
+  "shop",
   "employment",
   "delivery",
   "ledger",
@@ -46,6 +48,7 @@ const MODULES: Partial<Record<Resource, FastifyPluginAsync>> = {
   coaching,
   stays,
   turf,
+  shop,
   employment,
   delivery,
   support,

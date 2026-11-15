@@ -135,7 +135,7 @@ export interface KycCaseDoc extends Stamped {
 }
 
 /** The modules a vendor can open a business in. Each business is in exactly one. */
-export type BusinessModule = "pod" | "events" | "coaching" | "stays" | "turf";
+export type BusinessModule = "pod" | "events" | "coaching" | "stays" | "turf" | "shop";
 
 export interface BusinessPhoto extends PostPhoto {
   id: string;
@@ -192,6 +192,22 @@ export interface PodSetup {
   deliveryFee?: DeliveryFee;
 }
 
+/** A local shop's delivery, pickup and returns. Same-city only. */
+export interface ShopSetup {
+  /** Delivers in its city, by its own team or Ruxstar partners. */
+  delivery: boolean;
+  /** Customers can collect from the shop. */
+  pickup: boolean;
+  /** Road km from the shop it delivers to; null for anywhere in its city. */
+  radiusKm: number | null;
+  deliveryFee: DeliveryFee;
+  /** Paise of items; 0 for none. */
+  minOrder: number;
+  /** Takes returns within Ruxstar's return days; false is "No returns". */
+  returns: boolean;
+  notes: string | null;
+}
+
 export interface BusinessDoc extends Stamped {
   _id: ObjectId;
   ownerId: ObjectId;
@@ -205,6 +221,8 @@ export interface BusinessDoc extends Stamped {
   location: BusinessLocation | null;
   /** Print on demand businesses only. */
   pod: PodSetup | null;
+  /** Local shops only; missing until the owner sets delivery and returns. */
+  shop?: ShopSetup | null;
   gstin: { number: string; legalName: string | null; status: string | null } | null;
   photos: BusinessPhoto[];
   /** `draft` until the vendor publishes it. Only drafts can be deleted. */
@@ -480,7 +498,9 @@ export type NotificationType =
   | "turf.booked"
   | "turf.updated"
   | "stays.reserved"
-  | "stays.updated";
+  | "stays.updated"
+  | "shop.ordered"
+  | "shop.updated";
 
 export interface NotificationDoc {
   _id: ObjectId;
@@ -501,7 +521,9 @@ export interface NotificationDoc {
    * page, `coaching_order` a customer's enrolment or demo class, `vendor_course` a course in the vendor portal, and
    * `coaching_batch` a batch's classes for its owner or coaches. `turf_ground` opens a ground's page, `turf_order` a customer's
    * booking, and `vendor_ground` a ground's board for its owner or team. `stay_property` opens a PG or hostel's page,
-   * `stay_order` a customer's reservation, and `vendor_property` a property's bed board for its owner or team.
+   * `stay_order` a customer's reservation, and `vendor_property` a property's bed board for its owner or team. `store` opens a
+   * local shop's page, `store_product` one of its products, `store_order` a customer's order, and `vendor_store_order` the same
+   * order at the shop's desk.
    */
   link: {
     screen:
@@ -532,7 +554,11 @@ export interface NotificationDoc {
       | "vendor_ground"
       | "stay_property"
       | "stay_order"
-      | "vendor_property";
+      | "vendor_property"
+      | "store"
+      | "store_product"
+      | "store_order"
+      | "vendor_store_order";
     id: string;
   };
   readAt: Date | null;
@@ -603,6 +629,8 @@ export interface ModuleSettingsDoc extends Stamped {
   turfRules?: TurfRules;
   /** The stays module only. Missing: the defaults in the stays module. */
   staysRules?: StaysRules;
+  /** The shop module only. Missing: the defaults in the shop module. */
+  shopRules?: ShopRules;
   deliveryEnabled: boolean;
   permissionCatalog: string[];
   updatedBy: ObjectId | null;
@@ -684,6 +712,29 @@ export interface StaysRules {
   maxRooms: number;
   /** Beds in one room. */
   maxBeds: number;
+}
+
+/** What Ruxstar sets for local shops. */
+export interface ShopRules {
+  /** Shops that take returns take them for this many days after delivery. */
+  returnDays: number;
+  /** Option dimensions on one product, such as size and colour. */
+  maxOptions: number;
+  /** The shop's money is released this long after delivery, or when the return window ends if that is later. */
+  releaseHours: number;
+  /** An unpaid order's checkout link works this long. Stock is only taken when it's paid. */
+  holdMinutes: number;
+  /** A paid order the shop hasn't accepted in this long is cancelled and refunded. */
+  acceptHours: number;
+  maxProducts: number;
+  /** Variants (option combinations) on one product. */
+  maxVariants: number;
+  /** Values of one option. */
+  maxValues: number;
+  /** Lines in one order. */
+  maxLines: number;
+  /** Of one variant in one order. */
+  maxQuantity: number;
 }
 
 /** A file a customer uploaded to print. Unused ones are deleted a day later, on the uploader's next upload. */
@@ -835,6 +886,8 @@ export interface OrderDelivery {
  */
 export interface DeliveryJobDoc extends Stamped {
   _id: ObjectId;
+  /** A local shop's order in `shop_orders`; missing for print orders. */
+  orderType?: "shop_order";
   orderId: ObjectId;
   orderNo: number;
   shopId: ObjectId;
@@ -892,7 +945,7 @@ export interface LedgerEntryDoc {
   accountId: string;
   bucket: "pending" | "withdrawable";
   signedPaise: number;
-  source: { type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "payout"; id: ObjectId };
+  source: { type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "shop_order" | "payout"; id: ObjectId };
   at: Date;
 }
 
@@ -1067,7 +1120,7 @@ export interface InvoiceDoc extends Stamped {
   /** `supply`: what was bought; `fee`: Ruxstar's platform fee. */
   role: "supply" | "fee";
   module: GstModule;
-  source: { type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation"; id: ObjectId; orderNo: number };
+  source: { type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "shop_order"; id: ObjectId; orderNo: number };
   businessId: ObjectId;
   businessName: string;
   vendorId: ObjectId;
@@ -1685,6 +1738,166 @@ export interface StayReservationDoc extends Stamped {
   invoices?: InvoiceRefDoc[];
 }
 
+/** One combination of a product's option values, such as M and Red, with its own price and stock. */
+export interface ShopVariantDoc {
+  id: ObjectId;
+  /** One value per option, in the options' order; empty for a product without options. */
+  values: string[];
+  /** Paise, the sale price. */
+  price: number;
+  /** Paise, the printed MRP; null when not given. At least `price`. */
+  mrp: number | null;
+  stock: number;
+  sku: string | null;
+}
+
+/** A product at a local shop. One photo, up to two options and a variant for each combination. Live as soon as it's saved. */
+export interface ShopProductDoc extends Stamped {
+  _id: ObjectId;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  businessName: string;
+  /** The shop's city, lower case. */
+  city: string;
+  title: string;
+  description: string | null;
+  photo: BusinessPhoto | null;
+  options: { name: string; values: string[] }[];
+  variants: ShopVariantDoc[];
+  /** The cheapest variant's price, and its MRP, for lists. */
+  priceFrom: number;
+  mrpFrom: number | null;
+  inStock: boolean;
+  /** Overrides the shop module's GST defaults for this product. */
+  tax: { hsn: string | null; rateBps: number | null };
+  /** `hidden`: the shop took it off sale. `removed`: Ruxstar took it down. */
+  status: "live" | "hidden" | "removed";
+  removal: { actorId: ObjectId; reason: string; at: Date } | null;
+  /** Live reviews of it. Missing before the first. */
+  rating?: { count: number; sum: number };
+  /** Raised by every change, so an edit made from an old copy can't undo a sale's stock. */
+  seq: number;
+}
+
+/** A word or phrase products can't use, kept by Ruxstar, with the category it stands for. */
+export interface ShopBannedDoc extends Stamped {
+  /** Lower case key, such as `tobacco`. */
+  _id: string;
+  name: string;
+  /** Lower case. A product whose title, description or option values contain one is refused. */
+  words: string[];
+  active: boolean;
+}
+
+export type ShopOrderStatus =
+  | "awaiting_payment"
+  | "paid"
+  | "accepted"
+  | "packed"
+  | "out_for_delivery"
+  | "ready_for_pickup"
+  | "delivered"
+  | "cancelled";
+export type ShopActor = "customer" | "vendor" | "staff" | "system" | "rider";
+
+export interface ShopOrderLineDoc {
+  id: ObjectId;
+  productId: ObjectId;
+  variantId: ObjectId;
+  title: string;
+  options: { name: string; value: string }[];
+  photo: string | null;
+  sku: string | null;
+  unitPrice: number;
+  mrp: number | null;
+  quantity: number;
+  tax: { hsn: string | null; rateBps: number | null };
+}
+
+/** Money sent back: everything when the order is cancelled, or the returned items. */
+export interface ShopRefundDoc {
+  refundId: string;
+  kind: "full" | "return";
+  amount: number;
+  /** What came out of the shop's pending share and Ruxstar's. */
+  vendor: number;
+  ruxstar: number;
+  reason: string | null;
+  by: ShopActor;
+  status: "pending" | "done";
+  at: Date;
+}
+
+export type ShopReturnReason = "wrong_item" | "damaged" | "not_as_described" | "changed_mind" | "other";
+
+export interface ShopReturnDoc {
+  reason: ShopReturnReason;
+  note: string | null;
+  lines: { lineId: ObjectId; quantity: number }[];
+  /** `requested` and `approved` hold the shop's money until it's received and refunded, or rejected. */
+  status: "requested" | "approved" | "rejected" | "refunded";
+  /** The shop pays the trip back when it sent the wrong or a damaged item; otherwise the customer, out of the refund. */
+  tripPaidBy: "shop" | "customer";
+  tripFee: number;
+  /** What the customer gets back. */
+  amount: number;
+  requestedAt: Date;
+  decision: { by: ShopActor; actorId: ObjectId | null; note: string | null; at: Date } | null;
+  receivedAt: Date | null;
+}
+
+/**
+ * An order at one local shop: lines of variants, delivered in the shop's city or picked up. Stock is taken when it's paid;
+ * if something sold out meanwhile, it's cancelled and refunded at once. The shop's money waits until the later of the return
+ * window's end and `releaseHours` after delivery.
+ */
+export interface ShopOrderDoc extends Stamped {
+  _id: ObjectId;
+  orderNo: number;
+  customerId: ObjectId;
+  customerName: string;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  businessName: string;
+  lines: ShopOrderLineDoc[];
+  method: "delivery" | "pickup";
+  /** Where it goes; null for pickup. */
+  address: { name: string; phone: string; line: string; city: string; pincode: string; point: { lat: number; lng: number } | null } | null;
+  price: {
+    items: number;
+    delivery: number;
+    deliveryKm: number | null;
+    platformFee: number;
+    discount: number;
+    coupon: { id: ObjectId; code: string; fundedBy: "ruxstar" | "vendor" } | null;
+    total: number;
+    commissionBps: number;
+    commission: number;
+  };
+  /** Days to return after delivery, as the shop and Ruxstar had them when it was ordered; null for "No returns". */
+  returnRule: { days: number } | null;
+  note: string | null;
+  status: ShopOrderStatus;
+  timeline: { status: ShopOrderStatus; at: Date; by: ShopActor }[];
+  payment: { gatewayOrderId: string; sessionId: string; paymentId: string | null; paidAt: Date | null };
+  /** The checkout link works until then. */
+  holdUntil: Date | null;
+  /** Taken from the variants when it was paid, and put back if it's cancelled. */
+  stockTaken: boolean;
+  /** Cancelled and refunded if the shop hasn't accepted by then. */
+  acceptBy: Date | null;
+  /** A Ruxstar partner's or team member's trip, when the shop doesn't deliver it itself. */
+  delivery?: OrderDelivery | null;
+  deliveredAt: Date | null;
+  returnUntil: Date | null;
+  return: ShopReturnDoc | null;
+  refunds: ShopRefundDoc[];
+  cancellation: { by: ShopActor; actorId: ObjectId | null; reason: string; at: Date } | null;
+  releaseAt: Date | null;
+  releasedAt: Date | null;
+  invoices?: InvoiceRefDoc[];
+}
+
 /**
  * A discount code. Ruxstar's work at every shop and Ruxstar pays for them; a vendor's work at the shops
  * they pick and come out of their share. The code and the discount never change once made.
@@ -1760,11 +1973,17 @@ export type TeamPermission =
   | "stays.movein"
   | "stays.beds"
   | "stays.cancel"
-  | "stays.listing";
+  | "stays.listing"
+  | "store.orders"
+  | "store.move"
+  | "store.cancel"
+  | "store.returns"
+  | "store.products"
+  | "store.stock";
 
 /** Modules whose orders can be reviewed. */
-export type ReviewModule = "pod" | "events" | "coaching" | "turf" | "stays";
-export type ReviewOrderType = "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation";
+export type ReviewModule = "pod" | "events" | "coaching" | "turf" | "stays" | "shop";
+export type ReviewOrderType = "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "shop_order";
 
 /**
  * A customer's review of one finished order at any business (decisions 55 and A6): 1 to 5 stars and an optional note, written
@@ -1786,7 +2005,9 @@ export interface ReviewDoc extends Stamped {
   /** Missing means `pod_order`. */
   orderType?: ReviewOrderType;
   /** The event, course or ground reviewed; null or missing for print. */
-  listing?: { type: "event" | "course" | "ground" | "property"; id: ObjectId } | null;
+  listing?: { type: "event" | "course" | "ground" | "property" | "product"; id: ObjectId } | null;
+  /** The whole order when `orderId` is one line of it: a local shop's products are reviewed one by one. */
+  parentId?: ObjectId;
   rating: number;
   text: string | null;
   status: "live" | "removed";
@@ -2144,6 +2365,15 @@ export class Database {
   }
   get staysReservations() {
     return this.db.collection<StayReservationDoc>("stays_reservations");
+  }
+  get shopProducts() {
+    return this.db.collection<ShopProductDoc>("shop_products");
+  }
+  get shopBanned() {
+    return this.db.collection<ShopBannedDoc>("shop_banned");
+  }
+  get shopOrders() {
+    return this.db.collection<ShopOrderDoc>("shop_orders");
   }
 
   /** Runs `work` in a majority-committed transaction, retrying transient errors. */

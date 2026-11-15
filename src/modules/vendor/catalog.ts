@@ -7,9 +7,28 @@ export const CATEGORIES: readonly { module: BusinessModule; label: string; descr
   { module: "coaching", label: "Coaching & classes", description: "Tutoring, fitness and skill coaching" },
   { module: "stays", label: "PG & hostel stays", description: "Rooms and beds by the month" },
   { module: "turf", label: "Sports & turf", description: "Grounds and courts booked by the slot" },
+  { module: "shop", label: "Local shops", description: "Sell products in your city, delivered or picked up" },
 ];
 
-export const BUSINESS_TYPES = ["print_shop", "concert", "sports_event", "meetup", "coaching", "pg", "hostel", "coliving", "turf", "sports_complex", "court"] as const;
+export const BUSINESS_TYPES = [
+  "print_shop",
+  "concert",
+  "sports_event",
+  "meetup",
+  "coaching",
+  "pg",
+  "hostel",
+  "coliving",
+  "turf",
+  "sports_complex",
+  "court",
+  "clothing",
+  "electronics",
+  "grocery",
+  "gifts",
+  "bakery",
+  "general_store",
+] as const;
 export type BusinessType = (typeof BUSINESS_TYPES)[number];
 
 export const TYPES: readonly {
@@ -120,11 +139,72 @@ export const TYPES: readonly {
     namePlaceholder: "e.g. Smash Badminton Courts",
     detailHint: "The name players know your courts by. Courts and prices come after this step.",
   },
+  {
+    id: "clothing",
+    module: "shop",
+    label: "Clothing & footwear",
+    description: "Clothes, shoes and accessories in sizes and colours",
+    examples: "Boutique, menswear, kids' wear, shoe store",
+    namePlaceholder: "e.g. Style Street Boutique",
+    detailHint: "The name customers know your shop by. Delivery, returns and products come after this step.",
+  },
+  {
+    id: "electronics",
+    module: "shop",
+    label: "Electronics & mobiles",
+    description: "Phones, accessories, gadgets and appliances",
+    examples: "Mobile store, accessories, computer shop",
+    namePlaceholder: "e.g. City Mobiles",
+    detailHint: "The name customers know your shop by. Delivery, returns and products come after this step.",
+  },
+  {
+    id: "grocery",
+    module: "shop",
+    label: "Grocery & daily needs",
+    description: "Groceries, fruit, vegetables and household items",
+    examples: "Kirana, supermarket, organic store",
+    namePlaceholder: "e.g. Fresh Mart",
+    detailHint: "The name customers know your shop by. Delivery, returns and products come after this step.",
+  },
+  {
+    id: "gifts",
+    module: "shop",
+    label: "Gifts & flowers",
+    description: "Gifts, flowers, toys and stationery",
+    examples: "Gift shop, florist, toy store, stationery",
+    namePlaceholder: "e.g. Petals & Presents",
+    detailHint: "The name customers know your shop by. Delivery, returns and products come after this step.",
+  },
+  {
+    id: "bakery",
+    module: "shop",
+    label: "Bakery & sweets",
+    description: "Cakes, bakes and sweets made fresh",
+    examples: "Bakery, cake studio, sweet shop",
+    namePlaceholder: "e.g. Sweet Crumbs Bakery",
+    detailHint: "The name customers know your shop by. Delivery, returns and products come after this step.",
+  },
+  {
+    id: "general_store",
+    module: "shop",
+    label: "General store",
+    description: "Anything else sold from a local shop",
+    examples: "Department store, home goods, books",
+    namePlaceholder: "e.g. Corner Store",
+    detailHint: "The name customers know your shop by. Delivery, returns and products come after this step.",
+  },
 ];
 
 export const typeOf = (id: BusinessType) => TYPES.find((t) => t.id === id)!;
 /** The type an older business gets when it has none. */
-export const DEFAULT_TYPE: Record<BusinessModule, BusinessType> = { pod: "print_shop", events: "concert", coaching: "coaching", stays: "pg", turf: "turf" };
+export const DEFAULT_TYPE: Record<BusinessModule, BusinessType> = {
+  pod: "print_shop",
+  events: "concert",
+  coaching: "coaching",
+  stays: "pg",
+  turf: "turf",
+  shop: "general_store",
+};
 
 const APPAREL_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "3XL"];
 const PAPER_SIZES = ["A6", "A5", "A4", "A3", "A2", "A1", "Custom"];

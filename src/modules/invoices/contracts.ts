@@ -69,6 +69,7 @@ export const Invoice = Strict({
       Type.Literal("coaching_order"),
       Type.Literal("turf_booking"),
       Type.Literal("stay_reservation"),
+      Type.Literal("shop_order"),
     ]),
     id: ObjectIdString,
     orderNo: Type.Integer(),

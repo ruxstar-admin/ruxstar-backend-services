@@ -46,6 +46,8 @@ export interface Reviewable {
   until: Date | null;
   /** Why it can't be reviewed now, said to the customer, when `until` is null. */
   closed: string;
+  /** The whole order, when `orderId` is one part of it reviewed on its own. */
+  parentId?: ObjectId;
 }
 
 export const moduleOf = (review: Pick<ReviewDoc, "module">): ReviewModule => review.module ?? "pod";
@@ -57,10 +59,13 @@ const ORDER_SCREEN: Record<ReviewModule, NotificationDoc["link"]["screen"]> = {
   coaching: "coaching_order",
   turf: "turf_order",
   stays: "stay_order",
+  shop: "store_order",
 };
-export const orderLinkOf = (review: Pick<ReviewDoc, "module" | "orderId">): NotificationDoc["link"] => ({
+/** The order a review is of: the whole order when the review is of one part of it. */
+const wholeOrder = (review: Pick<ReviewDoc, "orderId" | "parentId">) => review.parentId ?? review.orderId;
+export const orderLinkOf = (review: Pick<ReviewDoc, "module" | "orderId" | "parentId">): NotificationDoc["link"] => ({
   screen: ORDER_SCREEN[moduleOf(review)],
-  id: review.orderId.toHexString(),
+  id: wholeOrder(review).toHexString(),
 });
 
 /** Reviews stay open this long after `from`; null once that has passed. */
@@ -113,12 +118,15 @@ export function ratingOf(doc: Pick<BusinessDoc, "rating">): Rating {
   return { average: count >= RATING_MIN_REVIEWS ? Math.round((doc.rating!.sum / count) * 10) / 10 : null, count };
 }
 
-/** Counts the business's live reviews again, so the rating never drifts from them. */
-export async function refreshRating(db: Database, shopId: ObjectId): Promise<void> {
-  const [row] = await db.reviews
-    .aggregate<{ count: number; sum: number }>([{ $match: { shopId, status: "live" } }, { $group: { _id: null, count: { $sum: 1 }, sum: { $sum: "$rating" } } }])
-    .toArray();
-  await db.businesses.updateOne({ _id: shopId }, { $set: { rating: { count: row?.count ?? 0, sum: row?.sum ?? 0 } } });
+/** Counts the business's live reviews again, so the rating never drifts from them; a local shop's product's too. */
+export async function refreshRating(db: Database, shopId: ObjectId, listing?: ReviewDoc["listing"]): Promise<void> {
+  const count = (match: object) =>
+    db.reviews
+      .aggregate<{ count: number; sum: number }>([{ $match: { ...match, status: "live" } }, { $group: { _id: null, count: { $sum: 1 }, sum: { $sum: "$rating" } } }])
+      .toArray()
+      .then(([row]) => ({ count: row?.count ?? 0, sum: row?.sum ?? 0 }));
+  await db.businesses.updateOne({ _id: shopId }, { $set: { rating: await count({ shopId }) } });
+  if (listing?.type === "product") await db.shopProducts.updateOne({ _id: listing.id }, { $set: { rating: await count({ "listing.id": listing.id }) } });
 }
 
 type Person = Pick<UserDoc, "_id" | "name" | "username" | "avatar">;
@@ -151,23 +159,29 @@ export function reviewView(doc: ReviewDoc, people: People): Review {
 
 export const shopReviewView = (doc: ReviewDoc, people: People): ShopReview => ({
   ...reviewView(doc, people),
-  orderId: doc.orderId.toHexString(),
+  orderId: wholeOrder(doc).toHexString(),
   orderNo: doc.orderNo,
 });
 
 export const myReviewView = (doc: ReviewDoc, people: People): MyReview => ({
   ...reviewView(doc, people),
-  orderId: doc.orderId.toHexString(),
+  orderId: wholeOrder(doc).toHexString(),
   status: doc.status,
   removedReason: doc.removal?.reason ?? null,
 });
 
-const audit = (db: Database, review: Pick<ReviewDoc, "orderId" | "shopId" | "module" | "orderType">, action: string, ctx: Pick<Ctx, "actor" | "ip">, diff: AuditLogDoc["diff"]) =>
+const audit = (
+  db: Database,
+  review: Pick<ReviewDoc, "orderId" | "parentId" | "shopId" | "module" | "orderType">,
+  action: string,
+  ctx: Pick<Ctx, "actor" | "ip">,
+  diff: AuditLogDoc["diff"],
+) =>
   writeAudit(db, {
     actor: ctx.actor,
     scope: { module: moduleOf(review), businessId: review.shopId },
     action,
-    target: { type: orderTypeOf(review), id: review.orderId },
+    target: { type: orderTypeOf(review), id: wholeOrder(review) },
     diff,
     ip: ctx.ip,
   });
@@ -195,7 +209,7 @@ export async function writeReview(db: Database, item: Reviewable, input: { ratin
     if (existing.rating !== input.rating) diff.rating = { from: existing.rating, to: input.rating };
     if (existing.text !== nextText) diff.text = { from: existing.text, to: nextText };
     await audit(db, existing, "review.update", ctx, diff);
-    await refreshRating(db, existing.shopId);
+    await refreshRating(db, existing.shopId, existing.listing);
     return after;
   }
 
@@ -208,6 +222,7 @@ export async function writeReview(db: Database, item: Reviewable, input: { ratin
     customerId: item.customerId,
     productLabel: item.label,
     ...(item.module === "pod" ? {} : { module: item.module, orderType: item.orderType, listing: item.listing }),
+    ...(item.parentId ? { parentId: item.parentId } : {}),
     rating: input.rating,
     text: text ?? null,
     status: "live",
@@ -223,12 +238,19 @@ export async function writeReview(db: Database, item: Reviewable, input: { ratin
     throw err;
   }
   await audit(db, doc, "review.create", ctx, { rating: { from: null, to: doc.rating }, ...(doc.text ? { text: { from: null, to: doc.text } } : {}) });
-  await refreshRating(db, doc.shopId);
+  await refreshRating(db, doc.shopId, doc.listing);
   await tellShop(db, doc, item.businessName, ctx.log);
   return doc;
 }
 
-const ORDER_WORD: Record<ReviewModule, string> = { pod: "order", events: "booking", coaching: "enrolment", turf: "booking", stays: "reservation" };
+const ORDER_WORD: Record<ReviewModule, string> = {
+  pod: "order",
+  events: "booking",
+  coaching: "enrolment",
+  turf: "booking",
+  stays: "reservation",
+  shop: "order",
+};
 
 /** The owner, and team members who may reply and are verified, hear about a new review. */
 async function tellShop(db: Database, review: ReviewDoc, shopName: string, log: FastifyBaseLogger) {
@@ -263,7 +285,7 @@ export async function deleteReview(db: Database, orderId: ObjectId, ctx: Pick<Ct
   if (res.deletedCount === 0) throw removedError();
   await db.reviewReports.deleteMany({ reviewId: existing._id });
   await audit(db, existing, "review.delete", ctx, { rating: { from: existing.rating, to: null } });
-  await refreshRating(db, existing.shopId);
+  await refreshRating(db, existing.shopId, existing.listing);
 }
 
 /** Someone reports a live review to Ruxstar. One open report per person and review; reporting again while open changes nothing. */

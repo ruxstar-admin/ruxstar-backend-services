@@ -87,6 +87,22 @@ export const StaysRules = Strict(
   { description: "The stays module only" },
 );
 
+export const ShopRules = Strict(
+  {
+    returnDays: Type.Integer({ minimum: 1, maximum: 30, description: "Shops that take returns take them for this many days after delivery. Orders made keep their days" }),
+    maxOptions: Type.Integer({ minimum: 1, maximum: 2, description: "Option dimensions on one product, such as size and colour" }),
+    releaseHours: Type.Integer({ minimum: 1, maximum: 720, description: "The shop's money is released this long after delivery, or when the return window ends if that is later" }),
+    holdMinutes: Type.Integer({ minimum: 5, maximum: 60, description: "An unpaid order's checkout works this long. Stock is only taken when it's paid" }),
+    acceptHours: Type.Integer({ minimum: 1, maximum: 72, description: "A paid order the shop hasn't accepted in this long is cancelled and fully refunded" }),
+    maxProducts: Type.Integer({ minimum: 1, maximum: 5000, description: "Products per shop" }),
+    maxVariants: Type.Integer({ minimum: 1, maximum: 100, description: "Variants (option combinations) on one product" }),
+    maxValues: Type.Integer({ minimum: 1, maximum: 30, description: "Values of one option" }),
+    maxLines: Type.Integer({ minimum: 1, maximum: 50, description: "Lines in one order" }),
+    maxQuantity: Type.Integer({ minimum: 1, maximum: 100, description: "Of one variant in one order" }),
+  },
+  { description: "The shop module only" },
+);
+
 export const ModuleSettings = Strict({
   module: ModuleName,
   live: Type.Boolean(),
@@ -118,6 +134,7 @@ export const ModuleSettings = Strict({
   coachingRules: Nullable(CoachingRules),
   turfRules: Nullable(TurfRules),
   staysRules: Nullable(StaysRules),
+  shopRules: Nullable(ShopRules),
   permissionCatalog: Type.Array(Type.String()),
   updatedAt: DateTime,
 });
@@ -163,6 +180,13 @@ export const ModuleSettingsPatch = Strict(
         additionalProperties: false,
         minProperties: 1,
         description: "Stays only. Send only what changes. A property outside new refund limits is held to them from its next reservation; reservations made keep their rule.",
+      }),
+    ),
+    shopRules: Type.Optional(
+      Type.Partial(ShopRules, {
+        additionalProperties: false,
+        minProperties: 1,
+        description: "Local shops only. Send only what changes. Orders made keep their return days.",
       }),
     ),
   },

@@ -9,7 +9,7 @@ export const FREE_DELIVERY: DeliveryFee = { base: 0, includedKm: 0, perKm: 0 };
 /** Roads are longer than a straight line; this stands in until a routing service does it properly. */
 const ROAD_FACTOR = 1.3;
 
-export const BUSINESS_MODULES: ModuleSettingsDoc["module"][] = ["pod", "events", "coaching", "stays", "turf"];
+export const BUSINESS_MODULES: ModuleSettingsDoc["module"][] = ["pod", "events", "coaching", "stays", "turf", "shop"];
 
 export interface DeliveryRules {
   riderRate: DeliveryFee;
@@ -17,18 +17,22 @@ export interface DeliveryRules {
   offerMinutes: number;
   /** Ruxstar partners can be picked: the delivery module is live and print orders have delivery switched on. */
   partners: boolean;
+  /** The same for local shops' orders: the delivery module is live and the shop module has delivery switched on. */
+  shopPartners: boolean;
 }
 
-export const rulesOf = (delivery: ModuleSettingsDoc | null, pod: ModuleSettingsDoc | null): DeliveryRules => ({
+export const rulesOf = (delivery: ModuleSettingsDoc | null, pod: ModuleSettingsDoc | null, shop: ModuleSettingsDoc | null = null): DeliveryRules => ({
   riderRate: delivery?.riderRate ?? DEFAULT_RIDER_RATE,
   shopFeeMax: delivery?.shopFeeMax ?? DEFAULT_SHOP_FEE_MAX,
   offerMinutes: delivery?.offerMinutes ?? DEFAULT_OFFER_MINUTES,
   partners: Boolean(delivery?.live && pod?.deliveryEnabled),
+  shopPartners: Boolean(delivery?.live && shop?.deliveryEnabled),
 });
 
 export async function deliveryRules(db: Database): Promise<DeliveryRules> {
-  const docs = await db.moduleSettings.find({ module: { $in: ["delivery", "pod"] } }).toArray();
-  return rulesOf(docs.find((d) => d.module === "delivery") ?? null, docs.find((d) => d.module === "pod") ?? null);
+  const docs = await db.moduleSettings.find({ module: { $in: ["delivery", "pod", "shop"] } }).toArray();
+  const of = (module: string) => docs.find((d) => d.module === module) ?? null;
+  return rulesOf(of("delivery"), of("pod"), of("shop"));
 }
 
 type Point = { lat: number; lng: number };
