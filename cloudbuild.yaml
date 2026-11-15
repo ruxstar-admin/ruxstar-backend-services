@@ -8,14 +8,14 @@ substitutions:
   _GCS_BUCKET: ruxstar-profile-pictures
   _GCS_MEDIA_BUCKET: ruxstar-post-media
   _CORS_ORIGINS: https://ruxstar.com,https://www.ruxstar.com
-  # The production KYC keys stay in cashfree-client-id / cashfree-client-secret, unused until launch.
-  _CASHFREE_ENV: sandbox
-  _CASHFREE_ID_SECRET: cashfree-sandbox-client-id
-  _CASHFREE_KEY_SECRET: cashfree-sandbox-client-secret
-  # Print orders: Cashfree Payment Gateway (its own keys, separate from KYC) and the private print files bucket.
-  _CASHFREE_PG_ENV: sandbox
-  _CASHFREE_PG_ID_SECRET: cashfree-pg-sandbox-client-id
-  _CASHFREE_PG_KEY_SECRET: cashfree-pg-sandbox-client-secret
+  # Live Cashfree KYC (Verification). The sandbox keys stay in cashfree-sandbox-client-id / -secret.
+  _CASHFREE_ENV: production
+  _CASHFREE_ID_SECRET: cashfree-client-id
+  _CASHFREE_KEY_SECRET: cashfree-client-secret
+  # Live Cashfree Payment Gateway (its own keys, separate from KYC). Payouts stay off on this service: no payout keys are set.
+  _CASHFREE_PG_ENV: production
+  _CASHFREE_PG_ID_SECRET: cashfree-pg-client-id
+  _CASHFREE_PG_KEY_SECRET: cashfree-pg-secret
   _GCS_PRINT_BUCKET: ruxstar-print-files
   # Photos sent in chats, private.
   _GCS_CHAT_BUCKET: ruxstar-chat-media
