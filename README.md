@@ -69,3 +69,36 @@ It reads nothing from `.env`; set everything in the PowerShell window you run it
    ```powershell
    Remove-Item Env:MONGODB_URI, Env:ADMIN_PASSWORD
    ```
+
+## Demo data in the dev database
+
+`npm run seed:demo` fills `ruxstar_dev` with a client demo: new businesses, listings, posts and orders for the existing
+vendor (+91 77779 12365), customer (+91 91824 65856) and delivery partner Venkateswarlu (+91 88851 94997), plus 9 new
+accounts (3 vendors, 5 customers, 1 rider, on +91 90000 00101 to 00109). It refuses any database other than `ruxstar_dev`.
+Everything goes through the real API in-process, with the real photo, post and print-file buckets and stand-ins for SMS,
+identity checks, payments (paid at once, no Cashfree) and push. The Ruxstar admin approves verifications in the console.
+Images are cached in `.temp/demo-images` (credits in `credits.txt`); the new accounts' logins, with their one shared
+password, are written to `.temp/demo-accounts.txt`.
+
+```powershell
+Set-Location <path to>\ruxstar-backend-services; npm run seed:demo                       # dry run: prints the plan
+Set-Location <path to>\ruxstar-backend-services; npm run seed:demo -- --apply            # writes it, once
+Set-Location <path to>\ruxstar-backend-services; npm run seed:demo -- --apply --resume   # continues a run that stopped
+Set-Location <path to>\ruxstar-backend-services; npm run seed:demo -- --refresh --apply  # just before the demo
+Set-Location <path to>\ruxstar-backend-services; npm run seed:demo -- --remove           # lists what --remove --apply deletes
+Set-Location <path to>\ruxstar-backend-services; npm run seed:demo -- --remove --apply   # deletes it all
+```
+
+Run `--refresh --apply` within 15 minutes of the demo. New print and shop orders cancel themselves 6 hours after payment,
+and a partner delivery offer lasts 15 minutes, so it replaces the 3 orders waiting for acceptance and re-offers the packed
+Fresh Mart order to partners in Gudivada. If Venkateswarlu goes online from the app, his GPS city must read Gudivada for
+the offer to show, and he must finish any delivery he already has before he can accept it.
+
+The run records what it made in the `demo_seed` collection. `--remove --apply` deletes the demo accounts and everything
+made for or by them, switches shop partner delivery back to how it was, restores Venkateswarlu's online state, and deletes
+the uploaded bucket objects. It cannot undo:
+
+- order, invoice and other numbers already used (the counters keep going);
+- push notifications, SMS or emails sent by the dev server while you demo;
+- anything done in Cashfree's sandbox during the demo, such as refund attempts or payouts;
+- audit entries the dev server writes that don't point at a demo record, and `updatedAt` on existing documents.
