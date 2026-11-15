@@ -258,6 +258,139 @@ export const OverviewResult = Envelope(
   ),
 );
 
+// Console stats: every dashboard number in one response.
+
+const statsModule = (description: string) =>
+  Type.Union(
+    [
+      Type.Literal("pod"),
+      Type.Literal("events"),
+      Type.Literal("coaching"),
+      Type.Literal("turf"),
+      Type.Literal("stays"),
+      Type.Literal("shop"),
+      Type.Literal("delivery"),
+    ],
+    { description },
+  );
+export const StatsModule = statsModule("A business module, or `delivery` for Ruxstar partners' trips");
+export type StatsModule = Static<typeof StatsModule>;
+
+export const StatsQuery = Strict({
+  module: Type.Optional(statsModule("Only this module's block. `people`, `money` and `queues` are then null.")),
+});
+
+const counted = (description: string) => Type.Integer({ minimum: 0, description });
+const paise = (description: string) => Type.Integer({ minimum: 0, description: `Paise ${description}` });
+const queue = (description: string) => Nullable(Type.Integer({ minimum: 0, description }));
+
+const moneyFields = {
+  collectedToday: paise("customers paid today (India time): the gateway side of each payment, so coupons Ruxstar pays for are not in it"),
+  collectedThisWeek: paise("customers paid since Monday 00:00 India time"),
+  collectedThisMonth: paise("customers paid since the 1st 00:00 India time"),
+  refundsToday: paise("refunded to customers today (India time), counted when the refund was started"),
+  refundsThisMonth: paise("refunded to customers since the 1st 00:00 India time"),
+  held: paise("vendors' and delivery partners' shares not yet released: everything in their pending balances"),
+};
+
+const payoutTotal = (description: string) =>
+  Strict({ count: counted("Withdrawals"), amount: paise("taken from payees' balances; the payout fee is included") }, { description });
+
+const StatsModuleBlock = Strict({
+  module: StatsModule,
+  businesses: Nullable(
+    Strict(
+      {
+        total: counted("Businesses in the module, drafts and taken down included"),
+        live: counted("Published and not taken down"),
+        drafts: counted("Not published yet"),
+        takenDown: counted("Held by the Ruxstar team (suspended), published or not"),
+      },
+      { description: "Needs businesses.view. Null for delivery." },
+    ),
+  ),
+  listings: Nullable(
+    Strict(
+      {
+        kind: Type.Union([Type.Literal("event"), Type.Literal("course"), Type.Literal("ground"), Type.Literal("property"), Type.Literal("product")], {
+          description: "What the module lists: events, courses, grounds, PG / hostel properties or shop products",
+        }),
+        live: counted("Published listings, past events included"),
+        takenDown: counted("Taken down by the Ruxstar team (events: cancelled by staff)"),
+      },
+      { description: "Needs businesses.view. Null for print and delivery, which have no listings." },
+    ),
+  ),
+  orders: Nullable(
+    Strict(
+      {
+        today: counted("Placed today (India time) and paid, or free; delivery: trips created today"),
+        thisWeek: counted("Placed since Monday 00:00 India time and paid, or free; delivery: trips created"),
+        open: counted(
+          "Still under way. Print and shop: paid and not yet delivered or cancelled. Events: confirmed ticket orders for events that " +
+            "haven't ended. Coaching: confirmed batch enrolments in batches still running. Turf: confirmed bookings with a slot still to " +
+            "come. Stays: reservations confirmed or moved in. Delivery: trips offered, accepted or picked up.",
+        ),
+      },
+      { description: "Orders and bookings. Needs orders.view." },
+    ),
+  ),
+  money: Nullable(Strict(moneyFields, { description: "This module's money. Needs payouts.view. Null for delivery." })),
+});
+
+export const StatsResult = Envelope(
+  Strict(
+    {
+      asOf: Type.String({ format: "date-time", description: "When the oldest number here was counted. Numbers are kept for up to 60 seconds on each server." }),
+      module: Nullable(statsModule("The `module` asked for; null for everything")),
+      people: Nullable(
+        Strict(
+          {
+            total: counted("Accounts not deleted"),
+            joinedToday: counted("Accounts made today (India time) and not deleted"),
+            joinedThisWeek: counted("Accounts made since Monday 00:00 India time and not deleted"),
+            verified: counted("Accounts not deleted whose identity verification (KYC) is approved"),
+            onHold: counted("Accounts on hold"),
+          },
+          { description: "Needs users.view" },
+        ),
+      ),
+      modules: Type.Array(StatsModuleBlock, { description: "Print, events, coaching, turf, stays, shop and delivery, in that order; just one with `module`" }),
+      money: Nullable(
+        Strict(
+          {
+            ...moneyFields,
+            payouts: Strict(
+              {
+                pending: payoutTotal("Vendors' and partners' withdrawals on the way"),
+                failed: payoutTotal("Withdrawals that failed and went back to the payee's balance, ever"),
+                paidThisMonth: payoutTotal("Withdrawals that reached the bank since the 1st 00:00 India time"),
+              },
+              { description: "Withdrawals by vendors and delivery partners" },
+            ),
+          },
+          { description: "Every module together. Needs payouts.view." },
+        ),
+      ),
+      queues: Nullable(
+        Strict(
+          {
+            kyc: queue("Verification cases waiting for a decision, every track. Needs kyc.view."),
+            helpTickets: queue("Help tickets waiting for a reply from Ruxstar. Needs support.view."),
+            reports: queue("Open reports on posts, people and reviews, each report counted. Needs reports.view."),
+            orderProblems: queue("Print order problems waiting for a decision. Needs orders.view."),
+            staysObjections: queue("Tenants' objections after \"Moved in\" waiting for a decision. Needs orders.view."),
+            shopReturns: queue("Shop returns requested or approved and not yet refunded or rejected. Needs orders.view."),
+          },
+          { description: "Work waiting for the Ruxstar team. Each count is null without its permission." },
+        ),
+      ),
+    },
+    { description: "A section or count is null when you lack the permission to see it" },
+  ),
+);
+export type StatsData = Static<typeof StatsResult>["data"];
+
 // Reported posts.
 
 const ReportStatus = Type.Union([Type.Literal("open"), Type.Literal("closed")]);

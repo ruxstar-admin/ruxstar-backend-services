@@ -299,6 +299,21 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.invoices.createIndex({ module: 1, issuedAt: -1, _id: -1 }),
     db.invoices.createIndex({ number: 1 }),
     db.invoices.createIndex({ "source.orderNo": 1 }),
+    // Console stats: verified people, businesses on hold per module, orders placed today and this week, what's still under way,
+    // money through the gateway since the week or month began, pending balances by module (covered), and payout totals (covered).
+    db.users.createIndex({ "kyc.base": 1, status: 1 }),
+    db.businesses.createIndex({ module: 1, status: 1 }, { name: "held_businesses", partialFilterExpression: { suspension: { $exists: true } } }),
+    db.podOrders.createIndex({ createdAt: -1, _id: -1 }),
+    db.eventOrders.createIndex({ createdAt: -1, _id: -1 }),
+    db.eventOrders.createIndex({ status: 1, endsAt: 1 }),
+    db.coachingOrders.createIndex({ createdAt: -1, _id: -1 }),
+    db.turfBookings.createIndex({ createdAt: -1, _id: -1 }),
+    db.turfBookings.createIndex({ status: 1, lastEndsAt: 1 }),
+    db.staysReservations.createIndex({ createdAt: -1, _id: -1 }),
+    db.deliveryJobs.createIndex({ createdAt: -1 }),
+    db.ledgerEntries.createIndex({ accountId: 1, kind: 1, at: 1 }),
+    db.ledgerEntries.createIndex({ bucket: 1, "source.type": 1, accountId: 1, signedPaise: 1 }, { name: "pending_by_source" }),
+    db.payouts.createIndex({ status: 1, paidAt: 1, amount: 1 }, { name: "payout_totals" }),
   ]);
 }
 

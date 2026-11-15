@@ -30,6 +30,7 @@ import peopleReports from "./people-reports.js";
 import reports from "./reports.js";
 import reviewReports from "./review-reports.js";
 import staff from "./staff.js";
+import consoleStats from "./stats.js";
 import supportDesk from "./support-desk.js";
 import teams from "./teams.js";
 import turf from "./turf.js";
@@ -69,6 +70,7 @@ const view = (doc: ModuleSettingsDoc): ModuleSettings => ({
 
 const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(consoleHome);
+  await app.register(consoleStats);
   await app.register(kycReview);
   await app.register(reports);
   await app.register(peopleReports);
