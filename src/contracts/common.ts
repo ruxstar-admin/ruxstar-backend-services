@@ -54,6 +54,7 @@ export const ModuleName = Type.Union([
   Type.Literal("events"),
   Type.Literal("coaching"),
   Type.Literal("stays"),
+  Type.Literal("turf"),
   Type.Literal("delivery"),
   Type.Literal("ledger"),
 ]);

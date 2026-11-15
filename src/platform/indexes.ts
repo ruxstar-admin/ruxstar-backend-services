@@ -2,7 +2,7 @@ import { MongoBulkWriteError } from "mongodb";
 import type { Database, ModuleSettingsDoc, SwitchableModule } from "./db.js";
 import { stamp } from "./db.js";
 
-export const SWITCHABLE_MODULES: readonly SwitchableModule[] = ["pod", "events", "coaching", "stays", "delivery", "ledger"];
+export const SWITCHABLE_MODULES: readonly SwitchableModule[] = ["pod", "events", "coaching", "stays", "turf", "delivery", "ledger"];
 /** Notifications are deleted after this many days. */
 export const NOTIFICATION_DAYS = 90;
 
@@ -213,6 +213,34 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.coachingMessages.createIndex({ batchId: 1, at: -1 }),
     db.coachingCertificates.createIndex({ orderId: 1 }, { unique: true }),
     db.coachingCertificates.createIndex({ customerId: 1, issuedAt: -1 }),
+    // Turf: listings by city and sport, a business's grounds, the console's list, a ground's courts, and the sports list.
+    db.turfGrounds.createIndex({ status: 1, publishedAt: -1, _id: -1 }),
+    db.turfGrounds.createIndex({ status: 1, city: 1, publishedAt: -1, _id: -1 }),
+    db.turfGrounds.createIndex({ status: 1, sports: 1, publishedAt: -1, _id: -1 }),
+    db.turfGrounds.createIndex({ businessId: 1, createdAt: 1 }),
+    db.turfGrounds.createIndex({ createdAt: -1, _id: -1 }),
+    db.turfGrounds.createIndex({ status: 1, createdAt: -1, _id: -1 }),
+    db.turfCourts.createIndex({ groundId: 1, order: 1 }),
+    db.turfSports.createIndex({ active: 1, order: 1 }),
+    // Slots: one document per court and start, which is what stops a double booking; a ground's day; a booking's slots;
+    // holds running out.
+    db.turfSlots.createIndex({ courtId: 1, startAt: 1 }, { unique: true }),
+    db.turfSlots.createIndex({ groundId: 1, startAt: 1 }),
+    db.turfSlots.createIndex({ bookingId: 1 }, { partialFilterExpression: { bookingId: { $type: "objectId" } } }),
+    db.turfSlots.createIndex({ status: 1, holdUntil: 1 }, { partialFilterExpression: { status: "held" } }),
+    // Bookings: the payment, the customer's lists, a ground's and business's, a court's upcoming, and the timers.
+    db.turfBookings.createIndex({ orderNo: 1 }, { unique: true }),
+    db.turfBookings.createIndex({ "payment.gatewayOrderId": 1 }, { unique: true, partialFilterExpression: { "payment.gatewayOrderId": { $type: "string" } } }),
+    db.turfBookings.createIndex({ customerId: 1, createdAt: -1, _id: -1 }),
+    db.turfBookings.createIndex({ customerId: 1, status: 1, lastEndsAt: 1 }),
+    db.turfBookings.createIndex({ groundId: 1, createdAt: -1, _id: -1 }),
+    db.turfBookings.createIndex({ groundId: 1, status: 1, lastEndsAt: 1 }),
+    db.turfBookings.createIndex({ courtId: 1, status: 1, lastEndsAt: 1 }),
+    db.turfBookings.createIndex({ businessId: 1, createdAt: -1, _id: -1 }),
+    db.turfBookings.createIndex({ status: 1, holdUntil: 1 }),
+    db.turfBookings.createIndex({ releaseAt: 1 }, { partialFilterExpression: { releaseAt: { $type: "date" } } }),
+    db.turfBookings.createIndex({ vendorId: 1, releaseAt: 1 }, { partialFilterExpression: { releaseAt: { $type: "date" } } }),
+    db.turfBookings.createIndex({ "refunds.status": 1 }, { partialFilterExpression: { "refunds.status": "pending" } }),
     // GST documents: one per order part or refund, numbers unique per series, an order's documents, and the lists for
     // customers, vendors (all businesses or one) and the console (everything, one kind, or found by number or order),
     // each also by module. The `from`/`to` filters are ranges on `issuedAt`, the sort key, so they use the same indexes.

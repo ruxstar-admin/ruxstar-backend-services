@@ -66,6 +66,14 @@ const CATALOGS: Partial<Record<BusinessDoc["module"], PermissionInfo[]>> = {
     },
     { key: "reviews.reply", label: "Reply to reviews", hint: "Answer customers' reviews of the business", needs: null },
   ].map(info),
+  turf: [
+    { key: "turf.bookings", label: "See bookings", hint: "The board of every ground, and who booked, with their phone numbers", needs: null },
+    { key: "turf.block", label: "Block and unblock slots", hint: "For maintenance or bookings taken by phone", needs: "turf.bookings" },
+    { key: "turf.cancel", label: "Cancel bookings", hint: "The customer gets a full refund, platform fee included", needs: "turf.bookings" },
+    { key: "turf.arrivals", label: "Mark arrived or no-show", hint: null, needs: "turf.bookings" },
+    { key: "turf.prices", label: "Change prices and add-ons", hint: "Base, weekend and peak prices of every court", needs: null },
+    { key: "reviews.reply", label: "Reply to reviews", hint: "Answer customers' reviews of the business", needs: null },
+  ].map(info),
 };
 
 /** Every permission once, for labelling places at any kind of business. */

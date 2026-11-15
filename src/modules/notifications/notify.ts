@@ -332,12 +332,15 @@ export async function notifyEvent(
   }
 }
 
+type Each<T extends NotificationDoc["type"]> = { actor: ObjectId; type: T; title: string; body: string; to: { userId: ObjectId; link: NotificationDoc["link"] }[] };
+
+/** Turf bookings and their changes, each person with their own link. Logged, never thrown. */
+export const notifyTurf = (db: Database, log: FastifyBaseLogger, event: Each<"turf.booked" | "turf.updated">) => notifyEach(db, log, event);
+
 /** Enrolments, demo classes, class changes and batch messages, each person with their own link. Logged, never thrown. */
-export async function notifyCoaching(
-  db: Database,
-  log: FastifyBaseLogger,
-  event: { actor: ObjectId; type: "coaching.enrolled" | "coaching.updated"; title: string; body: string; to: { userId: ObjectId; link: NotificationDoc["link"] }[] },
-): Promise<void> {
+export const notifyCoaching = (db: Database, log: FastifyBaseLogger, event: Each<"coaching.enrolled" | "coaching.updated">) => notifyEach(db, log, event);
+
+async function notifyEach(db: Database, log: FastifyBaseLogger, event: Each<NotificationDoc["type"]>): Promise<void> {
   const seen = new Set<string>();
   const to = event.to.filter(({ userId }) => !seen.has(userId.toHexString()) && seen.add(userId.toHexString()));
   if (!to.length) return;

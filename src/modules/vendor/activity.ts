@@ -128,6 +128,30 @@ export function lineOf(e: Entry, refs: Refs): string {
       return "Joined the team";
     case "team.decline":
       return "Turned down the invite to the team";
+    case "turf_booking.cancel":
+      return `Cancelled booking ${no}${reason}`;
+    case "turf_booking.arrival":
+      return `Marked booking ${no} ${d.arrival?.to === "no_show" ? "a no-show" : "arrived"}`;
+    case "turf_slot.block":
+      return `Blocked ${Number(d.slots?.to ?? 0)} slot${Number(d.slots?.to ?? 0) === 1 ? "" : "s"}${typeof d.note?.to === "string" ? `: ${d.note.to}` : ""}`;
+    case "turf_slot.unblock":
+      return `Unblocked ${Number(d.slots?.to ?? 0)} slot${Number(d.slots?.to ?? 0) === 1 ? "" : "s"}`;
+    case "turf_ground.create":
+      return `Added the ground ${String(d.name?.to ?? "")}`;
+    case "turf_ground.update":
+      return "Changed a ground";
+    case "turf_ground.publish":
+      return "Published a ground";
+    case "turf_ground.delete":
+      return "Deleted a draft ground";
+    case "turf_ground.take_down":
+      return `Ruxstar took down a ground${reason}`;
+    case "turf_court.create":
+      return `Added the court ${String(d.name?.to ?? "")}`;
+    case "turf_court.update":
+      return d.prices || d.addOns ? "Changed a court's prices" : "Changed a court";
+    case "turf_court.delete":
+      return "Removed a court";
     default:
       return "Made a change";
   }
@@ -136,10 +160,11 @@ export function lineOf(e: Entry, refs: Refs): string {
 async function present(db: Database, business: { _id: ObjectId; ownerId: ObjectId }, items: Entry[]): Promise<ActivityEntry[]> {
   const targets = (type: string) => items.flatMap((e) => (e.target.type === type && typeof e.target.id !== "string" ? [e.target.id] : []));
   const actorIds = items.flatMap((e) => (e.actor.id ? [e.actor.id] : []));
-  const [orders, tickets, enrolments, coupons, places, crew] = await Promise.all([
+  const [orders, tickets, enrolments, bookings, coupons, places, crew] = await Promise.all([
     db.podOrders.find({ _id: { $in: targets("pod_order") } }, { projection: { orderNo: 1 } }).toArray(),
     db.eventOrders.find({ _id: { $in: targets("event_order") } }, { projection: { orderNo: 1 } }).toArray(),
     db.coachingOrders.find({ _id: { $in: targets("coaching_order") } }, { projection: { orderNo: 1 } }).toArray(),
+    db.turfBookings.find({ _id: { $in: targets("turf_booking") } }, { projection: { orderNo: 1 } }).toArray(),
     db.coupons.find({ _id: { $in: targets("coupon") } }, { projection: { code: 1 } }).toArray(),
     db.employments.find({ _id: { $in: targets("employment") }, businessId: business._id }, { projection: { userId: 1 } }).toArray(),
     db.employments.find({ businessId: business._id, userId: { $in: actorIds } }, { projection: { userId: 1 } }).toArray(),
@@ -153,7 +178,7 @@ async function present(db: Database, business: { _id: ObjectId; ownerId: ObjectI
     return u?.name || (u?.username ? `@${u.username}` : "Someone");
   };
   const refs: Refs = {
-    orders: new Map([...orders, ...tickets, ...enrolments].map((o) => [o._id.toHexString(), o.orderNo])),
+    orders: new Map([...orders, ...tickets, ...enrolments, ...bookings].map((o) => [o._id.toHexString(), o.orderNo])),
     coupons: new Map(coupons.map((c) => [c._id.toHexString(), c.code])),
     people: new Map(places.map((p) => [p._id.toHexString(), nameOf(p.userId)])),
   };

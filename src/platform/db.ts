@@ -135,7 +135,7 @@ export interface KycCaseDoc extends Stamped {
 }
 
 /** The modules a vendor can open a business in. Each business is in exactly one. */
-export type BusinessModule = "pod" | "events" | "coaching" | "stays";
+export type BusinessModule = "pod" | "events" | "coaching" | "stays" | "turf";
 
 export interface BusinessPhoto extends PostPhoto {
   id: string;
@@ -476,7 +476,9 @@ export type NotificationType =
   | "event.ticket"
   | "event.updated"
   | "coaching.enrolled"
-  | "coaching.updated";
+  | "coaching.updated"
+  | "turf.booked"
+  | "turf.updated";
 
 export interface NotificationDoc {
   _id: ObjectId;
@@ -495,7 +497,8 @@ export interface NotificationDoc {
    * delivery app. `support` opens one of your help tickets. `event` opens an event's page, `event_order` a customer's tickets
    * for one (its id is the ticket order), and `vendor_event` an event in the vendor portal. `coaching_course` opens a course's
    * page, `coaching_order` a customer's enrolment or demo class, `vendor_course` a course in the vendor portal, and
-   * `coaching_batch` a batch's classes for its owner or coaches.
+   * `coaching_batch` a batch's classes for its owner or coaches. `turf_ground` opens a ground's page, `turf_order` a customer's
+   * booking, and `vendor_ground` a ground's board for its owner or team.
    */
   link: {
     screen:
@@ -520,7 +523,10 @@ export interface NotificationDoc {
       | "coaching_course"
       | "coaching_order"
       | "vendor_course"
-      | "coaching_batch";
+      | "coaching_batch"
+      | "turf_ground"
+      | "turf_order"
+      | "vendor_ground";
     id: string;
   };
   readAt: Date | null;
@@ -587,6 +593,8 @@ export interface ModuleSettingsDoc extends Stamped {
   eventRules?: EventRules;
   /** The coaching module only. Missing: the defaults in the coaching module. */
   coachingRules?: CoachingRules;
+  /** The turf module only. Missing: the defaults in the turf module. */
+  turfRules?: TurfRules;
   deliveryEnabled: boolean;
   permissionCatalog: string[];
   updatedBy: ObjectId | null;
@@ -621,6 +629,31 @@ export interface CoachingRules {
   maxDemoSeats: number;
   /** An online class's link shows this many minutes before it starts. */
   joinMinutes: number;
+}
+
+/** What Ruxstar sets for sports grounds. Owners pick each ground's refund hours within the limits. */
+export interface TurfRules {
+  /** New grounds start with these: a full refund this many hours or more before the slot, `halfPercent` from `refundHalfHours`. */
+  refundFullHours: number;
+  refundHalfHours: number;
+  /** The share refunded in the middle tier. */
+  halfPercent: number;
+  /** An owner's full-refund hours stay between these. */
+  minFullHours: number;
+  maxFullHours: number;
+  /** A weekly repeat books this many weeks at most, the first included. */
+  maxRepeatWeeks: number;
+  /** Unpaid slots are held this long for the checkout. */
+  holdMinutes: number;
+  /** Slot lengths a court can use, in minutes. */
+  slotLengths: number[];
+  /** Back-to-back slots in one booking. */
+  maxSlots: number;
+  /** How far ahead the first slot can be, in days. */
+  bookAheadDays: number;
+  maxGrounds: number;
+  maxCourts: number;
+  maxAddOns: number;
 }
 
 /** A file a customer uploaded to print. Unused ones are deleted a day later, on the uploader's next upload. */
@@ -829,7 +862,7 @@ export interface LedgerEntryDoc {
   accountId: string;
   bucket: "pending" | "withdrawable";
   signedPaise: number;
-  source: { type: "pod_order" | "event_order" | "coaching_order" | "payout"; id: ObjectId };
+  source: { type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "payout"; id: ObjectId };
   at: Date;
 }
 
@@ -1004,7 +1037,7 @@ export interface InvoiceDoc extends Stamped {
   /** `supply`: what was bought; `fee`: Ruxstar's platform fee. */
   role: "supply" | "fee";
   module: GstModule;
-  source: { type: "pod_order" | "event_order" | "coaching_order"; id: ObjectId; orderNo: number };
+  source: { type: "pod_order" | "event_order" | "coaching_order" | "turf_booking"; id: ObjectId; orderNo: number };
   businessId: ObjectId;
   businessName: string;
   vendorId: ObjectId;
@@ -1280,6 +1313,178 @@ export interface CoachingCertificateDoc {
   issuedAt: Date;
 }
 
+/** A sport grounds can offer. Ruxstar keeps the list; inactive ones stay on courts that have them but can't be picked. */
+export interface TurfSportDoc extends Stamped {
+  /** Lower case letters and underscores, for example `box_cricket`. Never changes. */
+  _id: string;
+  name: string;
+  active: boolean;
+  order: number;
+}
+
+export type TurfAmenity =
+  | "parking"
+  | "washrooms"
+  | "changing_rooms"
+  | "showers"
+  | "drinking_water"
+  | "floodlights"
+  | "seating"
+  | "cafe"
+  | "first_aid"
+  | "equipment"
+  | "lockers"
+  | "wifi";
+
+/** A venue of a turf business: one or more courts at one address. Customers book its courts' slots. */
+export interface TurfGroundDoc extends Stamped {
+  _id: ObjectId;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  businessName: string;
+  name: string;
+  description: string | null;
+  venue: { address: string; city: string; pincode: string | null; point: { lat: number; lng: number } | null };
+  /** The venue's city in lower case, for the listing. */
+  city: string;
+  amenities: TurfAmenity[];
+  photos: BusinessPhoto[];
+  /** This ground's refund tiers, within Ruxstar's limits. Each booking keeps the ones it was made under. */
+  refunds: { fullHours: number; halfHours: number };
+  /** The sports of its live courts, and the lowest base price among them, kept for the listing. */
+  sports: string[];
+  priceFrom: number | null;
+  status: "draft" | "live" | "removed";
+  publishedAt: Date | null;
+  removal: { actorId: ObjectId; reason: string; at: Date } | null;
+}
+
+/** A peak window: these days, these hours, this price per slot. Peak beats the weekend price, which beats the base price. */
+export interface TurfPeak {
+  days: number[];
+  start: string;
+  end: string;
+  price: number;
+}
+
+export interface TurfAddOn {
+  id: string;
+  name: string;
+  price: number;
+  /** `booking`: once per booking. `slot`: for each slot booked. */
+  per: "booking" | "slot";
+}
+
+/** One playing area of a ground: a pitch, a court, a net. Its slots are made from its hours, every `slotMinutes` from opening. */
+export interface TurfCourtDoc extends Stamped {
+  _id: ObjectId;
+  groundId: ObjectId;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  name: string;
+  /** Keys of `turf_sports`. */
+  sports: string[];
+  slotMinutes: number;
+  /** Opening hours per weekday, 0 Sunday … 6 Saturday; a missing day is closed. `close` may be "24:00". */
+  hours: { day: number; open: string; close: string }[];
+  /** Paise per slot. A null weekend price means the base price on Saturday and Sunday too. */
+  prices: { base: number; weekend: number | null; peak: TurfPeak[] };
+  addOns: TurfAddOn[];
+  /** `paused`: shown on the ground but not bookable. `removed`: deleted by the owner, kept for old bookings. */
+  status: "live" | "paused" | "removed";
+  order: number;
+}
+
+/**
+ * One slot of one court that isn't free: held for a checkout, booked, or blocked by the ground. The unique court and start
+ * is what stops two people booking the same slot. Free slots have no document.
+ */
+export interface TurfSlotDoc {
+  _id: ObjectId;
+  courtId: ObjectId;
+  groundId: ObjectId;
+  businessId: ObjectId;
+  startAt: Date;
+  endAt: Date;
+  status: "held" | "booked" | "blocked";
+  bookingId: ObjectId | null;
+  /** Held slots: when the checkout gives them back. */
+  holdUntil: Date | null;
+  /** Blocks: why, and who. */
+  note: string | null;
+  by: ObjectId | null;
+  createdAt: Date;
+}
+
+export type TurfBookingStatus = "awaiting_payment" | "confirmed" | "cancelled";
+export type TurfActor = "customer" | "vendor" | "staff" | "system";
+
+/** One date of a booking: its back-to-back slots on the court, and its share of the money. */
+export interface TurfOccurrenceDoc {
+  n: number;
+  startAt: Date;
+  endAt: Date;
+  slots: { startAt: Date; endAt: Date; price: number; peak: boolean }[];
+  /** Paise: slots and add-ons, this date's share of the discount and platform fee, what was paid for it, and the split. */
+  items: number;
+  discount: number;
+  platformFee: number;
+  paid: number;
+  vendorShare: number;
+  ruxstarShare: number;
+  status: "booked" | "cancelled";
+  cancellation: { by: TurfActor; actorId: ObjectId | null; reason: string; percent: number; refund: number; vendorBack: number; at: Date } | null;
+  arrival: { status: "arrived" | "no_show"; by: ObjectId; at: Date } | null;
+  /** The ground's share of it moved to withdrawable, once it ended. */
+  releasedAt: Date | null;
+}
+
+/**
+ * A booking of back-to-back slots on one court, with add-ons; a weekly repeat books the same slots for more weeks, all paid
+ * together. Each date can be cancelled on its own, refunded by the ground's tiers when the customer cancels and in full when
+ * the ground or Ruxstar does.
+ */
+export interface TurfBookingDoc extends Stamped {
+  _id: ObjectId;
+  orderNo: number;
+  groundId: ObjectId;
+  courtId: ObjectId;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  customerId: ObjectId;
+  customerName: string;
+  groundName: string;
+  courtName: string;
+  businessName: string;
+  sport: string | null;
+  slotMinutes: number;
+  addOns: (TurfAddOn & { quantity: number })[];
+  weeks: number;
+  occurrences: TurfOccurrenceDoc[];
+  firstAt: Date;
+  lastEndsAt: Date;
+  price: {
+    items: number;
+    platformFee: number;
+    total: number;
+    commissionBps: number;
+    commission: number;
+    discount?: number;
+    coupon?: { id: ObjectId; code: string; fundedBy: "ruxstar" | "vendor" } | null;
+  };
+  /** The refund tiers when it was booked. */
+  refundRule: { fullHours: number; halfHours: number; halfPercent: number };
+  status: TurfBookingStatus;
+  timeline: { status: TurfBookingStatus; at: Date; by: TurfActor }[];
+  payment: { gatewayOrderId: string; sessionId: string; paymentId: string | null; paidAt: Date | null } | null;
+  holdUntil: Date | null;
+  refunds: { refundId: string; occurrences: number[]; amount: number; reason: string; by: TurfActor; status: "pending" | "done"; at: Date }[];
+  reason: string | null;
+  /** The end of the next date whose share is still pending; null when none is. */
+  releaseAt: Date | null;
+  invoices?: InvoiceRefDoc[];
+}
+
 /**
  * A discount code. Ruxstar's work at every shop and Ruxstar pays for them; a vendor's work at the shops
  * they pick and come out of their share. The code and the discount never change once made.
@@ -1345,11 +1550,16 @@ export type TeamPermission =
   | "classes.attendance"
   | "classes.message"
   | "classes.materials"
-  | "classes.reschedule";
+  | "classes.reschedule"
+  | "turf.bookings"
+  | "turf.block"
+  | "turf.cancel"
+  | "turf.prices"
+  | "turf.arrivals";
 
 /** Modules whose orders can be reviewed. */
-export type ReviewModule = "pod" | "events" | "coaching";
-export type ReviewOrderType = "pod_order" | "event_order" | "coaching_order";
+export type ReviewModule = "pod" | "events" | "coaching" | "turf";
+export type ReviewOrderType = "pod_order" | "event_order" | "coaching_order" | "turf_booking";
 
 /**
  * A customer's review of one finished order at any business (decisions 55 and A6): 1 to 5 stars and an optional note, written
@@ -1370,8 +1580,8 @@ export interface ReviewDoc extends Stamped {
   module?: ReviewModule;
   /** Missing means `pod_order`. */
   orderType?: ReviewOrderType;
-  /** The event or course reviewed; null or missing for print. */
-  listing?: { type: "event" | "course"; id: ObjectId } | null;
+  /** The event, course or ground reviewed; null or missing for print. */
+  listing?: { type: "event" | "course" | "ground"; id: ObjectId } | null;
   rating: number;
   text: string | null;
   status: "live" | "removed";
@@ -1699,6 +1909,21 @@ export class Database {
   }
   get coachingCertificates() {
     return this.db.collection<CoachingCertificateDoc>("coaching_certificates");
+  }
+  get turfSports() {
+    return this.db.collection<TurfSportDoc>("turf_sports");
+  }
+  get turfGrounds() {
+    return this.db.collection<TurfGroundDoc>("turf_grounds");
+  }
+  get turfCourts() {
+    return this.db.collection<TurfCourtDoc>("turf_courts");
+  }
+  get turfSlots() {
+    return this.db.collection<TurfSlotDoc>("turf_slots");
+  }
+  get turfBookings() {
+    return this.db.collection<TurfBookingDoc>("turf_bookings");
   }
 
   /** Runs `work` in a majority-committed transaction, retrying transient errors. */

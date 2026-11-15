@@ -34,6 +34,7 @@ import activity from "./activity.js";
 import coupons from "./coupons.js";
 import events from "../events/manage.js";
 import coaching from "../coaching/manage.js";
+import turf from "../turf/manage.js";
 import { INDIA } from "./india.js";
 import orders from "./orders.js";
 import { vendorInvoices } from "../invoices/routes.js";
@@ -57,6 +58,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(team);
   await app.register(events);
   await app.register(coaching);
+  await app.register(turf);
   await app.register(activity);
   await app.register(reviews);
 

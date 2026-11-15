@@ -70,10 +70,10 @@ export const StaffCreateCouponBody = Strict({
   ...Discount,
   ...Terms,
   modules: Type.Optional(
-    Type.Array(Type.Union([Type.Literal("pod"), Type.Literal("events"), Type.Literal("coaching")]), {
+    Type.Array(Type.Union([Type.Literal("pod"), Type.Literal("events"), Type.Literal("coaching"), Type.Literal("turf")]), {
       minItems: 1,
       uniqueItems: true,
-      description: "Where it works: print orders, event tickets, coaching enrolments, or any of them. Print only when left out",
+      description: "Where it works: print orders, event tickets, coaching enrolments, turf bookings, or any of them. Print only when left out",
     }),
   ),
 });
@@ -84,7 +84,7 @@ export const VendorCreateCouponBody = Strict({
     minItems: 1,
     maxItems: 20,
     uniqueItems: true,
-    description: "Your print shops, events and coaching businesses it works at",
+    description: "Your print shops, events, coaching and turf businesses it works at",
   }),
 });
 export type CreateCouponBody = Static<typeof StaffCreateCouponBody> & { businessIds?: string[] };

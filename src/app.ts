@@ -26,6 +26,7 @@ import kycPhotoLinks from "./modules/kyc/photo-links.js";
 import checkout from "./modules/pod/checkout.js";
 import eventCheckout from "./modules/events/checkout.js";
 import coachingCheckout from "./modules/coaching/checkout.js";
+import turfCheckout from "./modules/turf/checkout.js";
 import chatPhotoLinks from "./modules/social/chat-photo-links.js";
 import supportPhotoLinks from "./modules/support/photo-links.js";
 import { registerAuth } from "./platform/auth.js";
@@ -185,6 +186,7 @@ export async function buildApp({
   await app.register(checkout);
   await app.register(eventCheckout);
   await app.register(coachingCheckout);
+  await app.register(turfCheckout);
   await app.register(chatPhotoLinks);
   await app.register(kycPhotoLinks);
   await app.register(supportPhotoLinks);

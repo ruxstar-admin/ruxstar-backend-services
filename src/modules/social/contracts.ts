@@ -32,7 +32,7 @@ export const Photo = Strict({
 export const PostBusiness = Strict({
   id: ObjectIdString,
   name: Type.String(),
-  module: Type.Union([Type.Literal("pod"), Type.Literal("events"), Type.Literal("coaching"), Type.Literal("stays")]),
+  module: Type.Union([Type.Literal("pod"), Type.Literal("events"), Type.Literal("coaching"), Type.Literal("stays"), Type.Literal("turf")]),
   orderable: Type.Boolean({ description: "A live print shop: show Order, which opens its order page" }),
 });
 

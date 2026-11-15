@@ -9,7 +9,7 @@ export const InvoiceKind = Type.Union([Type.Literal("tax_invoice"), Type.Literal
 });
 export const GstModuleName = Type.Union(
   [Type.Literal("pod"), Type.Literal("events"), Type.Literal("coaching"), Type.Literal("stays"), Type.Literal("turf"), Type.Literal("ecommerce")],
-  { description: "turf and ecommerce have defaults ready for when they open" },
+  { description: "ecommerce has defaults ready for when it opens" },
 );
 const Issuer = Type.Union([Type.Literal("vendor"), Type.Literal("ruxstar")], { description: "Whose document it is: the business's, or Ruxstar's" });
 const Role = Type.Union([Type.Literal("supply"), Type.Literal("fee")], { description: "supply: what was bought. fee: Ruxstar's platform fee." });
@@ -63,7 +63,7 @@ export const Invoice = Strict({
   role: Role,
   module: GstModuleName,
   order: Strict({
-    type: Type.Union([Type.Literal("pod_order"), Type.Literal("event_order"), Type.Literal("coaching_order")]),
+    type: Type.Union([Type.Literal("pod_order"), Type.Literal("event_order"), Type.Literal("coaching_order"), Type.Literal("turf_booking")]),
     id: ObjectIdString,
     orderNo: Type.Integer(),
   }),

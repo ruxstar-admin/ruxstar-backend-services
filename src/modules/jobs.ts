@@ -8,6 +8,7 @@ import { sweepRiderPay } from "./delivery/pay.js";
 import { sweepOffers } from "./delivery/trips.js";
 import { sweepEvents } from "./events/orders.js";
 import { sweepOrders } from "./pod/order-rules.js";
+import { sweepTurf } from "./turf/orders.js";
 import { sweepPayouts } from "./vendor/payouts.js";
 
 /** Whether a bearer token is the scheduler's. */
@@ -47,12 +48,13 @@ export function jobs(auth: JobAuth | null): FastifyPluginAsync {
       const riderPay = await sweepRiderPay(db);
       const events = await sweepEvents(app, db);
       const coaching = await sweepCoaching(app, db);
+      const turf = await sweepTurf(app, db);
       const payouts = await sweepPayouts(app, db);
       request.log.info(
-        { job: "orders", ...counts, ...events, ...coaching, riderPay, payouts, offers },
-        "Order, ticket and class timers, delivery offers, partners' pay and payouts swept",
+        { job: "orders", ...counts, ...events, ...coaching, ...turf, riderPay, payouts, offers },
+        "Order, ticket, class and slot timers, delivery offers, partners' pay and payouts swept",
       );
-      return { ok: true, ...counts, ...events, ...coaching, riderPay, payouts, offers };
+      return { ok: true, ...counts, ...events, ...coaching, ...turf, riderPay, payouts, offers };
     });
   };
 }

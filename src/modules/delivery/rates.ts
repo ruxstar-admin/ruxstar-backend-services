@@ -9,7 +9,7 @@ export const FREE_DELIVERY: DeliveryFee = { base: 0, includedKm: 0, perKm: 0 };
 /** Roads are longer than a straight line; this stands in until a routing service does it properly. */
 const ROAD_FACTOR = 1.3;
 
-export const BUSINESS_MODULES: ModuleSettingsDoc["module"][] = ["pod", "events", "coaching", "stays"];
+export const BUSINESS_MODULES: ModuleSettingsDoc["module"][] = ["pod", "events", "coaching", "stays", "turf"];
 
 export interface DeliveryRules {
   riderRate: DeliveryFee;

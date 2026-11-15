@@ -95,7 +95,7 @@ describe("vendor portal", () => {
     await setModule("events", { live: true, signupsOpen: false });
     const plain = await signIn(stack);
     const catalog = (await call("GET", "/vendor/catalog", plain.token)).json().data;
-    expect(catalog.categories.map((c: { module: string }) => c.module)).toEqual(["pod", "events", "coaching", "stays"]);
+    expect(catalog.categories.map((c: { module: string }) => c.module)).toEqual(["pod", "events", "coaching", "stays", "turf"]);
     expect(catalog.categories[0]).toMatchObject({ module: "pod", label: "Print on demand", live: true, signupsOpen: true });
     expect(catalog.categories[0].types.map((t: { id: string }) => t.id)).toEqual(["print_shop"]);
     expect(catalog.categories[1]).toMatchObject({ live: true, signupsOpen: false });

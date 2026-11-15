@@ -13,6 +13,8 @@ import { findPage } from "../../platform/pagination.js";
 import { seal } from "../../platform/sealed.js";
 import { loadCase, NAME_MATCHES, verificationId } from "../kyc/cases.js";
 import { releaseCoachingShares } from "../coaching/orders.js";
+import { releaseTurfShares } from "../turf/orders.js";
+import { keptOf } from "../turf/rules.js";
 import { vendorShare as coachingShare } from "../coaching/rules.js";
 import { releaseEventShares } from "../events/orders.js";
 import { invoiceRefs } from "../invoices/views.js";
@@ -149,8 +151,9 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
       for (const order of due) await releaseShare(app, db(), order, now);
       await releaseEventShares(app, db(), { vendorId }, now);
       await releaseCoachingShares(app, db(), { vendorId }, now);
+      await releaseTurfShares(app, db(), { vendorId }, now);
       await settleDue(app, db(), vendorId, now);
-      const [method, payouts, paid, ledger, holding, tickets, places, rules] = await Promise.all([
+      const [method, payouts, paid, ledger, holding, tickets, places, slots, rules] = await Promise.all([
         db().payoutMethods.findOne({ userId: vendorId }),
         db()
           .payouts.find({ vendorId, ...payeeFilter("vendor") })
@@ -180,6 +183,11 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           .sort({ releaseAt: 1 })
           .limit(20)
           .toArray(),
+        db()
+          .turfBookings.find({ vendorId, releaseAt: { $type: "date" } }, { projection: { orderNo: 1, occurrences: 1, releaseAt: 1 } })
+          .sort({ releaseAt: 1 })
+          .limit(20)
+          .toArray(),
         payoutRules(db()),
       ]);
       const sum = (bucket: "pending" | "withdrawable") => ledger.find((row) => row._id === bucket)?.total ?? 0;
@@ -201,6 +209,11 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           ...places
             .filter((o) => coachingShare(o) > 0)
             .map((o) => ({ orderId: o._id.toHexString(), orderNo: o.orderNo, amount: coachingShare(o), availableAt: o.releaseAt!.toISOString(), held: false })),
+          ...slots.flatMap((b) =>
+            b.occurrences
+              .filter((o) => !o.releasedAt && keptOf(o).vendor > 0)
+              .map((o) => ({ orderId: b._id.toHexString(), orderNo: b.orderNo, amount: keptOf(o).vendor, availableAt: o.endAt.toISOString(), held: false })),
+          ),
         ]
           .sort((a, b) => a.availableAt.localeCompare(b.availableAt))
           .slice(0, 20),
@@ -257,8 +270,8 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
         cursor: request.query.cursor,
         limit: request.query.limit,
       });
-      const ids = (type: "pod_order" | "event_order" | "coaching_order" | "payout") => items.filter((e) => e.source.type === type).map((e) => e.source.id);
-      const [orders, payouts, eventOrders, coachingOrders] = await Promise.all([
+      const ids = (type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "payout") => items.filter((e) => e.source.type === type).map((e) => e.source.id);
+      const [orders, payouts, eventOrders, coachingOrders, turfBookings] = await Promise.all([
         database.podOrders
           .find(
             { _id: { $in: ids("pod_order") } },
@@ -277,6 +290,14 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
             { _id: { $in: ids("coaching_order") } },
             {
               projection: { orderNo: 1, kind: 1, businessId: 1, businessName: 1, courseTitle: 1, batchName: 1, student: 1, "price.total": 1, payment: 1, refund: 1, invoices: 1 },
+            },
+          )
+          .toArray(),
+        database.turfBookings
+          .find(
+            { _id: { $in: ids("turf_booking") } },
+            {
+              projection: { orderNo: 1, businessId: 1, businessName: 1, groundName: 1, courtName: 1, customerName: 1, weeks: 1, "price.total": 1, payment: 1, refunds: 1, invoices: 1 },
             },
           )
           .toArray(),
@@ -353,6 +374,33 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
               refund: kind === "refund" && order.refund ? { id: order.refund.refundId, reason: order.refund.reason, by: order.refund.by } : null,
               payout: null,
               invoice: invoiceOf(order.invoices, kind, order.refund?.refundId ?? null),
+            },
+          ];
+        }
+        if (entry.source.type === "turf_booking") {
+          const order = turfBookings.find((o) => o._id.equals(entry.source.id));
+          if (!order) return [];
+          const kind = entry.kind === "payment" ? "paid" : entry.kind === "release" ? "available" : "refund";
+          // Refund lines carry the refund's place in the booking: `refund:<booking>:<k>`.
+          const refund = kind === "refund" ? (order.refunds[Number(entry.txnId.split(":")[2]) - 1] ?? null) : null;
+          return [
+            {
+              ...base,
+              kind,
+              module: "turf",
+              order: {
+                id: order._id.toHexString(),
+                orderNo: order.orderNo,
+                business: { id: order.businessId.toHexString(), name: order.businessName },
+                label: `${order.groundName}, ${order.courtName}${order.weeks > 1 ? `, ${order.weeks} weeks` : ""}`,
+                customer: order.customerName,
+                total: order.price.total,
+                paymentId: order.payment?.paymentId ?? null,
+                paidAt: order.payment?.paidAt?.toISOString() ?? null,
+              },
+              refund: refund ? { id: refund.refundId, reason: refund.reason, by: refund.by } : null,
+              payout: null,
+              invoice: invoiceOf(order.invoices, kind, refund?.refundId ?? null),
             },
           ];
         }

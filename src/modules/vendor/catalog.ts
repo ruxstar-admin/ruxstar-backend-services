@@ -6,9 +6,10 @@ export const CATEGORIES: readonly { module: BusinessModule; label: string; descr
   { module: "events", label: "Events and tournaments", description: "Sell tickets and manage live events" },
   { module: "coaching", label: "Coaching & classes", description: "Tutoring, fitness and skill coaching" },
   { module: "stays", label: "PG & hostel stays", description: "Rooms and beds by the month" },
+  { module: "turf", label: "Sports & turf", description: "Grounds and courts booked by the slot" },
 ];
 
-export const BUSINESS_TYPES = ["print_shop", "concert", "sports_event", "meetup", "coaching", "pg", "hostel"] as const;
+export const BUSINESS_TYPES = ["print_shop", "concert", "sports_event", "meetup", "coaching", "pg", "hostel", "turf", "sports_complex", "court"] as const;
 export type BusinessType = (typeof BUSINESS_TYPES)[number];
 
 export const TYPES: readonly {
@@ -83,11 +84,38 @@ export const TYPES: readonly {
     namePlaceholder: "e.g. Campus Stay Hostel",
     detailHint: "The name residents know your hostel by. Rooms and beds come after this step.",
   },
+  {
+    id: "turf",
+    module: "turf",
+    label: "Turf & ground",
+    description: "Football, cricket and other turfs booked by the hour",
+    examples: "Football turf, box cricket, cricket nets",
+    namePlaceholder: "e.g. Kick Off Arena",
+    detailHint: "The name players know your turf by. Grounds, courts and prices come after this step.",
+  },
+  {
+    id: "sports_complex",
+    module: "turf",
+    label: "Sports complex",
+    description: "Several courts and sports at one venue",
+    examples: "Multi-sport arena, club, academy with courts",
+    namePlaceholder: "e.g. Play Arena Sports Complex",
+    detailHint: "Your complex's name. Add each court and its sport after this step.",
+  },
+  {
+    id: "court",
+    module: "turf",
+    label: "Courts",
+    description: "Badminton, pickleball, tennis or other courts by the slot",
+    examples: "Badminton hall, pickleball courts, tennis court",
+    namePlaceholder: "e.g. Smash Badminton Courts",
+    detailHint: "The name players know your courts by. Courts and prices come after this step.",
+  },
 ];
 
 export const typeOf = (id: BusinessType) => TYPES.find((t) => t.id === id)!;
 /** The type an older business gets when it has none. */
-export const DEFAULT_TYPE: Record<BusinessModule, BusinessType> = { pod: "print_shop", events: "concert", coaching: "coaching", stays: "pg" };
+export const DEFAULT_TYPE: Record<BusinessModule, BusinessType> = { pod: "print_shop", events: "concert", coaching: "coaching", stays: "pg", turf: "turf" };
 
 const APPAREL_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "3XL"];
 const PAPER_SIZES = ["A6", "A5", "A4", "A3", "A2", "A1", "Custom"];

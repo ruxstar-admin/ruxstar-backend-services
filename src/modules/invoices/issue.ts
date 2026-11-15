@@ -13,8 +13,10 @@ import type {
   InvoiceParty,
   InvoiceRefDoc,
   PodOrderDoc,
+  TurfBookingDoc,
 } from "../../platform/db.js";
 import { stamp } from "../../platform/db.js";
+import { whenText } from "../turf/slots.js";
 import { bpsAt, financialYear, gstRules, gstSeller, nextInvoiceNumber, rateFor, STATE_CODES, stateOfGstin, stateOfPlace, taxOf } from "./gst.js";
 
 type Issuer = InvoiceDoc["issuer"];
@@ -141,6 +143,7 @@ async function remember(db: Database, type: SourceType, id: ObjectId, refs: Invo
   const update = { $push: { invoices: { $each: refs } } };
   if (type === "pod_order") await db.podOrders.updateOne({ _id: id }, update, { session });
   else if (type === "coaching_order") await db.coachingOrders.updateOne({ _id: id }, update, { session });
+  else if (type === "turf_booking") await db.turfBookings.updateOne({ _id: id }, update, { session });
   else await db.eventOrders.updateOne({ _id: id }, update, { session });
 }
 
@@ -391,6 +394,50 @@ export async function invoiceCoachingOrder(db: Database, order: CoachingOrderDoc
   );
 }
 
+export async function invoiceTurfBooking(db: Database, booking: TurfBookingDoc, session: ClientSession): Promise<InvoiceRefDoc[]> {
+  const business = await db.businesses.findOne({ _id: booking.businessId }, { session });
+  const ground = await db.turfGrounds.findOne({ _id: booking.groundId }, { session, projection: { venue: 1 } });
+  const customer = await db.users.findOne({ _id: booking.customerId }, { session, projection: { name: 1 } });
+  // Use of a ground is supplied where it is.
+  const state = stateOfPlace(ground?.venue.city, ground?.venue.pincode) ?? business?.location?.state ?? null;
+  const discount = booking.price.discount ?? 0;
+  const vendorFunded = booking.price.coupon?.fundedBy === "vendor";
+  return issue(
+    db,
+    {
+      module: "turf",
+      source: { type: "turf_booking", id: booking._id, orderNo: booking.orderNo },
+      business,
+      businessId: booking.businessId,
+      businessName: business?.name ?? booking.businessName,
+      vendorId: booking.vendorId,
+      customerId: booking.customerId,
+      buyer: party({ name: customer?.name ?? booking.customerName, legalName: null, gstin: null, address: null, state: null }),
+      supplyState: state,
+      feeState: null,
+      lines: (rules) => {
+        const rate = rateFor(rules, booking.sport);
+        return booking.occurrences.map((o) => {
+          const off = vendorFunded ? o.discount : 0;
+          return {
+            description: `${booking.groundName}, ${booking.courtName}: ${whenText(o.startAt, o.endAt)}${booking.addOns.length ? `, with ${booking.addOns.map((a) => a.name).join(", ")}` : ""}`,
+            code: rate.code,
+            codeKind: rate.codeKind,
+            quantity: 1,
+            unitPrice: o.items,
+            discount: off,
+            value: o.items - off,
+            rateBps: bpsAt(rate, o.items),
+          };
+        });
+      },
+      platformFee: booking.price.platformFee,
+      ruxstarDiscount: booking.price.coupon?.fundedBy === "ruxstar" ? discount : 0,
+    },
+    session,
+  );
+}
+
 /** Shares `amount` across lines by their totals; the last line takes what rounding leaves. */
 function share(lines: InvoiceLineDoc[], amount: number): number[] {
   const whole = lines.reduce((s, l) => s + l.total, 0);
@@ -404,24 +451,27 @@ function share(lines: InvoiceLineDoc[], amount: number): number[] {
 
 /**
  * Issues credit notes for a refund, inside its transaction. `amount` null credits what is left of every document on the
- * order (a full refund); a number credits that much of the sale, as partial refunds come out of the vendor's share.
+ * order (a full refund); a number credits that much of the sale, as partial refunds come out of the vendor's share, and
+ * `fee` that much of Ruxstar's platform fee invoice.
  */
 export async function creditOrder(
   db: Database,
   type: SourceType,
   id: ObjectId,
-  refund: { id: string; reason: string | null; amount: number | null },
+  refund: { id: string; reason: string | null; amount: number | null; fee?: number },
   session: ClientSession,
 ): Promise<InvoiceRefDoc[]> {
   const invoices = await db.invoices.find({ "source.id": id, kind: { $ne: "credit_note" } }, { session }).sort({ issuedAt: 1, _id: 1 }).toArray();
   const now = new Date();
   const notes: InvoiceDoc[] = [];
   let left = refund.amount ?? Infinity;
+  let feeLeft = refund.amount === null ? Infinity : (refund.fee ?? 0);
   for (const invoice of invoices) {
-    if (refund.amount !== null && invoice.role !== "supply") continue;
-    const value = Math.min(left, invoice.totals.total - invoice.credited);
+    const fee = invoice.role === "fee";
+    const value = Math.min(fee ? feeLeft : left, invoice.totals.total - invoice.credited);
     if (value <= 0) continue;
-    left -= value;
+    if (fee) feeLeft -= value;
+    else left -= value;
     const whole = invoice.credited === 0 && value === invoice.totals.total;
     const parts = share(invoice.lines, value);
     const lines = invoice.lines.flatMap((line, i): InvoiceLineDoc[] => {

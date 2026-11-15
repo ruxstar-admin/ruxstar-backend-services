@@ -47,6 +47,30 @@ const CoachingRules = Strict(
   { description: "The coaching module only" },
 );
 
+export const TurfRules = Strict(
+  {
+    refundFullHours: Type.Integer({ minimum: 0, maximum: 168, description: "New grounds' default: a full refund when the customer cancels this many hours or more before the slot" }),
+    refundHalfHours: Type.Integer({ minimum: 0, maximum: 168, description: "New grounds' default: `halfPercent` back from this many hours until the full-refund hours. At most `refundFullHours`" }),
+    halfPercent: Type.Integer({ minimum: 0, maximum: 100, description: "The share refunded in the middle tier" }),
+    minFullHours: Type.Integer({ minimum: 0, maximum: 168, description: "Owners pick their full-refund hours between this and `maxFullHours`" }),
+    maxFullHours: Type.Integer({ minimum: 0, maximum: 168 }),
+    maxRepeatWeeks: Type.Integer({ minimum: 1, maximum: 52, description: "A weekly repeat books this many weeks at most, the first included" }),
+    holdMinutes: Type.Integer({ minimum: 5, maximum: 60, description: "Unpaid slots are held this long for the checkout" }),
+    slotLengths: Type.Array(Type.Union([Type.Literal(30), Type.Literal(60), Type.Literal(90)]), {
+      minItems: 1,
+      maxItems: 3,
+      uniqueItems: true,
+      description: "Slot lengths, in minutes, a court can use",
+    }),
+    maxSlots: Type.Integer({ minimum: 1, maximum: 48, description: "Back-to-back slots in one booking" }),
+    bookAheadDays: Type.Integer({ minimum: 1, maximum: 180, description: "How far ahead the first slot can be" }),
+    maxGrounds: Type.Integer({ minimum: 1, maximum: 100, description: "Grounds per business" }),
+    maxCourts: Type.Integer({ minimum: 1, maximum: 100, description: "Courts per ground" }),
+    maxAddOns: Type.Integer({ minimum: 0, maximum: 30, description: "Add-ons per court" }),
+  },
+  { description: "The turf module only" },
+);
+
 export const ModuleSettings = Strict({
   module: ModuleName,
   live: Type.Boolean(),
@@ -76,6 +100,7 @@ export const ModuleSettings = Strict({
   ),
   eventRules: Nullable(EventRules),
   coachingRules: Nullable(CoachingRules),
+  turfRules: Nullable(TurfRules),
   permissionCatalog: Type.Array(Type.String()),
   updatedAt: DateTime,
 });
@@ -108,6 +133,13 @@ export const ModuleSettingsPatch = Strict(
     eventRules: Type.Optional(Type.Partial(EventRules, { additionalProperties: false, minProperties: 1, description: "Events only. Send only what changes." })),
     coachingRules: Type.Optional(
       Type.Partial(CoachingRules, { additionalProperties: false, minProperties: 1, description: "Coaching only. Send only what changes." }),
+    ),
+    turfRules: Type.Optional(
+      Type.Partial(TurfRules, {
+        additionalProperties: false,
+        minProperties: 1,
+        description: "Turf only. Send only what changes. A ground outside new refund limits is held to them from its next booking; bookings made keep their rule.",
+      }),
     ),
   },
   { minProperties: 1 },
