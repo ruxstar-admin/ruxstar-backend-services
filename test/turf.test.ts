@@ -318,6 +318,7 @@ describe("turf", () => {
     expect(slots.slots.find((s: { start: string }) => s.start === "10:30")).toMatchObject({ price: 120_000, peak: false, state: "free" });
     expect(slots.slots.find((s: { start: string }) => s.start === "18:00")).toMatchObject({ price: 150_000, peak: true, state: "free" });
     expect((await anon(`/turf/courts/${courtId}/slots?date=${day(40)}`)).json().data.bookable).toBe(false);
+    for (const date of ["2026-13-01", "2026-02-30"]) expect((await anon(`/turf/courts/${courtId}/slots?date=${date}`)).statusCode).toBe(400);
 
     await stack.db.moduleSettings.updateOne({ module: "turf" }, { $set: { live: false } });
     forgetModuleState();

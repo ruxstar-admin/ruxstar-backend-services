@@ -117,7 +117,7 @@ const listFilters = {
 };
 export const MyInvoicesQuery = Strict({ ...PageQuery, ...listFilters });
 export const VendorInvoicesQuery = Strict({ ...PageQuery, business: Type.Optional(ObjectIdString), kind: Type.Optional(InvoiceKind), ...listFilters });
-const Day = Type.String({ pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", description: "YYYY-MM-DD, India time" });
+const Day = Type.String({ format: "date", pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", description: "YYYY-MM-DD, India time" });
 export const InvoiceExportQuery = Strict({ from: Day, to: Day, business: Type.Optional(ObjectIdString) });
 export const StaffInvoicesQuery = Strict({
   ...PageQuery,

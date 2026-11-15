@@ -29,7 +29,7 @@ export const CourseCategory = Type.Union(
 const Mode = Type.Union([Type.Literal("offline"), Type.Literal("online")], {
   description: "offline: at the institute's venue. online: live classes on a meeting link",
 });
-const Day = Type.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "YYYY-MM-DD, in India" });
+const Day = Type.String({ format: "date", pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "YYYY-MM-DD, in India" });
 const Photo = Nullable(Strict({ url: Type.String(), width: Type.Integer(), height: Type.Integer() }));
 const Venue = Strict({ name: Type.String(), address: Type.String(), city: Type.String(), point: Nullable(Point) });
 const Reason = Type.String({ minLength: 5, maxLength: 300, description: "Everyone affected is told" });

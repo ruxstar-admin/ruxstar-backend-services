@@ -315,6 +315,8 @@ export function refundIfCancelled(r: Pick<StayReservationDoc, "status" | "refund
     if (r.status !== "confirmed") return null;
     return fullRefundNow(r.refundRule, r.from, now) ? r.price.total : 0;
   }
+  // Ruxstar upholds an objection that stayed open past the move-out, as long as the owner hasn't been paid.
+  if (kind === "staff" && r.status === "moved_out" && !r.releasedAt) return r.price.total;
   return ownerCanCancel(r) ? r.price.total : null;
 }
 

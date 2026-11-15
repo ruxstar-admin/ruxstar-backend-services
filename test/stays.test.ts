@@ -386,6 +386,7 @@ describe("stays", () => {
     const later = (await anon(`/stays/${propertyId}/availability?moveIn=${day(5)}`)).json().data.rooms[0];
     expect(later.beds.map((b: { state: string }) => b.state)).toEqual(["taken", "free", "free"]);
     expect(later).toMatchObject({ bedTotal: 800_000, roomTotal: null });
+    for (const moveIn of ["2026-13-01", "2026-02-30"]) expect((await anon(`/stays/${propertyId}/availability?moveIn=${moveIn}`)).statusCode).toBe(400);
   });
 
   it("lets hostels sell nights, and frees the bed from the checkout day", async () => {
@@ -573,6 +574,24 @@ describe("stays", () => {
     expect((await call("POST", `/ruxstar/stays/reservations/${rb.id}/objection`, manager.token, body)).json().error.code).toBe("ORDER_STATE");
     expect(await balanceOf(owner)).toMatchObject({ withdrawable: 1_440_000 });
     expect(await stack.db.auditLogs.countDocuments({ action: "stay_reservation.objection_decide" })).toBe(1);
+  });
+
+  it("lets Ruxstar refund an objection that is still open after the stay ended", async () => {
+    const owner = await vendor();
+    const { rooms } = await setup(owner);
+    const room = rooms[0]!;
+    const tenant = await person();
+    const r = await movedIn(owner, tenant, room.id, room.bedList[0]!.id);
+    expect((await call("POST", `/stays/orders/${r.id}/objection`, tenant.token, { reason: "The room was locked when I arrived." })).statusCode).toBe(200);
+    const out = (await call("POST", `/stays/desk/orders/${r.id}/move-out`, owner.token, {})).json().data;
+    expect(out).toMatchObject({ status: "moved_out", canCancel: false });
+
+    const manager = await staff(["orders.view", "orders.manage"]);
+    const res = await call("POST", `/ruxstar/stays/reservations/${r.id}/objection`, manager.token, { decision: "refund", note: "The tenant never got in." });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toMatchObject({ status: "cancelled", refund: { amount: 800_500 }, objection: { status: "refunded" } });
+    expect(await balanceOf(owner)).toEqual({ pending: 0 });
+    expect((await call("POST", `/stays/desk/orders/${r.id}/cancel`, owner.token, { reason: "Trying again." })).json().error.code).toBe("ORDER_STATE");
   });
 
   it("takes a tenant's notice on a monthly stay and the owner's move-out, freeing the bed from that day", async () => {

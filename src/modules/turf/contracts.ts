@@ -12,7 +12,7 @@ const Nullable = <T extends TSchema>(schema: T, options?: { description: string 
 export const NAME_MAX = 80;
 export const DESCRIPTION_MAX = 2000;
 
-const Day = Type.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "YYYY-MM-DD, in India" });
+const Day = Type.String({ format: "date", pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "YYYY-MM-DD, in India" });
 const Clock = Type.String({ pattern: "^(([01]\\d|2[0-3]):(00|30)|24:00)$", description: "HH:MM in India, on the hour or half hour. 24:00 is midnight at the end of the day" });
 const Weekday = Type.Integer({ minimum: 0, maximum: 6, description: "0 Sunday, 1 Monday … 6 Saturday" });
 const Price = Type.Integer({ minimum: 100, maximum: MAX_PRICE, description: "Paise per slot, at least ₹1" });

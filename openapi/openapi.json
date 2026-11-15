@@ -27916,6 +27916,7 @@
           {
             "schema": {
               "type": "string",
+              "format": "date",
               "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
             },
             "in": "query",
@@ -27926,6 +27927,7 @@
           {
             "schema": {
               "type": "string",
+              "format": "date",
               "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
             },
             "in": "query",
@@ -46288,6 +46290,7 @@
                                 },
                                 "startDate": {
                                   "type": "string",
+                                  "format": "date",
                                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                   "description": "YYYY-MM-DD, in India"
                                 },
@@ -47264,6 +47267,7 @@
                               },
                               "startDate": {
                                 "type": "string",
+                                "format": "date",
                                 "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                 "description": "YYYY-MM-DD, in India"
                               },
@@ -48013,6 +48017,7 @@
                               },
                               "startDate": {
                                 "type": "string",
+                                "format": "date",
                                 "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                 "description": "YYYY-MM-DD, in India"
                               },
@@ -48970,6 +48975,7 @@
                               },
                               "startDate": {
                                 "type": "string",
+                                "format": "date",
                                 "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                 "description": "YYYY-MM-DD, in India"
                               },
@@ -49813,6 +49819,7 @@
                               },
                               "startDate": {
                                 "type": "string",
+                                "format": "date",
                                 "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                 "description": "YYYY-MM-DD, in India"
                               },
@@ -50563,6 +50570,7 @@
                               },
                               "startDate": {
                                 "type": "string",
+                                "format": "date",
                                 "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                 "description": "YYYY-MM-DD, in India"
                               },
@@ -50905,6 +50913,7 @@
                   },
                   "startDate": {
                     "type": "string",
+                    "format": "date",
                     "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                     "description": "YYYY-MM-DD, in India"
                   },
@@ -50925,6 +50934,7 @@
                     "anyOf": [
                       {
                         "type": "string",
+                        "format": "date",
                         "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                         "description": "YYYY-MM-DD, in India"
                       },
@@ -51457,6 +51467,7 @@
                               },
                               "startDate": {
                                 "type": "string",
+                                "format": "date",
                                 "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                 "description": "YYYY-MM-DD, in India"
                               },
@@ -51786,6 +51797,7 @@
                   },
                   "startDate": {
                     "type": "string",
+                    "format": "date",
                     "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                     "description": "YYYY-MM-DD, in India"
                   },
@@ -51806,6 +51818,7 @@
                     "anyOf": [
                       {
                         "type": "string",
+                        "format": "date",
                         "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                         "description": "YYYY-MM-DD, in India"
                       },
@@ -52341,6 +52354,7 @@
                               },
                               "startDate": {
                                 "type": "string",
+                                "format": "date",
                                 "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                 "description": "YYYY-MM-DD, in India"
                               },
@@ -53089,6 +53103,7 @@
                               },
                               "startDate": {
                                 "type": "string",
+                                "format": "date",
                                 "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                 "description": "YYYY-MM-DD, in India"
                               },
@@ -53861,6 +53876,7 @@
                               },
                               "startDate": {
                                 "type": "string",
+                                "format": "date",
                                 "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                 "description": "YYYY-MM-DD, in India"
                               },
@@ -114631,6 +114647,7 @@
           {
             "schema": {
               "type": "string",
+              "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
             },
             "in": "query",
@@ -116009,6 +116026,7 @@
                               },
                               "startDate": {
                                 "type": "string",
+                                "format": "date",
                                 "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                 "description": "YYYY-MM-DD, in India"
                               },
@@ -118713,6 +118731,7 @@
           {
             "schema": {
               "type": "string",
+              "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
             },
             "in": "query",
@@ -118780,6 +118799,7 @@
                         },
                         "date": {
                           "type": "string",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "description": "YYYY-MM-DD, in India"
                         },
@@ -119011,6 +119031,7 @@
                                             },
                                             "moveIn": {
                                               "type": "string",
+                                              "format": "date",
                                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                               "description": "YYYY-MM-DD, in India"
                                             },
@@ -119094,6 +119115,7 @@
                                             },
                                             "moveIn": {
                                               "type": "string",
+                                              "format": "date",
                                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                               "description": "YYYY-MM-DD, in India"
                                             },
@@ -119597,6 +119619,7 @@
                           },
                           "moveIn": {
                             "type": "string",
+                            "format": "date",
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                             "description": "YYYY-MM-DD, in India"
                           },
@@ -119956,6 +119979,7 @@
                                 "properties": {
                                   "on": {
                                     "type": "string",
+                                    "format": "date",
                                     "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                     "description": "YYYY-MM-DD, in India"
                                   },
@@ -120521,6 +120545,7 @@
                           },
                           "moveIn": {
                             "type": "string",
+                            "format": "date",
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                             "description": "YYYY-MM-DD, in India"
                           },
@@ -120880,6 +120905,7 @@
                                 "properties": {
                                   "on": {
                                     "type": "string",
+                                    "format": "date",
                                     "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                     "description": "YYYY-MM-DD, in India"
                                   },
@@ -121443,6 +121469,7 @@
                         },
                         "moveIn": {
                           "type": "string",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "description": "YYYY-MM-DD, in India"
                         },
@@ -121802,6 +121829,7 @@
                               "properties": {
                                 "on": {
                                   "type": "string",
+                                  "format": "date",
                                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                   "description": "YYYY-MM-DD, in India"
                                 },
@@ -122353,6 +122381,7 @@
                         },
                         "moveIn": {
                           "type": "string",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "description": "YYYY-MM-DD, in India"
                         },
@@ -122712,6 +122741,7 @@
                               "properties": {
                                 "on": {
                                   "type": "string",
+                                  "format": "date",
                                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                   "description": "YYYY-MM-DD, in India"
                                 },
@@ -122940,6 +122970,7 @@
                 "properties": {
                   "on": {
                     "type": "string",
+                    "format": "date",
                     "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                     "description": "YYYY-MM-DD, in India"
                   },
@@ -123285,6 +123316,7 @@
                         },
                         "moveIn": {
                           "type": "string",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "description": "YYYY-MM-DD, in India"
                         },
@@ -123644,6 +123676,7 @@
                               "properties": {
                                 "on": {
                                   "type": "string",
+                                  "format": "date",
                                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                   "description": "YYYY-MM-DD, in India"
                                 },
@@ -124217,6 +124250,7 @@
                         },
                         "moveIn": {
                           "type": "string",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "description": "YYYY-MM-DD, in India"
                         },
@@ -124576,6 +124610,7 @@
                               "properties": {
                                 "on": {
                                   "type": "string",
+                                  "format": "date",
                                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                   "description": "YYYY-MM-DD, in India"
                                 },
@@ -131045,6 +131080,7 @@
                           },
                           "moveIn": {
                             "type": "string",
+                            "format": "date",
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                             "description": "YYYY-MM-DD, in India"
                           },
@@ -131404,6 +131440,7 @@
                                 "properties": {
                                   "on": {
                                     "type": "string",
+                                    "format": "date",
                                     "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                     "description": "YYYY-MM-DD, in India"
                                   },
@@ -131512,6 +131549,7 @@
                             "anyOf": [
                               {
                                 "type": "string",
+                                "format": "date",
                                 "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                 "description": "YYYY-MM-DD, in India"
                               },
@@ -132036,6 +132074,7 @@
                         },
                         "moveIn": {
                           "type": "string",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "description": "YYYY-MM-DD, in India"
                         },
@@ -132395,6 +132434,7 @@
                               "properties": {
                                 "on": {
                                   "type": "string",
+                                  "format": "date",
                                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                   "description": "YYYY-MM-DD, in India"
                                 },
@@ -132503,6 +132543,7 @@
                           "anyOf": [
                             {
                               "type": "string",
+                              "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "description": "YYYY-MM-DD, in India"
                             },
@@ -133145,6 +133186,7 @@
                         },
                         "moveIn": {
                           "type": "string",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "description": "YYYY-MM-DD, in India"
                         },
@@ -133504,6 +133546,7 @@
                               "properties": {
                                 "on": {
                                   "type": "string",
+                                  "format": "date",
                                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                   "description": "YYYY-MM-DD, in India"
                                 },
@@ -133612,6 +133655,7 @@
                           "anyOf": [
                             {
                               "type": "string",
+                              "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "description": "YYYY-MM-DD, in India"
                             },
@@ -134146,6 +134190,7 @@
                         },
                         "moveIn": {
                           "type": "string",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "description": "YYYY-MM-DD, in India"
                         },
@@ -134505,6 +134550,7 @@
                               "properties": {
                                 "on": {
                                   "type": "string",
+                                  "format": "date",
                                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                   "description": "YYYY-MM-DD, in India"
                                 },
@@ -134613,6 +134659,7 @@
                           "anyOf": [
                             {
                               "type": "string",
+                              "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "description": "YYYY-MM-DD, in India"
                             },
@@ -135123,6 +135170,7 @@
                         },
                         "moveIn": {
                           "type": "string",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "description": "YYYY-MM-DD, in India"
                         },
@@ -135482,6 +135530,7 @@
                               "properties": {
                                 "on": {
                                   "type": "string",
+                                  "format": "date",
                                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                   "description": "YYYY-MM-DD, in India"
                                 },
@@ -135590,6 +135639,7 @@
                           "anyOf": [
                             {
                               "type": "string",
+                              "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "description": "YYYY-MM-DD, in India"
                             },
@@ -135781,6 +135831,7 @@
                 "properties": {
                   "on": {
                     "type": "string",
+                    "format": "date",
                     "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                     "description": "YYYY-MM-DD, in India"
                   }
@@ -136120,6 +136171,7 @@
                         },
                         "moveIn": {
                           "type": "string",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "description": "YYYY-MM-DD, in India"
                         },
@@ -136479,6 +136531,7 @@
                               "properties": {
                                 "on": {
                                   "type": "string",
+                                  "format": "date",
                                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                   "description": "YYYY-MM-DD, in India"
                                 },
@@ -136587,6 +136640,7 @@
                           "anyOf": [
                             {
                               "type": "string",
+                              "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "description": "YYYY-MM-DD, in India"
                             },
@@ -136773,6 +136827,7 @@
           {
             "schema": {
               "type": "string",
+              "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
             },
             "in": "query",
@@ -136889,6 +136944,7 @@
                         },
                         "moveIn": {
                           "type": "string",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "description": "YYYY-MM-DD, in India"
                         },
@@ -136912,6 +136968,7 @@
                           "anyOf": [
                             {
                               "type": "string",
+                              "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "description": "YYYY-MM-DD, in India"
                             },
@@ -137128,6 +137185,7 @@
                   },
                   "moveIn": {
                     "type": "string",
+                    "format": "date",
                     "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                     "description": "YYYY-MM-DD, in India"
                   },
@@ -137388,6 +137446,7 @@
                   },
                   "moveIn": {
                     "type": "string",
+                    "format": "date",
                     "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                     "description": "YYYY-MM-DD, in India"
                   },
@@ -137775,6 +137834,7 @@
                             },
                             "moveIn": {
                               "type": "string",
+                              "format": "date",
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                               "description": "YYYY-MM-DD, in India"
                             },
@@ -138134,6 +138194,7 @@
                                   "properties": {
                                     "on": {
                                       "type": "string",
+                                      "format": "date",
                                       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                       "description": "YYYY-MM-DD, in India"
                                     },
@@ -138242,6 +138303,7 @@
                               "anyOf": [
                                 {
                                   "type": "string",
+                                  "format": "date",
                                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                   "description": "YYYY-MM-DD, in India"
                                 },
@@ -139500,6 +139562,7 @@
           {
             "schema": {
               "type": "string",
+              "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
             },
             "in": "query",
@@ -139567,6 +139630,7 @@
                         },
                         "date": {
                           "type": "string",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "description": "YYYY-MM-DD, in India"
                         },
@@ -148775,6 +148839,7 @@
           {
             "schema": {
               "type": "string",
+              "format": "date",
               "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
             },
             "in": "query",
@@ -148866,6 +148931,7 @@
                         },
                         "date": {
                           "type": "string",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "description": "YYYY-MM-DD, in India"
                         },
@@ -231588,6 +231654,7 @@
                                 },
                                 "startDate": {
                                   "type": "string",
+                                  "format": "date",
                                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                   "description": "YYYY-MM-DD, in India"
                                 },
@@ -232349,6 +232416,7 @@
                               },
                               "startDate": {
                                 "type": "string",
+                                "format": "date",
                                 "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                 "description": "YYYY-MM-DD, in India"
                               },
@@ -233121,6 +233189,7 @@
                               },
                               "startDate": {
                                 "type": "string",
+                                "format": "date",
                                 "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                 "description": "YYYY-MM-DD, in India"
                               },
@@ -238676,6 +238745,7 @@
                           },
                           "moveIn": {
                             "type": "string",
+                            "format": "date",
                             "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                             "description": "YYYY-MM-DD, in India"
                           },
@@ -239035,6 +239105,7 @@
                                 "properties": {
                                   "on": {
                                     "type": "string",
+                                    "format": "date",
                                     "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                     "description": "YYYY-MM-DD, in India"
                                   },
@@ -239591,6 +239662,7 @@
                         },
                         "moveIn": {
                           "type": "string",
+                          "format": "date",
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "description": "YYYY-MM-DD, in India"
                         },
@@ -239950,6 +240022,7 @@
                               "properties": {
                                 "on": {
                                   "type": "string",
+                                  "format": "date",
                                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                                   "description": "YYYY-MM-DD, in India"
                                 },
