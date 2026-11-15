@@ -337,6 +337,9 @@ type Each<T extends NotificationDoc["type"]> = { actor: ObjectId; type: T; title
 /** Turf bookings and their changes, each person with their own link. Logged, never thrown. */
 export const notifyTurf = (db: Database, log: FastifyBaseLogger, event: Each<"turf.booked" | "turf.updated">) => notifyEach(db, log, event);
 
+/** Reservations, move-ins, objections and cancellations at PGs and hostels, each person with their own link. Logged, never thrown. */
+export const notifyStays = (db: Database, log: FastifyBaseLogger, event: Each<"stays.reserved" | "stays.updated">) => notifyEach(db, log, event);
+
 /** Enrolments, demo classes, class changes and batch messages, each person with their own link. Logged, never thrown. */
 export const notifyCoaching = (db: Database, log: FastifyBaseLogger, event: Each<"coaching.enrolled" | "coaching.updated">) => notifyEach(db, log, event);
 

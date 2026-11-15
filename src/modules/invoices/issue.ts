@@ -13,6 +13,7 @@ import type {
   InvoiceParty,
   InvoiceRefDoc,
   PodOrderDoc,
+  StayReservationDoc,
   TurfBookingDoc,
 } from "../../platform/db.js";
 import { stamp } from "../../platform/db.js";
@@ -144,6 +145,7 @@ async function remember(db: Database, type: SourceType, id: ObjectId, refs: Invo
   if (type === "pod_order") await db.podOrders.updateOne({ _id: id }, update, { session });
   else if (type === "coaching_order") await db.coachingOrders.updateOne({ _id: id }, update, { session });
   else if (type === "turf_booking") await db.turfBookings.updateOne({ _id: id }, update, { session });
+  else if (type === "stay_reservation") await db.staysReservations.updateOne({ _id: id }, update, { session });
   else await db.eventOrders.updateOne({ _id: id }, update, { session });
 }
 
@@ -433,6 +435,53 @@ export async function invoiceTurfBooking(db: Database, booking: TurfBookingDoc, 
       },
       platformFee: booking.price.platformFee,
       ruxstarDiscount: booking.price.coupon?.fundedBy === "ruxstar" ? discount : 0,
+    },
+    session,
+  );
+}
+
+export async function invoiceStayReservation(db: Database, r: StayReservationDoc, session: ClientSession): Promise<InvoiceRefDoc[]> {
+  const business = await db.businesses.findOne({ _id: r.businessId }, { session });
+  const property = await db.staysProperties.findOne({ _id: r.propertyId }, { session, projection: { address: 1 } });
+  const customer = await db.users.findOne({ _id: r.customerId }, { session, projection: { name: 1 } });
+  // A stay is supplied where the property is.
+  const state = stateOfPlace(property?.address.city, property?.address.pincode) ?? business?.location?.state ?? null;
+  const discount = r.price.discount ?? 0;
+  const off = r.price.coupon?.fundedBy === "vendor" ? discount : 0;
+  const quantity = r.price.quantity * r.units;
+  const per = r.unit === "month" ? "month" : "night";
+  return issue(
+    db,
+    {
+      module: "stays",
+      source: { type: "stay_reservation", id: r._id, orderNo: r.orderNo },
+      business,
+      businessId: r.businessId,
+      businessName: business?.name ?? r.businessName,
+      vendorId: r.vendorId,
+      customerId: r.customerId,
+      buyer: party({ name: customer?.name ?? r.customerName, legalName: null, gstin: null, address: null, state: null }),
+      supplyState: state,
+      feeState: null,
+      lines: (rules) => {
+        // The limits are per bed (or private room) per month or night, so each line is priced at that.
+        const rate = rateFor(rules, r.unit === "month" ? "pg" : "hostel");
+        const beds = r.whole && r.roomKind === "shared" ? `, all ${r.bedLabels.length} beds` : r.roomKind === "shared" ? `, bed ${r.bedLabels.join(", ")}` : "";
+        return [
+          {
+            description: `${r.propertyName}, ${r.roomName}${beds}: ${r.units} ${per}${r.units === 1 ? "" : "s"} from ${r.moveIn}`,
+            code: rate.code,
+            codeKind: rate.codeKind,
+            quantity,
+            unitPrice: r.price.unitPrice,
+            discount: off,
+            value: r.price.items - off,
+            rateBps: bpsAt(rate, r.price.unitPrice),
+          },
+        ];
+      },
+      platformFee: r.price.platformFee,
+      ruxstarDiscount: r.price.coupon?.fundedBy === "ruxstar" ? discount : 0,
     },
     session,
   );

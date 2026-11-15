@@ -74,6 +74,14 @@ const CATALOGS: Partial<Record<BusinessDoc["module"], PermissionInfo[]>> = {
     { key: "turf.prices", label: "Change prices and add-ons", hint: "Base, weekend and peak prices of every court", needs: null },
     { key: "reviews.reply", label: "Reply to reviews", hint: "Answer customers' reviews of the business", needs: null },
   ].map(info),
+  stays: [
+    { key: "stays.reservations", label: "See reservations and tenants", hint: "The bed board of every property, and who reserved, with their phone numbers", needs: null },
+    { key: "stays.movein", label: "Mark moved in and moved out", hint: "Marking moved in starts the tenant's objection window before the money is released", needs: "stays.reservations" },
+    { key: "stays.beds", label: "Mark beds and rooms free or full", hint: "Full beds and rooms can't be reserved; reservations made stand", needs: "stays.reservations" },
+    { key: "stays.cancel", label: "Cancel reservations", hint: "The tenant gets a full refund, platform fee included", needs: "stays.reservations" },
+    { key: "stays.listing", label: "Edit the listing and prices", hint: "Details, food, facilities, house rules and room prices", needs: null },
+    { key: "reviews.reply", label: "Reply to reviews", hint: "Answer customers' reviews of the business", needs: null },
+  ].map(info),
 };
 
 /** Every permission once, for labelling places at any kind of business. */

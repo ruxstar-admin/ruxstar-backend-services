@@ -478,7 +478,9 @@ export type NotificationType =
   | "coaching.enrolled"
   | "coaching.updated"
   | "turf.booked"
-  | "turf.updated";
+  | "turf.updated"
+  | "stays.reserved"
+  | "stays.updated";
 
 export interface NotificationDoc {
   _id: ObjectId;
@@ -498,7 +500,8 @@ export interface NotificationDoc {
    * for one (its id is the ticket order), and `vendor_event` an event in the vendor portal. `coaching_course` opens a course's
    * page, `coaching_order` a customer's enrolment or demo class, `vendor_course` a course in the vendor portal, and
    * `coaching_batch` a batch's classes for its owner or coaches. `turf_ground` opens a ground's page, `turf_order` a customer's
-   * booking, and `vendor_ground` a ground's board for its owner or team.
+   * booking, and `vendor_ground` a ground's board for its owner or team. `stay_property` opens a PG or hostel's page,
+   * `stay_order` a customer's reservation, and `vendor_property` a property's bed board for its owner or team.
    */
   link: {
     screen:
@@ -526,7 +529,10 @@ export interface NotificationDoc {
       | "coaching_batch"
       | "turf_ground"
       | "turf_order"
-      | "vendor_ground";
+      | "vendor_ground"
+      | "stay_property"
+      | "stay_order"
+      | "vendor_property";
     id: string;
   };
   readAt: Date | null;
@@ -595,6 +601,8 @@ export interface ModuleSettingsDoc extends Stamped {
   coachingRules?: CoachingRules;
   /** The turf module only. Missing: the defaults in the turf module. */
   turfRules?: TurfRules;
+  /** The stays module only. Missing: the defaults in the stays module. */
+  staysRules?: StaysRules;
   deliveryEnabled: boolean;
   permissionCatalog: string[];
   updatedBy: ObjectId | null;
@@ -654,6 +662,28 @@ export interface TurfRules {
   maxGrounds: number;
   maxCourts: number;
   maxAddOns: number;
+}
+
+/** What Ruxstar sets for PG and hostel stays. Owners can only make the refund rule stricter. */
+export interface StaysRules {
+  /** A customer cancelling at least this many days before move-in gets everything back, unless the property is stricter. */
+  refundDays: number;
+  /** The most days a property's stricter rule can ask for. */
+  maxRefundDays: number;
+  /** After the owner marks "Moved in", the tenant can object for this long; the owner's money waits until then. */
+  objectionHours: number;
+  /** PG: months paid up front with a reservation, the first included. */
+  maxMonths: number;
+  /** Hostel: nights in one reservation. */
+  maxNights: number;
+  /** Unpaid reservations hold their beds this long for the checkout. */
+  holdMinutes: number;
+  /** How far ahead move-in can be, in days. */
+  bookAheadDays: number;
+  maxProperties: number;
+  maxRooms: number;
+  /** Beds in one room. */
+  maxBeds: number;
 }
 
 /** A file a customer uploaded to print. Unused ones are deleted a day later, on the uploader's next upload. */
@@ -862,7 +892,7 @@ export interface LedgerEntryDoc {
   accountId: string;
   bucket: "pending" | "withdrawable";
   signedPaise: number;
-  source: { type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "payout"; id: ObjectId };
+  source: { type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "payout"; id: ObjectId };
   at: Date;
 }
 
@@ -1037,7 +1067,7 @@ export interface InvoiceDoc extends Stamped {
   /** `supply`: what was bought; `fee`: Ruxstar's platform fee. */
   role: "supply" | "fee";
   module: GstModule;
-  source: { type: "pod_order" | "event_order" | "coaching_order" | "turf_booking"; id: ObjectId; orderNo: number };
+  source: { type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation"; id: ObjectId; orderNo: number };
   businessId: ObjectId;
   businessName: string;
   vendorId: ObjectId;
@@ -1485,6 +1515,176 @@ export interface TurfBookingDoc extends Stamped {
   invoices?: InvoiceRefDoc[];
 }
 
+/** A facility a PG or hostel can list. Ruxstar keeps the list; inactive ones stay on properties that have them but can't be picked. */
+export interface StayFacilityDoc extends Stamped {
+  /** Lower case letters and underscores, for example `power_backup`. Never changes. */
+  _id: string;
+  name: string;
+  active: boolean;
+  order: number;
+}
+
+export type StayKind = "pg" | "hostel" | "coliving";
+export type StayFor = "men" | "women" | "any";
+export type StayOccupant = "students" | "working";
+export type StayMeal = "breakfast" | "lunch" | "dinner";
+/** PG and co-living rooms are priced per month, hostel beds per night; a room can offer both. */
+export type StayUnit = "month" | "night";
+export type StayRoomKind = "private" | "shared";
+export type StayRoomFeature = "ac" | "attached_bath" | "balcony" | "furnished" | "window";
+export type StayNearbyKind = "college" | "office" | "metro" | "other";
+
+/** A PG, hostel or co-living house of a stays business: rooms with beds at one address. */
+export interface StayPropertyDoc extends Stamped {
+  _id: ObjectId;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  businessName: string;
+  kind: StayKind;
+  name: string;
+  description: string | null;
+  address: { line: string; area: string | null; city: string; pincode: string | null; point: { lat: number; lng: number } | null };
+  /** The city and area in lower case, for search. */
+  city: string;
+  area: string | null;
+  for: StayFor;
+  /** Empty: anyone. */
+  occupants: StayOccupant[];
+  food: { type: "veg" | "non_veg" | "none"; meals: StayMeal[] };
+  /** Keys of `stays_facilities`. */
+  facilities: string[];
+  /** House rules. `curfew` is the latest entry time, "HH:MM", or null for none. */
+  rules: { curfew: string | null; guests: boolean; smoking: boolean; alcohol: boolean; pets: boolean; notes: string | null };
+  noticeDays: number;
+  /** Paid to the owner directly; only shown on the listing. */
+  deposit: { amount: number; note: string | null };
+  nearby: { kind: StayNearbyKind; name: string; km: number }[];
+  photos: BusinessPhoto[];
+  /** Full refund until this many days before move-in, within Ruxstar's limits. */
+  refundDays: number;
+  /** Kept from the live rooms for search: how they're priced, their kinds, and the lowest price per bed of each unit. */
+  units: StayUnit[];
+  roomKinds: StayRoomKind[];
+  priceFrom: { month: number | null; night: number | null };
+  status: "draft" | "live" | "removed";
+  publishedAt: Date | null;
+  removal: { actorId: ObjectId; reason: string; at: Date } | null;
+}
+
+/** A room of a property. A shared room's beds are reserved one by one, or all together; a private room is reserved whole. */
+export interface StayRoomDoc extends Stamped {
+  _id: ObjectId;
+  propertyId: ObjectId;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  name: string;
+  kind: StayRoomKind;
+  beds: number;
+  /** Shared rooms: whether all its beds can be reserved together, at the bed price times the beds. */
+  wholeRoom: boolean;
+  /** Paise: for each bed in a shared room, for the room when private. Null when the room isn't offered that way. */
+  prices: { month: number | null; night: number | null };
+  features: StayRoomFeature[];
+  /** `paused`: shown but not reservable, the owner marked it full. `removed`: deleted by the owner, kept for old reservations. */
+  status: "live" | "paused" | "removed";
+  order: number;
+}
+
+/** One bed of a room. Every reservation of a bed writes its `seq`, so two at once can't both pass the overlap check. */
+export interface StayBedDoc {
+  _id: ObjectId;
+  roomId: ObjectId;
+  propertyId: ObjectId;
+  businessId: ObjectId;
+  /** A, B, C… in the room. */
+  label: string;
+  /** `closed`: the owner marked it full or unavailable. `removed`: the room has fewer beds now. */
+  status: "open" | "closed" | "removed";
+  seq: number;
+  order: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type StayStatus = "awaiting_payment" | "confirmed" | "moved_in" | "moved_out" | "cancelled";
+export type StayActor = "customer" | "vendor" | "staff" | "system";
+
+/**
+ * A reservation of beds in one room: one bed, or every bed of the room. It pays the first months (PG) or the nights
+ * (hostel), and occupies its beds from move-in until `until`; a PG reservation has no end until a notice or move-out sets
+ * one. The owner's money waits until they mark "Moved in" and the tenant's objection window passes.
+ */
+export interface StayReservationDoc extends Stamped {
+  _id: ObjectId;
+  orderNo: number;
+  propertyId: ObjectId;
+  roomId: ObjectId;
+  bedIds: ObjectId[];
+  bedLabels: string[];
+  /** Every bed of the room. */
+  whole: boolean;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  customerId: ObjectId;
+  customerName: string;
+  propertyName: string;
+  roomName: string;
+  businessName: string;
+  kind: StayKind;
+  roomKind: StayRoomKind;
+  unit: StayUnit;
+  /** Months or nights paid for. */
+  units: number;
+  /** "YYYY-MM-DD". */
+  moveIn: string;
+  from: Date;
+  /** When the beds are free again; null while a PG stay has no end. */
+  until: Date | null;
+  price: {
+    /** Per month or night: for one bed of a shared room, or a private room. */
+    unitPrice: number;
+    /** Beds charged: every bed of a shared room reserved whole, else 1. `items` is `unitPrice` × `quantity` × `units`. */
+    quantity: number;
+    items: number;
+    platformFee: number;
+    total: number;
+    commissionBps: number;
+    commission: number;
+    discount?: number;
+    coupon?: { id: ObjectId; code: string; fundedBy: "ruxstar" | "vendor" } | null;
+  };
+  deposit: { amount: number; note: string | null };
+  noticeDays: number;
+  /** The refund rule when it was made: full refund until this many days before move-in. */
+  refundRule: { days: number };
+  /** The tenant's base KYC when they reserved. */
+  tenantVerified: boolean;
+  status: StayStatus;
+  timeline: { status: StayStatus; at: Date; by: StayActor }[];
+  payment: { gatewayOrderId: string; sessionId: string; paymentId: string | null; paidAt: Date | null } | null;
+  holdUntil: Date | null;
+  refund: { refundId: string; amount: number; reason: string | null; by: StayActor; status: "pending" | "done"; at: Date } | null;
+  reason: string | null;
+  cancellation: { by: StayActor; actorId: ObjectId | null; reason: string; refund: number; at: Date } | null;
+  movedIn: { at: Date; by: ObjectId } | null;
+  /** The end of the tenant's window to object after "Moved in". */
+  objectionUntil: Date | null;
+  objection: {
+    reason: string;
+    at: Date;
+    status: "open" | "withdrawn" | "released" | "refunded";
+    note: string | null;
+    resolvedAt: Date | null;
+    resolvedBy: ObjectId | null;
+  } | null;
+  /** A notice or move-out that set `until`. */
+  moveOut: { on: string; kind: "notice" | "move_out"; by: StayActor; actorId: ObjectId | null; at: Date } | null;
+  /** When the owner's share moves to withdrawable; null while it waits for "Moved in" or an objection. */
+  releaseAt: Date | null;
+  releasedAt: Date | null;
+  invoices?: InvoiceRefDoc[];
+}
+
 /**
  * A discount code. Ruxstar's work at every shop and Ruxstar pays for them; a vendor's work at the shops
  * they pick and come out of their share. The code and the discount never change once made.
@@ -1555,11 +1755,16 @@ export type TeamPermission =
   | "turf.block"
   | "turf.cancel"
   | "turf.prices"
-  | "turf.arrivals";
+  | "turf.arrivals"
+  | "stays.reservations"
+  | "stays.movein"
+  | "stays.beds"
+  | "stays.cancel"
+  | "stays.listing";
 
 /** Modules whose orders can be reviewed. */
-export type ReviewModule = "pod" | "events" | "coaching" | "turf";
-export type ReviewOrderType = "pod_order" | "event_order" | "coaching_order" | "turf_booking";
+export type ReviewModule = "pod" | "events" | "coaching" | "turf" | "stays";
+export type ReviewOrderType = "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation";
 
 /**
  * A customer's review of one finished order at any business (decisions 55 and A6): 1 to 5 stars and an optional note, written
@@ -1581,7 +1786,7 @@ export interface ReviewDoc extends Stamped {
   /** Missing means `pod_order`. */
   orderType?: ReviewOrderType;
   /** The event, course or ground reviewed; null or missing for print. */
-  listing?: { type: "event" | "course" | "ground"; id: ObjectId } | null;
+  listing?: { type: "event" | "course" | "ground" | "property"; id: ObjectId } | null;
   rating: number;
   text: string | null;
   status: "live" | "removed";
@@ -1924,6 +2129,21 @@ export class Database {
   }
   get turfBookings() {
     return this.db.collection<TurfBookingDoc>("turf_bookings");
+  }
+  get staysFacilities() {
+    return this.db.collection<StayFacilityDoc>("stays_facilities");
+  }
+  get staysProperties() {
+    return this.db.collection<StayPropertyDoc>("stays_properties");
+  }
+  get staysRooms() {
+    return this.db.collection<StayRoomDoc>("stays_rooms");
+  }
+  get staysBeds() {
+    return this.db.collection<StayBedDoc>("stays_beds");
+  }
+  get staysReservations() {
+    return this.db.collection<StayReservationDoc>("stays_reservations");
   }
 
   /** Runs `work` in a majority-committed transaction, retrying transient errors. */

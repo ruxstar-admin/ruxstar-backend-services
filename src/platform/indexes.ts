@@ -241,6 +241,25 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.turfBookings.createIndex({ releaseAt: 1 }, { partialFilterExpression: { releaseAt: { $type: "date" } } }),
     db.turfBookings.createIndex({ vendorId: 1, releaseAt: 1 }, { partialFilterExpression: { releaseAt: { $type: "date" } } }),
     db.turfBookings.createIndex({ "refunds.status": 1 }, { partialFilterExpression: { "refunds.status": "pending" } }),
+    // Stays: live properties newest first (all, or one city), a business's properties, rooms and beds of a property, and
+    // reservations by number, payment, bed (the overlap check), customer, property, timers and money owed back.
+    db.staysProperties.createIndex({ status: 1, publishedAt: -1, _id: -1 }),
+    db.staysProperties.createIndex({ status: 1, city: 1, publishedAt: -1, _id: -1 }),
+    db.staysProperties.createIndex({ businessId: 1, createdAt: 1 }),
+    db.staysProperties.createIndex({ createdAt: -1, _id: -1 }),
+    db.staysRooms.createIndex({ propertyId: 1, order: 1 }),
+    db.staysBeds.createIndex({ roomId: 1, order: 1 }),
+    db.staysBeds.createIndex({ propertyId: 1 }),
+    db.staysReservations.createIndex({ orderNo: 1 }, { unique: true }),
+    db.staysReservations.createIndex({ "payment.gatewayOrderId": 1 }, { unique: true, partialFilterExpression: { "payment.gatewayOrderId": { $type: "string" } } }),
+    db.staysReservations.createIndex({ bedIds: 1, status: 1 }),
+    db.staysReservations.createIndex({ customerId: 1, createdAt: -1, _id: -1 }),
+    db.staysReservations.createIndex({ propertyId: 1, createdAt: -1, _id: -1 }),
+    db.staysReservations.createIndex({ propertyId: 1, status: 1, from: 1 }),
+    db.staysReservations.createIndex({ status: 1, holdUntil: 1 }),
+    db.staysReservations.createIndex({ releaseAt: 1 }, { partialFilterExpression: { releaseAt: { $type: "date" } } }),
+    db.staysReservations.createIndex({ "refund.status": 1 }, { partialFilterExpression: { "refund.status": "pending" } }),
+    db.staysReservations.createIndex({ "objection.status": 1, "objection.at": -1 }, { partialFilterExpression: { "objection.status": "open" } }),
     // GST documents: one per order part or refund, numbers unique per series, an order's documents, and the lists for
     // customers, vendors (all businesses or one) and the console (everything, one kind, or found by number or order),
     // each also by module. The `from`/`to` filters are ranges on `issuedAt`, the sort key, so they use the same indexes.

@@ -31,6 +31,11 @@ export const TeamPermission = Type.Union(
     Type.Literal("turf.cancel"),
     Type.Literal("turf.prices"),
     Type.Literal("turf.arrivals"),
+    Type.Literal("stays.reservations"),
+    Type.Literal("stays.movein"),
+    Type.Literal("stays.beds"),
+    Type.Literal("stays.cancel"),
+    Type.Literal("stays.listing"),
   ],
   { description: "What the owner lets this person do at the business. Each kind of business offers its own; GET its team lists them" },
 );

@@ -51,7 +51,13 @@ export interface Reviewable {
 export const moduleOf = (review: Pick<ReviewDoc, "module">): ReviewModule => review.module ?? "pod";
 const orderTypeOf = (review: Pick<ReviewDoc, "orderType">): ReviewOrderType => review.orderType ?? "pod_order";
 /** Where the customer's order opens in the app. */
-const ORDER_SCREEN: Record<ReviewModule, NotificationDoc["link"]["screen"]> = { pod: "order", events: "event_order", coaching: "coaching_order", turf: "turf_order" };
+const ORDER_SCREEN: Record<ReviewModule, NotificationDoc["link"]["screen"]> = {
+  pod: "order",
+  events: "event_order",
+  coaching: "coaching_order",
+  turf: "turf_order",
+  stays: "stay_order",
+};
 export const orderLinkOf = (review: Pick<ReviewDoc, "module" | "orderId">): NotificationDoc["link"] => ({
   screen: ORDER_SCREEN[moduleOf(review)],
   id: review.orderId.toHexString(),
@@ -222,7 +228,7 @@ export async function writeReview(db: Database, item: Reviewable, input: { ratin
   return doc;
 }
 
-const ORDER_WORD: Record<ReviewModule, string> = { pod: "order", events: "booking", coaching: "enrolment", turf: "booking" };
+const ORDER_WORD: Record<ReviewModule, string> = { pod: "order", events: "booking", coaching: "enrolment", turf: "booking", stays: "reservation" };
 
 /** The owner, and team members who may reply and are verified, hear about a new review. */
 async function tellShop(db: Database, review: ReviewDoc, shopName: string, log: FastifyBaseLogger) {

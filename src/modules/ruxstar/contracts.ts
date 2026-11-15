@@ -71,6 +71,22 @@ export const TurfRules = Strict(
   { description: "The turf module only" },
 );
 
+export const StaysRules = Strict(
+  {
+    refundDays: Type.Integer({ minimum: 0, maximum: 60, description: "A full refund when the customer cancels at least this many days before move-in. Properties can only be stricter" }),
+    maxRefundDays: Type.Integer({ minimum: 0, maximum: 60, description: "The most days a property's stricter refund rule can ask for. At least `refundDays`" }),
+    objectionHours: Type.Integer({ minimum: 1, maximum: 168, description: "After the owner marks \"Moved in\", the tenant can object for this long; the owner's money waits until then" }),
+    maxMonths: Type.Integer({ minimum: 1, maximum: 12, description: "PG and co-living: months paid with a reservation, the first included" }),
+    maxNights: Type.Integer({ minimum: 1, maximum: 90, description: "Hostels: nights in one reservation" }),
+    holdMinutes: Type.Integer({ minimum: 5, maximum: 60, description: "Unpaid reservations hold their beds this long for the checkout" }),
+    bookAheadDays: Type.Integer({ minimum: 1, maximum: 180, description: "How far ahead move-in can be" }),
+    maxProperties: Type.Integer({ minimum: 1, maximum: 100, description: "Properties per business" }),
+    maxRooms: Type.Integer({ minimum: 1, maximum: 500, description: "Rooms per property" }),
+    maxBeds: Type.Integer({ minimum: 1, maximum: 24, description: "Beds per room" }),
+  },
+  { description: "The stays module only" },
+);
+
 export const ModuleSettings = Strict({
   module: ModuleName,
   live: Type.Boolean(),
@@ -101,6 +117,7 @@ export const ModuleSettings = Strict({
   eventRules: Nullable(EventRules),
   coachingRules: Nullable(CoachingRules),
   turfRules: Nullable(TurfRules),
+  staysRules: Nullable(StaysRules),
   permissionCatalog: Type.Array(Type.String()),
   updatedAt: DateTime,
 });
@@ -139,6 +156,13 @@ export const ModuleSettingsPatch = Strict(
         additionalProperties: false,
         minProperties: 1,
         description: "Turf only. Send only what changes. A ground outside new refund limits is held to them from its next booking; bookings made keep their rule.",
+      }),
+    ),
+    staysRules: Type.Optional(
+      Type.Partial(StaysRules, {
+        additionalProperties: false,
+        minProperties: 1,
+        description: "Stays only. Send only what changes. A property outside new refund limits is held to them from its next reservation; reservations made keep their rule.",
       }),
     ),
   },

@@ -41,6 +41,8 @@ const Notification = Strict({
     Type.Literal("coaching.updated"),
     Type.Literal("turf.booked"),
     Type.Literal("turf.updated"),
+    Type.Literal("stays.reserved"),
+    Type.Literal("stays.updated"),
   ]),
   title: Type.String(),
   body: Type.String(),
@@ -72,10 +74,13 @@ const Notification = Strict({
         Type.Literal("turf_ground"),
         Type.Literal("turf_order"),
         Type.Literal("vendor_ground"),
+        Type.Literal("stay_property"),
+        Type.Literal("stay_order"),
+        Type.Literal("vendor_property"),
       ],
       {
         description:
-          "`verification` opens the KYC screen (`id` is the track: base or delivery), `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team), `team` a business's Team in the vendor portal (`id` is the business), `work_order` an order to a shop you work at, in the Work area, `reviews` a business's reviews in the vendor portal (`id` is the business), `work_reviews` the reviews of a shop you work at (`id` is the place on the team), `delivery_job` a delivery in the Ruxstar Delivery app and `delivery_earnings` Earnings in the Ruxstar Delivery app (`id` is the payout), `support` one of your help tickets, `event` an event's page, `event_order` your tickets for an event (`id` is the ticket order), `vendor_event` one of your events in the vendor portal, `coaching_course` a course's page, `coaching_order` your enrolment or demo class, `vendor_course` one of your courses in the vendor portal, `coaching_batch` a batch's classes for its owner or coaches, `turf_ground` a ground's page, `turf_order` your turf booking, `vendor_ground` a ground's board for its owner or team; `id` says which",
+          "`verification` opens the KYC screen (`id` is the track: base or delivery), `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team), `team` a business's Team in the vendor portal (`id` is the business), `work_order` an order to a shop you work at, in the Work area, `reviews` a business's reviews in the vendor portal (`id` is the business), `work_reviews` the reviews of a shop you work at (`id` is the place on the team), `delivery_job` a delivery in the Ruxstar Delivery app and `delivery_earnings` Earnings in the Ruxstar Delivery app (`id` is the payout), `support` one of your help tickets, `event` an event's page, `event_order` your tickets for an event (`id` is the ticket order), `vendor_event` one of your events in the vendor portal, `coaching_course` a course's page, `coaching_order` your enrolment or demo class, `vendor_course` one of your courses in the vendor portal, `coaching_batch` a batch's classes for its owner or coaches, `turf_ground` a ground's page, `turf_order` your turf booking, `vendor_ground` a ground's board for its owner or team, `stay_property` a PG or hostel's page, `stay_order` your PG or hostel reservation, `vendor_property` a property's bed board for its owner or team; `id` says which",
       },
     ),
     id: Type.String(),

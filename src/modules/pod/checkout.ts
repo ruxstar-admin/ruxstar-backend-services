@@ -9,6 +9,7 @@ import { AppError } from "../../platform/errors.js";
 import { escape, htmlPage as page, NO_STORE as noStore, payPage } from "../../platform/pay-page.js";
 import { syncCoachingPayment } from "../coaching/orders.js";
 import { syncTurfPayment } from "../turf/orders.js";
+import { syncStayPayment } from "../stays/orders.js";
 import { syncEventPayment } from "../events/orders.js";
 import { checkoutTokenValid, fileLinkValid, photoLinkValid, rupees, signingKey, syncPayment, withOrder } from "./orders.js";
 
@@ -178,6 +179,8 @@ const checkout: FastifyPluginAsyncTypebox = async (app) => {
       if (place) await syncCoachingPayment(app, db(), place);
       const slots = tickets || place ? null : await db().turfBookings.findOne({ "payment.gatewayOrderId": gatewayOrderId });
       if (slots) await syncTurfPayment(app, db(), slots);
+      const stay = tickets || place || slots ? null : await db().staysReservations.findOne({ "payment.gatewayOrderId": gatewayOrderId });
+      if (stay) await syncStayPayment(app, db(), stay);
     }
     return { ok: true };
   });

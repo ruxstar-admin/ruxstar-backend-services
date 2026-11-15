@@ -15,6 +15,8 @@ import { loadCase, NAME_MATCHES, verificationId } from "../kyc/cases.js";
 import { releaseCoachingShares } from "../coaching/orders.js";
 import { releaseTurfShares } from "../turf/orders.js";
 import { keptOf } from "../turf/rules.js";
+import { releaseStayShares } from "../stays/orders.js";
+import { vendorShareOf as stayShare } from "../stays/rules.js";
 import { vendorShare as coachingShare } from "../coaching/rules.js";
 import { releaseEventShares } from "../events/orders.js";
 import { invoiceRefs } from "../invoices/views.js";
@@ -152,8 +154,9 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
       await releaseEventShares(app, db(), { vendorId }, now);
       await releaseCoachingShares(app, db(), { vendorId }, now);
       await releaseTurfShares(app, db(), { vendorId }, now);
+      await releaseStayShares(app, db(), { vendorId }, now);
       await settleDue(app, db(), vendorId, now);
-      const [method, payouts, paid, ledger, holding, tickets, places, slots, rules] = await Promise.all([
+      const [method, payouts, paid, ledger, holding, tickets, places, slots, stays, rules] = await Promise.all([
         db().payoutMethods.findOne({ userId: vendorId }),
         db()
           .payouts.find({ vendorId, ...payeeFilter("vendor") })
@@ -188,6 +191,14 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           .sort({ releaseAt: 1 })
           .limit(20)
           .toArray(),
+        db()
+          .staysReservations.find(
+            { vendorId, status: { $in: ["confirmed", "moved_in", "moved_out"] }, releasedAt: null, refund: null },
+            { projection: { orderNo: 1, price: 1, releaseAt: 1, objection: 1 } },
+          )
+          .sort({ from: 1 })
+          .limit(20)
+          .toArray(),
         payoutRules(db()),
       ]);
       const sum = (bucket: "pending" | "withdrawable") => ledger.find((row) => row._id === bucket)?.total ?? 0;
@@ -214,6 +225,16 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
               .filter((o) => !o.releasedAt && keptOf(o).vendor > 0)
               .map((o) => ({ orderId: b._id.toHexString(), orderNo: b.orderNo, amount: keptOf(o).vendor, availableAt: o.endAt.toISOString(), held: false })),
           ),
+          // A stay waiting for "Moved in" has no date yet; it's listed once the objection window is running, and held during an objection.
+          ...stays
+            .filter((r) => stayShare(r) > 0 && (r.releaseAt || r.objection?.status === "open"))
+            .map((r) => ({
+              orderId: r._id.toHexString(),
+              orderNo: r.orderNo,
+              amount: stayShare(r),
+              availableAt: (r.releaseAt ?? now).toISOString(),
+              held: r.objection?.status === "open",
+            })),
         ]
           .sort((a, b) => a.availableAt.localeCompare(b.availableAt))
           .slice(0, 20),
@@ -270,8 +291,9 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
         cursor: request.query.cursor,
         limit: request.query.limit,
       });
-      const ids = (type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "payout") => items.filter((e) => e.source.type === type).map((e) => e.source.id);
-      const [orders, payouts, eventOrders, coachingOrders, turfBookings] = await Promise.all([
+      const ids = (type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "payout") =>
+        items.filter((e) => e.source.type === type).map((e) => e.source.id);
+      const [orders, payouts, eventOrders, coachingOrders, turfBookings, stayReservations] = await Promise.all([
         database.podOrders
           .find(
             { _id: { $in: ids("pod_order") } },
@@ -299,6 +321,12 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
             {
               projection: { orderNo: 1, businessId: 1, businessName: 1, groundName: 1, courtName: 1, customerName: 1, weeks: 1, "price.total": 1, payment: 1, refunds: 1, invoices: 1 },
             },
+          )
+          .toArray(),
+        database.staysReservations
+          .find(
+            { _id: { $in: ids("stay_reservation") } },
+            { projection: { orderNo: 1, businessId: 1, businessName: 1, propertyName: 1, roomName: 1, customerName: 1, "price.total": 1, payment: 1, refund: 1, invoices: 1 } },
           )
           .toArray(),
       ]);
@@ -401,6 +429,31 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
               refund: refund ? { id: refund.refundId, reason: refund.reason, by: refund.by } : null,
               payout: null,
               invoice: invoiceOf(order.invoices, kind, refund?.refundId ?? null),
+            },
+          ];
+        }
+        if (entry.source.type === "stay_reservation") {
+          const order = stayReservations.find((o) => o._id.equals(entry.source.id));
+          if (!order) return [];
+          const kind = entry.kind === "payment" ? "paid" : entry.kind === "release" ? "available" : "refund";
+          return [
+            {
+              ...base,
+              kind,
+              module: "stays",
+              order: {
+                id: order._id.toHexString(),
+                orderNo: order.orderNo,
+                business: { id: order.businessId.toHexString(), name: order.businessName },
+                label: `${order.propertyName}, ${order.roomName}`,
+                customer: order.customerName,
+                total: order.price.total,
+                paymentId: order.payment?.paymentId ?? null,
+                paidAt: order.payment?.paidAt?.toISOString() ?? null,
+              },
+              refund: kind === "refund" && order.refund ? { id: order.refund.refundId, reason: order.refund.reason, by: order.refund.by } : null,
+              payout: null,
+              invoice: invoiceOf(order.invoices, kind, order.refund?.refundId ?? null),
             },
           ];
         }

@@ -22,10 +22,13 @@ export type Rating = Static<typeof Rating>;
 const Stars = Type.Integer({ minimum: 1, maximum: 5 });
 const Reply = Strict({ text: Type.String(), at: DateTime, editedAt: Nullable(DateTime) });
 const Author = Strict({ id: ObjectIdString, name: Type.String(), username: Nullable(Type.String()), avatarUrl: Nullable(Type.String()) });
-export const ReviewModuleName = Type.Union([Type.Literal("pod"), Type.Literal("events"), Type.Literal("coaching"), Type.Literal("turf")], {
-  description: "The kind of business: print, events, coaching or turf",
+export const ReviewModuleName = Type.Union([Type.Literal("pod"), Type.Literal("events"), Type.Literal("coaching"), Type.Literal("turf"), Type.Literal("stays")], {
+  description: "The kind of business: print, events, coaching, turf or stays (PG and hostels)",
 });
-const Listing = Strict({ type: Type.Union([Type.Literal("event"), Type.Literal("course"), Type.Literal("ground")]), id: ObjectIdString });
+const Listing = Strict({
+  type: Type.Union([Type.Literal("event"), Type.Literal("course"), Type.Literal("ground"), Type.Literal("property")]),
+  id: ObjectIdString,
+});
 
 /** A review as anyone sees it on the business's page. */
 export const Review = Strict({

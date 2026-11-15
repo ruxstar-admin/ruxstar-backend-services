@@ -9,7 +9,7 @@ export const CATEGORIES: readonly { module: BusinessModule; label: string; descr
   { module: "turf", label: "Sports & turf", description: "Grounds and courts booked by the slot" },
 ];
 
-export const BUSINESS_TYPES = ["print_shop", "concert", "sports_event", "meetup", "coaching", "pg", "hostel", "turf", "sports_complex", "court"] as const;
+export const BUSINESS_TYPES = ["print_shop", "concert", "sports_event", "meetup", "coaching", "pg", "hostel", "coliving", "turf", "sports_complex", "court"] as const;
 export type BusinessType = (typeof BUSINESS_TYPES)[number];
 
 export const TYPES: readonly {
@@ -83,6 +83,15 @@ export const TYPES: readonly {
     examples: "Student hostel, working professionals hostel",
     namePlaceholder: "e.g. Campus Stay Hostel",
     detailHint: "The name residents know your hostel by. Rooms and beds come after this step.",
+  },
+  {
+    id: "coliving",
+    module: "stays",
+    label: "Co-living",
+    description: "Furnished shared homes with private rooms and common spaces",
+    examples: "Co-living homes, shared flats, serviced rooms",
+    namePlaceholder: "e.g. Nest Co-living Koramangala",
+    detailHint: "The name residents know your home by. Rooms and beds come after this step.",
   },
   {
     id: "turf",

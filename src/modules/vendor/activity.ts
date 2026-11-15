@@ -152,6 +152,42 @@ export function lineOf(e: Entry, refs: Refs): string {
       return d.prices || d.addOns ? "Changed a court's prices" : "Changed a court";
     case "turf_court.delete":
       return "Removed a court";
+    case "stay_reservation.cancel":
+      return `Cancelled reservation ${no}${reason}`;
+    case "stay_reservation.moved_in":
+      return `Marked reservation ${no} moved in`;
+    case "stay_reservation.move_out":
+      return `Marked the move-out for reservation ${no}`;
+    case "stay_reservation.notice":
+      return `The tenant of reservation ${no} gave notice`;
+    case "stay_reservation.objection":
+      return `The tenant of reservation ${no} objected`;
+    case "stay_reservation.objection_withdraw":
+      return `The tenant of reservation ${no} took back their objection`;
+    case "stay_reservation.objection_decide":
+      return `Ruxstar closed the objection on reservation ${no}`;
+    case "stay_property.create":
+      return `Added the property ${String(d.name?.to ?? "")}`;
+    case "stay_property.update":
+      return "Changed a property";
+    case "stay_property.publish":
+      return "Published a property";
+    case "stay_property.delete":
+      return "Deleted a draft property";
+    case "stay_property.take_down":
+      return `Ruxstar took down a property${reason}`;
+    case "stay_room.create":
+      return `Added the room ${String(d.name?.to ?? "")}`;
+    case "stay_room.update":
+      return "Changed a room";
+    case "stay_room.prices":
+      return "Changed a room's prices";
+    case "stay_room.status":
+      return `Marked a room ${d.status?.to === "paused" ? "full" : "free"}`;
+    case "stay_room.delete":
+      return "Removed a room";
+    case "stay_bed.status":
+      return `Marked a bed ${d.status?.to === "closed" ? "full" : "free"}`;
     default:
       return "Made a change";
   }
@@ -160,11 +196,12 @@ export function lineOf(e: Entry, refs: Refs): string {
 async function present(db: Database, business: { _id: ObjectId; ownerId: ObjectId }, items: Entry[]): Promise<ActivityEntry[]> {
   const targets = (type: string) => items.flatMap((e) => (e.target.type === type && typeof e.target.id !== "string" ? [e.target.id] : []));
   const actorIds = items.flatMap((e) => (e.actor.id ? [e.actor.id] : []));
-  const [orders, tickets, enrolments, bookings, coupons, places, crew] = await Promise.all([
+  const [orders, tickets, enrolments, bookings, reservations, coupons, places, crew] = await Promise.all([
     db.podOrders.find({ _id: { $in: targets("pod_order") } }, { projection: { orderNo: 1 } }).toArray(),
     db.eventOrders.find({ _id: { $in: targets("event_order") } }, { projection: { orderNo: 1 } }).toArray(),
     db.coachingOrders.find({ _id: { $in: targets("coaching_order") } }, { projection: { orderNo: 1 } }).toArray(),
     db.turfBookings.find({ _id: { $in: targets("turf_booking") } }, { projection: { orderNo: 1 } }).toArray(),
+    db.staysReservations.find({ _id: { $in: targets("stay_reservation") } }, { projection: { orderNo: 1 } }).toArray(),
     db.coupons.find({ _id: { $in: targets("coupon") } }, { projection: { code: 1 } }).toArray(),
     db.employments.find({ _id: { $in: targets("employment") }, businessId: business._id }, { projection: { userId: 1 } }).toArray(),
     db.employments.find({ businessId: business._id, userId: { $in: actorIds } }, { projection: { userId: 1 } }).toArray(),
@@ -178,7 +215,7 @@ async function present(db: Database, business: { _id: ObjectId; ownerId: ObjectI
     return u?.name || (u?.username ? `@${u.username}` : "Someone");
   };
   const refs: Refs = {
-    orders: new Map([...orders, ...tickets, ...enrolments, ...bookings].map((o) => [o._id.toHexString(), o.orderNo])),
+    orders: new Map([...orders, ...tickets, ...enrolments, ...bookings, ...reservations].map((o) => [o._id.toHexString(), o.orderNo])),
     coupons: new Map(coupons.map((c) => [c._id.toHexString(), c.code])),
     people: new Map(places.map((p) => [p._id.toHexString(), nameOf(p.userId)])),
   };

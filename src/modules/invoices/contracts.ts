@@ -63,7 +63,13 @@ export const Invoice = Strict({
   role: Role,
   module: GstModuleName,
   order: Strict({
-    type: Type.Union([Type.Literal("pod_order"), Type.Literal("event_order"), Type.Literal("coaching_order"), Type.Literal("turf_booking")]),
+    type: Type.Union([
+      Type.Literal("pod_order"),
+      Type.Literal("event_order"),
+      Type.Literal("coaching_order"),
+      Type.Literal("turf_booking"),
+      Type.Literal("stay_reservation"),
+    ]),
     id: ObjectIdString,
     orderNo: Type.Integer(),
   }),
