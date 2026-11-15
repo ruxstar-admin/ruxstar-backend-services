@@ -56,6 +56,8 @@ export interface Config {
   jobs: { invoker: string; audience: string } | null;
   /** Phone notifications. Null sends none; the notifications screen still fills up. */
   push: OneSignalSettings | null;
+  /** Google Routes API key for the rider's map. Null routes with OSRM's public server, then straight lines. */
+  googleRoutesKey: string | null;
 }
 
 export interface CashfreeSettings {
@@ -281,5 +283,6 @@ export function loadConfig(env: Env = process.env): Config {
     chatPhotos: chatBucket ? { bucket: chatBucket } : null,
     jobs: jobsInvoker && apiUrl ? { invoker: jobsInvoker, audience: apiUrl } : null,
     push: oneSignalApp && oneSignalKey ? { appId: oneSignalApp, apiKey: oneSignalKey } : null,
+    googleRoutesKey: read(env, "GOOGLE_ROUTES_API_KEY") ?? null,
   };
 }

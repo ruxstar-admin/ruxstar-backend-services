@@ -105,6 +105,30 @@ export const OnlineBody = Strict({
   city: Type.Optional(Type.String({ minLength: 2, maxLength: 60, description: "When the phone's location isn't shared" })),
 });
 
+export const RouteQuery = Strict({
+  lat: Type.Optional(Type.Number({ minimum: -90, maximum: 90, description: "Where you are, with lng" })),
+  lng: Type.Optional(Type.Number({ minimum: -180, maximum: 180, description: "Where you are, with lat" })),
+});
+
+const RouteProvider = (description: string) => Type.Union([Type.Literal("google"), Type.Literal("osrm"), Type.Literal("straight")], { description });
+
+export const TripRoute = Envelope(
+  Strict({
+    legs: Type.Array(
+      Strict({
+        from: Type.Union([Type.Literal("here"), Type.Literal("shop")]),
+        to: Type.Union([Type.Literal("shop"), Type.Literal("drop")]),
+        polyline: Type.Array(Type.Array(Type.Number(), { minItems: 2, maxItems: 2 }), { description: "[lat, lng] points along the road" }),
+        distanceM: Type.Integer({ minimum: 0 }),
+        durationS: Type.Integer({ minimum: 0 }),
+        provider: RouteProvider("`straight` is a straight line timed at 20 km/h, when no road route could be found"),
+      }),
+      { description: "The next leg first. Stops without a pin are left out" },
+    ),
+    provider: RouteProvider("`straight` when any leg is a straight line, or there are none"),
+  }),
+);
+
 export const DeliverBody = Strict({ code: Type.String({ pattern: "^[0-9]{4}$", description: "The customer's 4-digit code" }) });
 export const RiderCancelBody = Strict({ reason: Type.String({ minLength: 5, maxLength: 300, description: "The shop sees it" }) });
 

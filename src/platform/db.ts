@@ -922,6 +922,21 @@ export interface DeliveryJobDoc extends Stamped {
   timeline: { status: DeliveryJobStatus; at: Date }[];
 }
 
+/** The road between two stops of a delivery, for the rider's map, kept so the router isn't asked on every location update. */
+export interface DeliveryRouteDoc {
+  /** `<jobId>:shop-drop`, or `<jobId>:here-<shop|drop>:<cell>` for the way from the rider's ~150 m grid cell. */
+  _id: string;
+  jobId: ObjectId;
+  /** [lat, lng] pairs. */
+  polyline: [number, number][];
+  distanceM: number;
+  durationS: number;
+  provider: "google" | "osrm" | "straight";
+  createdAt: Date;
+  /** Deleted by a TTL index: road routes after a day, straight-line stand-ins sooner so the router is tried again. */
+  expiresAt: Date;
+}
+
 /** A delivery partner's working state; one per partner, made the first time they go online. */
 export interface RiderStateDoc {
   _id: ObjectId;
@@ -2289,6 +2304,9 @@ export class Database {
   }
   get riderStates() {
     return this.db.collection<RiderStateDoc>("rider_states");
+  }
+  get deliveryRoutes() {
+    return this.db.collection<DeliveryRouteDoc>("delivery_routes");
   }
   get supportTickets() {
     return this.db.collection<SupportTicketDoc>("support_tickets");

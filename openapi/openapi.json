@@ -198655,6 +198655,234 @@
         }
       }
     },
+    "/v1/delivery/jobs/{id}/route": {
+      "get": {
+        "summary": "The road to your next stops, for the map",
+        "tags": [
+          "delivery"
+        ],
+        "description": "Send where you are as lat and lng. Going to the shop: from you to the shop, then the shop to the customer. After pickup: from you to the customer. Roads come from Google's Routes API, or OSRM while testing; when neither answers, a straight line. Only for the rider who has the delivery, while it is under way.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            },
+            "in": "query",
+            "name": "lat",
+            "required": false,
+            "description": "Where you are, with lng"
+          },
+          {
+            "schema": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            },
+            "in": "query",
+            "name": "lng",
+            "required": false,
+            "description": "Where you are, with lat"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "legs",
+                        "provider"
+                      ],
+                      "properties": {
+                        "legs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "from",
+                              "to",
+                              "polyline",
+                              "distanceM",
+                              "durationS",
+                              "provider"
+                            ],
+                            "properties": {
+                              "from": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "here"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "shop"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "to": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "shop"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "drop"
+                                    ]
+                                  }
+                                ]
+                              },
+                              "polyline": {
+                                "type": "array",
+                                "items": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number"
+                                  },
+                                  "minItems": 2,
+                                  "maxItems": 2
+                                },
+                                "description": "[lat, lng] points along the road"
+                              },
+                              "distanceM": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "durationS": {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              "provider": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "google"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "osrm"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "straight"
+                                    ]
+                                  }
+                                ],
+                                "description": "`straight` is a straight line timed at 20 km/h, when no road route could be found"
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "description": "The next leg first. Stops without a pin are left out"
+                        },
+                        "provider": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "google"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "osrm"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "straight"
+                              ]
+                            }
+                          ],
+                          "description": "`straight` when any leg is a straight line, or there are none"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/delivery/jobs/{id}/accept": {
       "post": {
         "summary": "Take a delivery",

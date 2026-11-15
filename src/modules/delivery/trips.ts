@@ -468,7 +468,7 @@ async function orderOf(db: Database, job: DeliveryJobDoc) {
   return order;
 }
 
-const mustHave = (job: DeliveryJobDoc, riderId: ObjectId, status: DeliveryJobDoc["status"][]) => {
+export const mustHave = (job: DeliveryJobDoc, riderId: ObjectId, status: DeliveryJobDoc["status"][]) => {
   if (!job.riderId?.equals(riderId) || job.status === "offered") throw new AppError("NOT_FOUND", "Delivery not found.");
   if (!status.includes(job.status)) throw new AppError("JOB_TAKEN");
 };

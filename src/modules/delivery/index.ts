@@ -27,11 +27,14 @@ import {
   RiderCancelBody,
   RiderStatement,
   RiderStatementQuery,
+  RouteQuery,
+  TripRoute,
   type RiderStatementLine,
 } from "./contracts.js";
 import { heldRiderPay, releaseRiderPayFor, riderPayHeld } from "./pay.js";
 import { deliveryRules } from "./rates.js";
-import { acceptJob, addProof, deliver, jobFor, jobView, kindOf, offersFor, passJob, pickUp, riderCancel, riderProfile } from "./trips.js";
+import { tripRoute, usable } from "./routing.js";
+import { acceptJob, addProof, deliver, jobFor, jobView, kindOf, mustHave, offersFor, passJob, pickUp, riderCancel, riderProfile } from "./trips.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 const limit = (perMinutes: number, max: number) => ({ rateLimit: { max, timeWindow: perMinutes * 60_000 } });
@@ -191,6 +194,39 @@ const delivery: FastifyPluginAsyncTypebox = async (app) => {
     async (request) => {
       const riderId = request.auth!.userId;
       return ok(request, jobView(await jobFor(db(), request.params.id, riderId), riderId));
+    },
+  );
+
+  app.get(
+    "/jobs/:id/route",
+    {
+      preHandler: requireDeliveryKyc,
+      // The app asks when the step changes or the rider has moved ~150 m; this is per rider, not per IP.
+      config: { rateLimit: { max: 20, timeWindow: 60_000, keyGenerator: (request) => request.auth?.userId.toHexString() ?? request.ip } },
+      schema: {
+        tags: ["delivery"],
+        summary: "The road to your next stops, for the map",
+        description:
+          "Send where you are as lat and lng. Going to the shop: from you to the shop, then the shop to the customer. After pickup: from " +
+          "you to the customer. Roads come from Google's Routes API, or OSRM while testing; when neither answers, a straight line. " +
+          "Only for the rider who has the delivery, while it is under way.",
+        params: JobParams,
+        querystring: RouteQuery,
+        response: { 200: TripRoute, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const riderId = request.auth!.userId;
+      const { lat, lng } = request.query;
+      if ((lat === undefined) !== (lng === undefined)) {
+        const missing = lat === undefined ? "lat" : "lng";
+        throw new AppError("VALIDATION_FAILED", "Send lat and lng together.", [{ path: `querystring/${missing}`, message: "Needed with the other" }]);
+      }
+      const job = await jobFor(db(), request.params.id, riderId);
+      mustHave(job, riderId, ACTIVE);
+      const here = lat !== undefined && lng !== undefined ? { lat, lng } : null;
+      return ok(request, await tripRoute(app, db(), job, usable(here) ? here : null));
     },
   );
 
