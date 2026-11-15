@@ -616,6 +616,28 @@ describe("shop", () => {
     expect(await stack.db.auditLogs.countDocuments({ action: "shop_order.return_decide" })).toBe(2);
   }, 90_000);
 
+  it("audits Ruxstar cancelling an order that isn't paid yet, once", async () => {
+    const owner = await vendor();
+    const bizId = await store(owner);
+    const p = await tee(owner, bizId);
+    const customer = await person();
+    const order = (await place(customer, bizId, { lines: [{ productId: p.id, variantId: variant(p, "S", "Red").id, quantity: 1 }] })).json().data.order;
+    expect(order.status).toBe("awaiting_payment");
+
+    const key = randomUUID();
+    const cancel = () =>
+      stack.app.inject({ method: "POST", url: `/v1/ruxstar/shop/orders/${order.id}/cancel`, headers: web(admin.token, { "idempotency-key": key }), payload: { reason: "Suspected card fraud." } });
+    const done = await cancel();
+    expect(done.statusCode, done.body).toBe(200);
+    expect(done.json().data).toMatchObject({ status: "cancelled", cancellation: { by: "staff", reason: "Suspected card fraud." } });
+    expect((await cancel()).headers["idempotent-replayed"]).toBe("true");
+
+    const entries = await stack.db.auditLogs.find({ action: "shop_order.cancel", "target.id": new ObjectId(order.id) }).toArray();
+    expect(entries).toMatchObject([
+      { actor: { id: admin.userId, kind: "admin" }, scope: { module: "shop" }, diff: { status: { from: "awaiting_payment", to: "cancelled" }, reason: { to: "Suspected card fraud." } } },
+    ]);
+  }, 60_000);
+
   it("gives the team store permissions one by one", async () => {
     const owner = await vendor();
     const bizId = await store(owner);

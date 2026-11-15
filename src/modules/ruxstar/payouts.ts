@@ -121,7 +121,7 @@ const payouts: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["ruxstar"],
         summary: "Ask Cashfree about a withdrawal on the way now",
-        description: "Settles it if Cashfree knows how it went, and sends it again only if Cashfree never got it. Safe to repeat.",
+        description: "Settles it if Cashfree knows how it went, and sends it again only if Cashfree never got it. Safe to repeat; audited only when something changed.",
         params: PayoutParams,
         response: { 200: StaffPayoutOne, ...Errors },
         security,
@@ -132,17 +132,20 @@ const payouts: FastifyPluginAsyncTypebox = async (app) => {
       if (!doc) throw new AppError("NOT_FOUND", "Payout not found.");
       if (doc.status !== "pending") throw new AppError("CONFLICT", doc.status === "paid" ? "This payout was already paid." : "This payout already failed.");
       const after = await settlePayout(app, db(), doc);
-      await writeAudit(db(), {
-        actor: actorOf(request),
-        scope: { module: payeeOf(doc) === "rider" ? "delivery" : "ledger" },
-        action: "payout.check",
-        target: { type: "payout", id: doc._id },
-        diff: {
-          ...(after.status !== doc.status ? { status: { from: doc.status, to: after.status } } : {}),
-          ...(after.attempts !== doc.attempts ? { attempts: { from: doc.attempts, to: after.attempts } } : {}),
-        },
-        ip: request.ip,
-      });
+      const diff = {
+        ...(after.status !== doc.status ? { status: { from: doc.status, to: after.status } } : {}),
+        ...(after.attempts !== doc.attempts ? { attempts: { from: doc.attempts, to: after.attempts } } : {}),
+      };
+      if (Object.keys(diff).length) {
+        await writeAudit(db(), {
+          actor: actorOf(request),
+          scope: { module: payeeOf(doc) === "rider" ? "delivery" : "ledger" },
+          action: "payout.check",
+          target: { type: "payout", id: doc._id },
+          diff,
+          ip: request.ip,
+        });
+      }
       const [row] = await payoutRows([after]);
       return ok(request, row!);
     },

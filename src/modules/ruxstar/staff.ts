@@ -81,6 +81,8 @@ const staff: FastifyPluginAsyncTypebox = async (app) => {
         const now = new Date();
         const before = await database.ruxstarStaff.findOne({ userId }, { session });
         const change = { title, permissions, modules, status: "active" as const };
+        const diff = before ? diffOf(before, change) : { title: { from: null, to: title }, permissions: { from: null, to: permissions } };
+        if (before && !Object.keys(diff).length) return before;
         let after: WithId<RuxstarStaffDoc>;
         if (before) {
           after = (await database.ruxstarStaff.findOneAndUpdate(
@@ -93,7 +95,6 @@ const staff: FastifyPluginAsyncTypebox = async (app) => {
           await database.ruxstarStaff.insertOne(after, { session });
         }
         await database.users.updateOne({ _id: userId }, { $set: { "roles.ruxstarStaff": true, updatedAt: now } }, { session });
-        const diff = before ? diffOf(before, change) : { title: { from: null, to: title }, permissions: { from: null, to: permissions } };
         await writeAudit(
           database,
           {

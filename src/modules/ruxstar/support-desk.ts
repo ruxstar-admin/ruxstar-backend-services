@@ -2,7 +2,7 @@ import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import type { FastifyRequest } from "fastify";
 import { ObjectId, type Filter } from "mongodb";
 import { Errors } from "../../contracts/common.js";
-import { actorOf, writeAudit, type Diff } from "../../platform/audit.js";
+import { actorOf, diffOf, writeAudit, type Diff } from "../../platform/audit.js";
 import { requireRuxstar } from "../../platform/auth.js";
 import { requireDatabase } from "../../platform/context.js";
 import type { SupportMessageDoc, SupportTicketDoc } from "../../platform/db.js";
@@ -394,7 +394,8 @@ const supportDesk: FastifyPluginAsyncTypebox = async (app) => {
     async (request) => {
       const database = db();
       const { hours } = request.body;
-      const { updatedAt: _, ...before } = await slaHours(database);
+      const { updatedAt, ...before } = await slaHours(database);
+      if (!Object.keys(diffOf(before, hours)).length) return ok(request, { hours: before, updatedAt: updatedAt?.toISOString() ?? null });
       const now = new Date();
       await database.transaction(async (session) => {
         await database.platformSettings.updateOne(

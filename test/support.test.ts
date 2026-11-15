@@ -224,6 +224,7 @@ describe("support", () => {
     expect((await call("PUT", "/ruxstar/support/settings", admin.token, { hours: { ...hours, low: 0 } })).statusCode).toBe(400);
     const saved = (await call("PUT", "/ruxstar/support/settings", admin.token, { hours })).json().data;
     expect(saved.hours).toEqual(hours);
+    expect((await call("PUT", "/ruxstar/support/settings", admin.token, { hours })).json().data).toEqual(saved);
 
     const customer = await person("After Change");
     const ticket = (await open(customer.token)).json().data;

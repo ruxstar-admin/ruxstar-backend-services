@@ -5,6 +5,7 @@ import { requireRuxstar } from "../../platform/auth.js";
 import { requireDatabase } from "../../platform/context.js";
 import type { AuditLogDoc } from "../../platform/db.js";
 import { page } from "../../platform/envelope.js";
+import { AppError } from "../../platform/errors.js";
 import { findPage } from "../../platform/pagination.js";
 import { AuditList, AuditQuery } from "./contracts.js";
 
@@ -19,7 +20,9 @@ const auditLog: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["ruxstar"],
         summary: "The audit log",
-        description: "Filter by module, action, who did it (`actor`, a user id) or what it was done to (`target`).",
+        description:
+          "Filter by module, action, who did it (`actor`, a user id) or what it was done to (`target`), and by when: " +
+          "`from` and `to` are ISO 8601 times; `from` is included and `to` is not, so the next range can start where this one ends.",
         querystring: AuditQuery,
         response: { 200: AuditList, ...Errors },
         security,
@@ -27,12 +30,18 @@ const auditLog: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const db = requireDatabase(app.db);
-      const { module, action, actor, target, cursor, limit } = request.query;
+      const { module, action, actor, target, from, to, cursor, limit } = request.query;
+      const start = from ? new Date(from) : null;
+      const end = to ? new Date(to) : null;
+      if (start && end && start >= end) {
+        throw new AppError("VALIDATION_FAILED", "The end of the range must be after its start.", [{ path: "querystring/to", message: "Must be after from" }]);
+      }
       const filter: Filter<AuditLogDoc> = {
         ...(module ? { "scope.module": module } : {}),
         ...(action ? { action } : {}),
         ...(actor ? { "actor.id": new ObjectId(actor) } : {}),
         ...(target ? { "target.id": /^[0-9a-f]{24}$/.test(target) ? new ObjectId(target) : target } : {}),
+        ...(start || end ? { at: { ...(start ? { $gte: start } : {}), ...(end ? { $lt: end } : {}) } } : {}),
       };
       const { items, nextCursor } = await findPage(db.auditLogs, { filter, sortField: "at", cursor, limit });
       const actorIds = items.flatMap((e) => (e.actor.id ? [e.actor.id] : []));

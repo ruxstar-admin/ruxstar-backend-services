@@ -609,6 +609,8 @@ export const AuditQuery = Strict({
   action: Type.Optional(Type.String({ pattern: "^[a-z_.]{2,60}$", description: "For example kyc.approve" })),
   actor: Type.Optional(ObjectIdString),
   target: Type.Optional(Type.String({ minLength: 1, maxLength: 64, description: "The id of what was changed" })),
+  from: Type.Optional(DateTime),
+  to: Type.Optional(DateTime),
 });
 
 export const AuditEntry = Strict({

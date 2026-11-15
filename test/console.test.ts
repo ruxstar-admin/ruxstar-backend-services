@@ -224,6 +224,21 @@ describe("ruxstar console", () => {
       expect((await call("PUT", `/ruxstar/staff/${hire.userId}`, admin.token, { title: "Bad", permissions: ["staff.manage"] })).statusCode).toBe(400);
       expect((await call("PUT", `/ruxstar/staff/${hire.userId}`, admin.token, { title: "None", permissions: [] })).statusCode).toBe(400);
     });
+
+    it("audits a save that changes nothing only once", async () => {
+      const hire = await person("Same Again");
+      const body = { title: "Support", permissions: ["support.view"] };
+      await call("PUT", `/ruxstar/staff/${hire.userId}`, admin.token, body);
+      const again = await call("PUT", `/ruxstar/staff/${hire.userId}`, admin.token, body);
+      expect(again.statusCode).toBe(200);
+      expect(again.json().data).toMatchObject({ title: "Support", status: "active", permissions: ["support.view"] });
+      const actions = async () => (await stack.db.auditLogs.find({ "target.id": hire.userId }).sort({ _id: 1 }).toArray()).map((e) => e.action);
+      expect(await actions()).toEqual(["staff.grant"]);
+
+      await call("DELETE", `/ruxstar/staff/${hire.userId}`, admin.token);
+      await call("PUT", `/ruxstar/staff/${hire.userId}`, admin.token, body);
+      expect(await actions()).toEqual(["staff.grant", "staff.revoke", "staff.grant"]);
+    });
   });
 
   describe("audit log", () => {
@@ -245,6 +260,55 @@ describe("ruxstar console", () => {
 
       const support = await staffWith("users.view");
       expect((await call("GET", "/ruxstar/audit", support.token)).statusCode).toBe(403);
+    });
+
+    it("filters by time: from is included, to is not, with the other filters and paging", async () => {
+      const [a, b] = [new ObjectId(), new ObjectId()];
+      const hour = (h: number) => new Date(Date.UTC(2026, 0, 1, h));
+      const entry = (actor: ObjectId, h: number) => ({
+        _id: new ObjectId(),
+        actor: { id: actor, kind: "staff" as const },
+        scope: { module: "range_test" },
+        action: "range_test.touch",
+        target: { type: "user", id: actor },
+        diff: {},
+        ip: null,
+        at: hour(h),
+        ...stamp(hour(h)),
+      });
+      await stack.db.auditLogs.insertMany([entry(a, 0), entry(a, 1), entry(a, 2), entry(b, 1)]);
+      const list = async (query: string) => {
+        const res = await call("GET", `/ruxstar/audit?module=range_test&${query}`, admin.token);
+        expect(res.statusCode, res.body).toBe(200);
+        return res.json() as { data: { at: string; actor: { id: string } }[]; meta: { nextCursor: string | null } };
+      };
+      const times = async (query: string) => (await list(query)).data.map((e) => e.at);
+      const iso = (h: number) => hour(h).toISOString();
+
+      expect(await times(`actor=${a}&from=${iso(1)}`)).toEqual([iso(2), iso(1)]);
+      expect(await times(`actor=${a}&to=${iso(1)}`)).toEqual([iso(0)]);
+      expect(await times(`actor=${a}&from=${iso(0)}&to=${iso(2)}`)).toEqual([iso(1), iso(0)]);
+      expect(await times(`actor=${a}&from=${encodeURIComponent("2026-01-01T06:30:00+05:30")}`)).toEqual([iso(2), iso(1)]);
+      const both = (await list(`from=${iso(1)}&to=${iso(2)}`)).data;
+      expect(both.map((e) => e.actor.id).sort()).toEqual([a.toHexString(), b.toHexString()].sort());
+      expect(await times(`actor=${b}&action=range_test.touch&from=${iso(0)}&to=${iso(3)}`)).toEqual([iso(1)]);
+
+      const seen: string[] = [];
+      let cursor: string | null = null;
+      do {
+        const pageOf: Awaited<ReturnType<typeof list>> = await list(`actor=${a}&from=${iso(0)}&to=${iso(3)}&limit=1${cursor ? `&cursor=${cursor}` : ""}`);
+        seen.push(...pageOf.data.map((e) => e.at));
+        cursor = pageOf.meta.nextCursor;
+      } while (cursor);
+      expect(seen).toEqual([iso(2), iso(1), iso(0)]);
+
+      for (const query of [`from=${iso(1)}&to=${iso(1)}`, `from=${iso(2)}&to=${iso(1)}`]) {
+        const bad = await call("GET", `/ruxstar/audit?${query}`, admin.token);
+        expect(bad.statusCode).toBe(400);
+        expect(bad.json().error).toMatchObject({ code: "VALIDATION_FAILED", details: [{ path: "querystring/to" }] });
+      }
+      const notTime = await call("GET", "/ruxstar/audit?from=yesterday", admin.token);
+      expect(notTime.json().error).toMatchObject({ code: "VALIDATION_FAILED", details: [{ path: "querystring/from" }] });
     });
   });
 });

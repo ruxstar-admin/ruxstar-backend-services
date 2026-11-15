@@ -488,6 +488,7 @@ async function dropUnpaid(app: FastifyInstance, db: Database, o: ShopOrderDoc, b
     if (current && current.status !== "awaiting_payment") return current;
     throw new AppError("ORDER_STATE");
   }
+  if (by.kind !== "system") await audit(db, by, o, "shop_order.cancel", { status: { from: "awaiting_payment", to: "cancelled" }, reason: { from: null, to: reason } });
   if (by.kind === "system") {
     await notifyShop(db, app.log, {
       actor: o.customerId,
