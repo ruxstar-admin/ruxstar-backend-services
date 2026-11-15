@@ -19,7 +19,7 @@ const reviews: FastifyPluginAsyncTypebox = async (app) => {
   const db = () => requireDatabase(app.db);
   const at = (request: FastifyRequest, placeId: string) => teamAccess(db(), request.auth!, { placeId }, "reviews.reply");
   const answer = async (id: ObjectId) => {
-    const doc = (await db().podReviews.findOne({ _id: id }))!;
+    const doc = (await db().reviews.findOne({ _id: id }))!;
     return shopReviewView(doc, await authorsOf(db(), [doc]));
   };
 
@@ -39,7 +39,7 @@ const reviews: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const { business } = await at(request, request.params.id);
-      const { items, nextCursor } = await findPage(db().podReviews, {
+      const { items, nextCursor } = await findPage(db().reviews, {
         filter: { shopId: business._id, status: "live" },
         sortField: "createdAt",
         cursor: request.query.cursor,

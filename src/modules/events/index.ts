@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { ObjectId, type Filter, type WithId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { actorOf } from "../../platform/audit.js";
-import { requireAuth } from "../../platform/auth.js";
+import { publicCache, requireAuth, signedInIfPossible } from "../../platform/auth.js";
 import { requireDatabase } from "../../platform/context.js";
 import type { Database, EventDoc, EventOrderDoc, EventWaitDoc } from "../../platform/db.js";
 import { ok, page } from "../../platform/envelope.js";
@@ -11,14 +11,19 @@ import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { isModuleLive } from "../../platform/module-switch.js";
 import { decodeCursor, encodeCursor, findPage } from "../../platform/pagination.js";
+import { checkCode, offersFor } from "../coupons/coupons.js";
 import { safeReturn, signingKey } from "../pod/orders.js";
 import { escapeRegex } from "../pod/shops.js";
+import { eligibility, ratingOf } from "../reviews/reviews.js";
+import { reviewRoutes } from "../reviews/routes.js";
 import { Done } from "../social/contracts.js";
 import { eventCheckoutUrl } from "./checkout.js";
 import {
   CheckoutLinkOne,
   CreateTicketsBody,
   EventList,
+  EventOffersOne,
+  EventOffersQuery,
   EventOne,
   EventParams,
   EventRulesOne,
@@ -36,9 +41,10 @@ import {
 } from "./contracts.js";
 import desk from "./desk.js";
 import { bookTickets, cancelTickets, endWait, syncEventPayment } from "./orders.js";
-import { cancelUntil, eventCard, eventSettings, MAX_PER_ORDER, ticketOrderView } from "./rules.js";
+import { cancelUntil, eventCard, eventReviewable, eventSettings, MAX_PER_ORDER, ticketOrderView } from "./rules.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
+const signedInOrNot: Record<string, string[]>[] = [{}, { bearer: [] }, { cookie: [] }];
 
 async function waitView(db: Database, wait: WithId<EventWaitDoc>) {
   const ahead =
@@ -63,19 +69,43 @@ export async function ticketOrders(app: FastifyInstance, db: Database, orders: E
     eventSettings(db),
   ]);
   const key = signingKey(app);
-  return orders.map((o) =>
-    ticketOrderView(
-      o,
-      events.find((e) => e._id.equals(o.eventId)) ?? null,
-      tickets.filter((t) => t.orderId.equals(o._id)),
-      { key, rules },
-    ),
+  const eventOf = (o: EventOrderDoc) => events.find((e) => e._id.equals(o.eventId)) ?? null;
+  const ticketsOf = (o: EventOrderDoc) => tickets.filter((t) => t.orderId.equals(o._id));
+  const reviews = await eligibility(
+    db,
+    orders.map((o) => eventReviewable(o, eventOf(o), ticketsOf(o).some((t) => t.checkIns.length > 0))),
   );
+  return orders.map((o) => ticketOrderView(o, eventOf(o), ticketsOf(o), { key, rules, review: reviews.get(o._id.toHexString()) }));
+}
+
+/** An event's page is public while it's live or cancelled by its organiser; drafts and Ruxstar's take-downs aren't. */
+async function publicEvent(db: Database, id: ObjectId): Promise<boolean> {
+  const event = await db.events.findOne({ _id: id }, { projection: { status: 1, cancellation: 1, businessId: 1 } });
+  if (!event || event.status === "draft" || event.cancellation?.by === "staff") return false;
+  return !(await db.businesses.findOne({ _id: event.businessId, suspension: { $exists: true } }, { projection: { _id: 1 } }));
 }
 
 /** Events for customers: finding them, booking tickets, the waitlist and their own tickets. Scanning at the gate is under /desk. */
 const events: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(desk, { prefix: "/desk" });
+  await app.register(
+    reviewRoutes({
+      module: "events",
+      tag: "events",
+      noun: "booking",
+      rule: "Once one of your tickets is checked in or the event has ended, until 30 days after it ends; confirmed bookings of events that went ahead.",
+      order: async (_app, db, userId, id) => {
+        const order = await db.eventOrders.findOne({ _id: new ObjectId(id), customerId: userId });
+        if (!order) throw new AppError("NOT_FOUND", "Booking not found.");
+        const [event, checkedIn] = await Promise.all([
+          db.events.findOne({ _id: order.eventId }, { projection: { endsAt: 1, status: 1 } }),
+          db.eventTickets.findOne({ orderId: order._id, "checkIns.0": { $exists: true } }, { projection: { _id: 1 } }),
+        ]);
+        return eventReviewable(order, event, Boolean(checkedIn));
+      },
+      listing: { type: "event", label: "event", visible: publicEvent },
+    }),
+  );
   const db = () => requireDatabase(app.db);
 
   /** Live businesses only: events from one on hold are hidden. */
@@ -93,15 +123,17 @@ const events: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/rules",
     {
-      preHandler: requireAuth,
+      preHandler: signedInIfPossible,
       schema: {
         tags: ["events"],
         summary: "Ruxstar's rules for events: refunds, the waitlist and limits",
+        description: "No sign-in needed.",
         response: { 200: EventRulesOne, ...Errors },
-        security,
+        security: signedInOrNot,
       },
     },
-    async (request) => {
+    async (request, reply) => {
+      publicCache(request, reply);
       const s = await eventSettings(db());
       return ok(request, {
         refundHours: s.refundHours,
@@ -119,17 +151,19 @@ const events: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/",
     {
-      preHandler: requireAuth,
+      preHandler: signedInIfPossible,
       schema: {
         tags: ["events"],
         summary: "Events on sale, soonest first",
-        description: "Including ones under way. With `city`, events there and online ones. Empty while Ruxstar has events switched off.",
+        description:
+          "No sign-in needed. Including ones under way. With `city`, events there and online ones. Empty while Ruxstar has events switched off.",
         querystring: EventsQuery,
         response: { 200: EventList, ...Errors },
-        security,
+        security: signedInOrNot,
       },
     },
-    async (request) => {
+    async (request, reply) => {
+      publicCache(request, reply);
       if (!(await isModuleLive(db(), "events"))) return page(request, [], null);
       const { city, kind, q, cursor } = request.query;
       const limit = Math.min(request.query.limit ?? 20, 50);
@@ -156,26 +190,30 @@ const events: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/:id",
     {
-      preHandler: requireAuth,
+      preHandler: signedInIfPossible,
       schema: {
         tags: ["events"],
         summary: "One event: tickets left, the questions asked, refunds, and your bookings and waitlist places",
+        description:
+          "No sign-in needed. Signed out, `myOrders` and `myWaits` are empty, and drafts and events Ruxstar took down answer NOT_FOUND.",
         params: EventParams,
         response: { 200: EventOne, ...Errors },
-        security,
+        security: signedInOrNot,
       },
     },
-    async (request) => {
-      const userId = request.auth!.userId;
+    async (request, reply) => {
+      const userId = request.auth?.userId ?? null;
       const event = await db().events.findOne({ _id: new ObjectId(request.params.id) });
-      const own = event?.vendorId.equals(userId);
-      if (!event || (event.status === "draft" && !own)) throw new AppError("NOT_FOUND", "This event isn't on Ruxstar.");
+      const own = Boolean(userId && event?.vendorId.equals(userId));
+      if (!event || (event.status === "draft" && !own) || (!userId && event.cancellation?.by === "staff")) {
+        throw new AppError("NOT_FOUND", "This event isn't on Ruxstar.");
+      }
       const [business, settings, live, orders, waits] = await Promise.all([
-        db().businesses.findOne({ _id: event.businessId }, { projection: { suspension: 1, photos: { $slice: 1 } } }),
+        db().businesses.findOne({ _id: event.businessId }, { projection: { suspension: 1, rating: 1, photos: { $slice: 1 } } }),
         eventSettings(db()),
         isModuleLive(db(), "events"),
-        db().eventOrders.find({ eventId: event._id, customerId: userId }).sort({ createdAt: -1 }).limit(20).toArray(),
-        db().eventWaits.find({ eventId: event._id, customerId: userId, open: true }).toArray(),
+        userId ? db().eventOrders.find({ eventId: event._id, customerId: userId }).sort({ createdAt: -1 }).limit(20).toArray() : [],
+        userId ? db().eventWaits.find({ eventId: event._id, customerId: userId, open: true }).toArray() : [],
       ]);
       if (business?.suspension && !own) throw new AppError("NOT_FOUND", "This event isn't on Ruxstar.");
       const now = Date.now();
@@ -224,8 +262,39 @@ const events: FastifyPluginAsyncTypebox = async (app) => {
         })),
         myWaits: await Promise.all(waits.map((w) => waitView(db(), w))),
         maxPerOrder: MAX_PER_ORDER,
+        rating: ratingOf(business ?? {}),
       };
+      publicCache(request, reply);
       return ok(request, detail);
+    },
+  );
+
+  app.get(
+    "/:id/offers",
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ["events"],
+        summary: "Coupons that work on this event's tickets, best first",
+        description: "With `code`, that code is checked too. Free tickets don't take coupons.",
+        params: EventParams,
+        querystring: EventOffersQuery,
+        response: { 200: EventOffersOne, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const event = await db().events.findOne({ _id: new ObjectId(request.params.id), status: "live" });
+      if (!event || event.startsAt.getTime() <= Date.now()) throw new AppError("NOT_FOUND", "This event isn't taking bookings.");
+      const paid = event.tiers.map((t) => t.price).filter((p) => p > 0);
+      const items = request.query.items ?? (paid.length ? Math.min(...paid) : 0);
+      if (items === 0) return ok(request, { offers: [], checked: null });
+      const ctx = { module: "events" as const, shop: { id: event.businessId, name: event.businessName }, customerId: request.auth!.userId, items };
+      const [offers, check] = await Promise.all([offersFor(db(), ctx), request.query.code ? checkCode(db(), request.query.code, ctx) : null]);
+      return ok(request, {
+        offers,
+        checked: check ? { code: request.query.code!.trim().toUpperCase(), discount: check.discount, problem: check.problem } : null,
+      });
     },
   );
 

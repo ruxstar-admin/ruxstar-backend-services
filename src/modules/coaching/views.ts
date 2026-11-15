@@ -11,6 +11,8 @@ import type {
 } from "../../platform/db.js";
 import { appliedView } from "../coupons/coupons.js";
 import { invoiceRefs } from "../invoices/views.js";
+import { REVIEW_DAYS } from "../reviews/contracts.js";
+import { eligibility, openUntil, type Reviewable } from "../reviews/reviews.js";
 import { coachingFileLinks } from "./checkout.js";
 import type { BatchView, CoachingOrder, CourseCard, VendorCourse } from "./contracts.js";
 import { coachingSettings, HOUR_MS, scheduleText } from "./rules.js";
@@ -125,6 +127,35 @@ export function classView(
   };
 }
 
+/**
+ * An enrolment or demo opens for a review once the first class it covers has been held, and stays open until 30 days after its
+ * last class (the batch's last, or the demo class). Only confirmed places.
+ */
+export function coachingReviewable(order: CoachingOrderDoc, batch: Pick<CoachingBatchDoc, "lastEndsAt"> | null, now = Date.now()): Reviewable {
+  const end = order.kind === "demo" || !batch ? order.firstEndsAt : new Date(Math.max(batch.lastEndsAt.getTime(), order.firstEndsAt.getTime()));
+  const held = order.firstEndsAt.getTime() <= now;
+  const open = order.status === "confirmed" && held;
+  return {
+    module: "coaching",
+    orderType: "coaching_order",
+    orderId: order._id,
+    orderNo: order.orderNo,
+    businessId: order.businessId,
+    businessName: order.businessName,
+    vendorId: order.vendorId,
+    customerId: order.customerId,
+    label: order.courseTitle,
+    listing: { type: "course", id: order.courseId },
+    until: open ? openUntil(end, now) : null,
+    closed:
+      order.status !== "confirmed"
+        ? "Only confirmed enrolments can be reviewed."
+        : open
+          ? `Reviews close ${REVIEW_DAYS} days after the last class.`
+          : "You can review the course once your first class has been held.",
+  };
+}
+
 /** Orders with their courses, classes, attendance and certificates, ready to show the customer. */
 export async function orderViews(app: FastifyInstance, db: Database, request: Request, orders: CoachingOrderDoc[]): Promise<CoachingOrder[]> {
   if (!orders.length) return [];
@@ -139,6 +170,10 @@ export async function orderViews(app: FastifyInstance, db: Database, request: Re
   ]);
   const link = coachingFileLinks(app, request);
   const now = new Date();
+  const reviews = await eligibility(
+    db,
+    orders.map((o) => coachingReviewable(o, batches.find((b) => b._id.equals(o.batchId)) ?? null, now.getTime())),
+  );
   return orders.map((o): CoachingOrder => {
     const course = courses.find((c) => c._id.equals(o.courseId));
     const batch = batches.find((b) => b._id.equals(o.batchId));
@@ -196,6 +231,7 @@ export async function orderViews(app: FastifyInstance, db: Database, request: Re
         ? { id: certificate._id.toHexString(), code: certificate.code, issuedAt: certificate.issuedAt.toISOString(), pdfUrl: link("certificate", certificate._id.toHexString()) }
         : null,
       invoices: invoiceRefs(o.invoices),
+      ...reviews.get(o._id.toHexString()),
       createdAt: o.createdAt.toISOString(),
     };
   });

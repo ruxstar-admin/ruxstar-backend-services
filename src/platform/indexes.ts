@@ -118,9 +118,11 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.employments.createIndex({ businessId: 1, userId: 1 }, { name: "one_place_per_business", unique: true, partialFilterExpression: { current: true } }),
     db.employments.createIndex({ businessId: 1, current: 1, invitedAt: 1 }),
     db.employments.createIndex({ userId: 1, current: 1, invitedAt: -1 }),
-    // Reviews: one per order, and a shop's live reviews newest first. Review reports: one open per person, and the console's queue.
-    db.podReviews.createIndex({ orderId: 1 }, { unique: true }),
-    db.podReviews.createIndex({ shopId: 1, status: 1, createdAt: -1, _id: -1 }),
+    // Reviews of every module: one per order, a business's live reviews newest first, and an event's or course's.
+    // Review reports: one open per person, and the console's queue.
+    db.reviews.createIndex({ orderId: 1 }, { unique: true }),
+    db.reviews.createIndex({ shopId: 1, status: 1, createdAt: -1, _id: -1 }),
+    db.reviews.createIndex({ "listing.id": 1, status: 1, createdAt: -1, _id: -1 }, { partialFilterExpression: { "listing.id": { $exists: true } } }),
     db.reviewReports.createIndex({ reviewId: 1, reporterId: 1, status: 1 }),
     db.reviewReports.createIndex({ status: 1, createdAt: -1 }),
     // One entry per account and bucket in a transaction, so a money move can't be written twice.
@@ -212,15 +214,19 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
     db.coachingCertificates.createIndex({ orderId: 1 }, { unique: true }),
     db.coachingCertificates.createIndex({ customerId: 1, issuedAt: -1 }),
     // GST documents: one per order part or refund, numbers unique per series, an order's documents, and the lists for
-    // customers, vendors (all businesses or one) and the console (everything, one kind, or found by number or order).
+    // customers, vendors (all businesses or one) and the console (everything, one kind, or found by number or order),
+    // each also by module. The `from`/`to` filters are ranges on `issuedAt`, the sort key, so they use the same indexes.
     db.invoices.createIndex({ key: 1 }, { unique: true }),
     db.invoices.createIndex({ series: 1, number: 1 }, { unique: true }),
     db.invoices.createIndex({ "source.id": 1, issuedAt: 1 }),
     db.invoices.createIndex({ customerId: 1, issuedAt: -1, _id: -1 }),
+    db.invoices.createIndex({ customerId: 1, module: 1, issuedAt: -1, _id: -1 }),
     db.invoices.createIndex({ vendorId: 1, role: 1, issuedAt: -1, _id: -1 }),
+    db.invoices.createIndex({ vendorId: 1, role: 1, module: 1, issuedAt: -1, _id: -1 }),
     db.invoices.createIndex({ businessId: 1, role: 1, issuedAt: -1, _id: -1 }),
     db.invoices.createIndex({ issuedAt: -1, _id: -1 }),
     db.invoices.createIndex({ kind: 1, issuedAt: -1, _id: -1 }),
+    db.invoices.createIndex({ module: 1, issuedAt: -1, _id: -1 }),
     db.invoices.createIndex({ number: 1 }),
     db.invoices.createIndex({ "source.orderNo": 1 }),
   ]);

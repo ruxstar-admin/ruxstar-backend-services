@@ -14,7 +14,7 @@ import { ownedBy, requireVendor } from "./businesses.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 
-/** What customers said about a vendor's print shops, and the shop's replies. */
+/** What customers said about a vendor's businesses of every kind, and the business's replies. */
 const reviews: FastifyPluginAsyncTypebox = async (app) => {
   const db = () => requireDatabase(app.db);
 
@@ -26,7 +26,7 @@ const reviews: FastifyPluginAsyncTypebox = async (app) => {
   }
 
   const answer = async (id: ObjectId) => {
-    const doc = (await db().podReviews.findOne({ _id: id }))!;
+    const doc = (await db().reviews.findOne({ _id: id }))!;
     return shopReviewView(doc, await authorsOf(db(), [doc]));
   };
 
@@ -46,7 +46,7 @@ const reviews: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const shop = await owned(request, request.params.id, { editing: false });
-      const { items, nextCursor } = await findPage(db().podReviews, {
+      const { items, nextCursor } = await findPage(db().reviews, {
         filter: { shopId: shop._id, status: "live" },
         sortField: "createdAt",
         cursor: request.query.cursor,

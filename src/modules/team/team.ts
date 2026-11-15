@@ -51,6 +51,7 @@ const CATALOGS: Partial<Record<BusinessDoc["module"], PermissionInfo[]>> = {
       hint: "Who bought tickets, their phone numbers and answers, and who hasn't arrived yet",
       needs: "tickets.scan",
     },
+    { key: "reviews.reply", label: "Reply to reviews", hint: "Answer customers' reviews of the business", needs: null },
   ].map(info),
   coaching: [
     { key: "classes.view", label: "See their batches and students", hint: "Only the batches you assign them to, with the class list", needs: null },
@@ -63,11 +64,14 @@ const CATALOGS: Partial<Record<BusinessDoc["module"], PermissionInfo[]>> = {
       hint: "Everyone in the batch is told. Nothing is refunded. They can also add an extra class",
       needs: "classes.view",
     },
+    { key: "reviews.reply", label: "Reply to reviews", hint: "Answer customers' reviews of the business", needs: null },
   ].map(info),
 };
 
 /** Every permission once, for labelling places at any kind of business. */
-export const PERMISSIONS: PermissionInfo[] = Object.values(CATALOGS).flat();
+export const PERMISSIONS: PermissionInfo[] = Object.values(CATALOGS)
+  .flat()
+  .filter((p, i, all) => all.findIndex((q) => q.key === p.key) === i);
 
 export const permissionsFor = (module: BusinessDoc["module"]): PermissionInfo[] => CATALOGS[module] ?? [];
 

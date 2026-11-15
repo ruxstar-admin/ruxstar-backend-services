@@ -1241,12 +1241,80 @@
           {
             "schema": {
               "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9:.]+(Z|[+-][0-9]{2}:[0-9]{2}))?$",
+              "maxLength": 40
+            },
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "description": "Issued on or after: a day (YYYY-MM-DD, India time) or an exact ISO 8601 time"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9:.]+(Z|[+-][0-9]{2}:[0-9]{2}))?$",
+              "maxLength": 40
+            },
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "description": "Issued on or before: a day (YYYY-MM-DD, India time, the whole day) or an exact ISO 8601 time"
+          },
+          {
+            "schema": {
+              "type": "string",
               "pattern": "^[a-f0-9]{24}$"
             },
             "in": "query",
             "name": "orderId",
             "required": false,
             "description": "MongoDB ObjectId as hex"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "pod"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "events"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "coaching"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "stays"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "turf"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "ecommerce"
+                  ]
+                }
+              ]
+            },
+            "in": "query",
+            "name": "module",
+            "required": false,
+            "description": "turf and ecommerce have defaults ready for when they open"
           }
         ],
         "security": [
@@ -26757,6 +26825,84 @@
             "name": "kind",
             "required": false,
             "description": "tax_invoice: a sale with GST. bill_of_supply: a sale without GST, when the seller has no GSTIN. credit_note: money refunded against an invoice."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9:.]+(Z|[+-][0-9]{2}:[0-9]{2}))?$",
+              "maxLength": 40
+            },
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "description": "Issued on or after: a day (YYYY-MM-DD, India time) or an exact ISO 8601 time"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9:.]+(Z|[+-][0-9]{2}:[0-9]{2}))?$",
+              "maxLength": 40
+            },
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "description": "Issued on or before: a day (YYYY-MM-DD, India time, the whole day) or an exact ISO 8601 time"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "query",
+            "name": "orderId",
+            "required": false,
+            "description": "MongoDB ObjectId as hex"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "pod"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "events"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "coaching"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "stays"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "turf"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "ecommerce"
+                  ]
+                }
+              ]
+            },
+            "in": "query",
+            "name": "module",
+            "required": false,
+            "description": "turf and ecommerce have defaults ready for when they open"
           }
         ],
         "security": [
@@ -36946,7 +37092,7 @@
                     "minItems": 1,
                     "maxItems": 20,
                     "uniqueItems": true,
-                    "description": "Your print shops and coaching businesses it works at"
+                    "description": "Your print shops, events and coaching businesses it works at"
                   }
                 },
                 "additionalProperties": false
@@ -37394,7 +37540,7 @@
                     "minItems": 1,
                     "maxItems": 20,
                     "uniqueItems": true,
-                    "description": "Your print shops and coaching businesses it works at"
+                    "description": "Your print shops, events and coaching businesses it works at"
                   }
                 },
                 "additionalProperties": false
@@ -53671,7 +53817,7 @@
                           },
                           "product": {
                             "type": "string",
-                            "description": "What was ordered, for example Business cards"
+                            "description": "What was bought: a print product such as Business cards, an event's title or a course's"
                           },
                           "author": {
                             "anyOf": [
@@ -53771,6 +53917,68 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "module": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "pod"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "events"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coaching"
+                                ]
+                              }
+                            ],
+                            "description": "The kind of business: print, events or coaching"
+                          },
+                          "listing": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "type",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "event"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "course"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The event or course reviewed; null for print"
                           },
                           "orderId": {
                             "type": "string",
@@ -53944,7 +54152,7 @@
                         },
                         "product": {
                           "type": "string",
-                          "description": "What was ordered, for example Business cards"
+                          "description": "What was bought: a print product such as Business cards, an event's title or a course's"
                         },
                         "author": {
                           "anyOf": [
@@ -54044,6 +54252,68 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "module": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "pod"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "events"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "coaching"
+                              ]
+                            }
+                          ],
+                          "description": "The kind of business: print, events or coaching"
+                        },
+                        "listing": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "type",
+                                "id"
+                              ],
+                              "properties": {
+                                "type": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "event"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "course"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The event or course reviewed; null for print"
                         },
                         "orderId": {
                           "type": "string",
@@ -54180,7 +54450,7 @@
                         },
                         "product": {
                           "type": "string",
-                          "description": "What was ordered, for example Business cards"
+                          "description": "What was bought: a print product such as Business cards, an event's title or a course's"
                         },
                         "author": {
                           "anyOf": [
@@ -54280,6 +54550,68 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "module": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "pod"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "events"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "coaching"
+                              ]
+                            }
+                          ],
+                          "description": "The kind of business: print, events or coaching"
+                        },
+                        "listing": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "type",
+                                "id"
+                              ],
+                              "properties": {
+                                "type": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "event"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "course"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The event or course reviewed; null for print"
                         },
                         "orderId": {
                           "type": "string",
@@ -71205,7 +71537,7 @@
                             },
                             "product": {
                               "type": "string",
-                              "description": "What was ordered, for example Business cards"
+                              "description": "What was bought: a print product such as Business cards, an event's title or a course's"
                             },
                             "author": {
                               "anyOf": [
@@ -71305,6 +71637,68 @@
                                   "type": "null"
                                 }
                               ]
+                            },
+                            "module": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "pod"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "events"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "coaching"
+                                  ]
+                                }
+                              ],
+                              "description": "The kind of business: print, events or coaching"
+                            },
+                            "listing": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "type",
+                                    "id"
+                                  ],
+                                  "properties": {
+                                    "type": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "event"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "course"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^[a-f0-9]{24}$",
+                                      "description": "MongoDB ObjectId as hex"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "The event or course reviewed; null for print"
                             },
                             "orderId": {
                               "type": "string",
@@ -71497,7 +71891,7 @@
                             },
                             "product": {
                               "type": "string",
-                              "description": "What was ordered, for example Business cards"
+                              "description": "What was bought: a print product such as Business cards, an event's title or a course's"
                             },
                             "author": {
                               "anyOf": [
@@ -71597,6 +71991,68 @@
                                   "type": "null"
                                 }
                               ]
+                            },
+                            "module": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "pod"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "events"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "coaching"
+                                  ]
+                                }
+                              ],
+                              "description": "The kind of business: print, events or coaching"
+                            },
+                            "listing": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "type",
+                                    "id"
+                                  ],
+                                  "properties": {
+                                    "type": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "event"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "course"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^[a-f0-9]{24}$",
+                                      "description": "MongoDB ObjectId as hex"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "The event or course reviewed; null for print"
                             },
                             "orderId": {
                               "type": "string",
@@ -71868,7 +72324,7 @@
                           },
                           "product": {
                             "type": "string",
-                            "description": "What was ordered, for example Business cards"
+                            "description": "What was bought: a print product such as Business cards, an event's title or a course's"
                           },
                           "author": {
                             "anyOf": [
@@ -71968,6 +72424,68 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "module": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "pod"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "events"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coaching"
+                                ]
+                              }
+                            ],
+                            "description": "The kind of business: print, events or coaching"
+                          },
+                          "listing": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "type",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "event"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "course"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The event or course reviewed; null for print"
                           }
                         },
                         "additionalProperties": false
@@ -74877,13 +75395,1244 @@
         }
       }
     },
+    "/v1/events/orders/{id}/review": {
+      "get": {
+        "summary": "Your review of one of your bookings",
+        "tags": [
+          "events"
+        ],
+        "description": "Null until you review it. One Ruxstar removed comes back with its reason; it can't be changed or written again.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "rating",
+                            "text",
+                            "product",
+                            "author",
+                            "reply",
+                            "createdAt",
+                            "editedAt",
+                            "orderId",
+                            "status",
+                            "removedReason"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "rating": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 5
+                            },
+                            "text": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "product": {
+                              "type": "string",
+                              "description": "What was bought: a print product such as Business cards, an event's title or a course's"
+                            },
+                            "author": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "id",
+                                    "name",
+                                    "username",
+                                    "avatarUrl"
+                                  ],
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^[a-f0-9]{24}$",
+                                      "description": "MongoDB ObjectId as hex"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "username": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "avatarUrl": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "reply": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "text",
+                                    "at",
+                                    "editedAt"
+                                  ],
+                                  "properties": {
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "at": {
+                                      "type": "string",
+                                      "format": "date-time"
+                                    },
+                                    "editedAt": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "The shop's answer"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "editedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "module": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "pod"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "events"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "coaching"
+                                  ]
+                                }
+                              ],
+                              "description": "The kind of business: print, events or coaching"
+                            },
+                            "listing": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "type",
+                                    "id"
+                                  ],
+                                  "properties": {
+                                    "type": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "event"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "course"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^[a-f0-9]{24}$",
+                                      "description": "MongoDB ObjectId as hex"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "The event or course reviewed; null for print"
+                            },
+                            "orderId": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "status": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "live"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "removed"
+                                  ]
+                                }
+                              ]
+                            },
+                            "removedReason": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Null before the customer reviews the order"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Review a booking, or change your review",
+        "tags": [
+          "events"
+        ],
+        "description": "Once one of your tickets is checked in or the event has ended, until 30 days after it ends; confirmed bookings of events that went ahead. 1 to 5 stars and, if you like, a few words; one review per booking. Leaving out `text` keeps what you wrote; null or blank clears it. The business is told about a new review.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "rating"
+                ],
+                "properties": {
+                  "rating": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  },
+                  "text": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500,
+                        "description": "Optional; blank clears it"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "rating",
+                            "text",
+                            "product",
+                            "author",
+                            "reply",
+                            "createdAt",
+                            "editedAt",
+                            "orderId",
+                            "status",
+                            "removedReason"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "rating": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 5
+                            },
+                            "text": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "product": {
+                              "type": "string",
+                              "description": "What was bought: a print product such as Business cards, an event's title or a course's"
+                            },
+                            "author": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "id",
+                                    "name",
+                                    "username",
+                                    "avatarUrl"
+                                  ],
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^[a-f0-9]{24}$",
+                                      "description": "MongoDB ObjectId as hex"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "username": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "avatarUrl": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "reply": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "text",
+                                    "at",
+                                    "editedAt"
+                                  ],
+                                  "properties": {
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "at": {
+                                      "type": "string",
+                                      "format": "date-time"
+                                    },
+                                    "editedAt": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "The shop's answer"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "editedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "module": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "pod"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "events"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "coaching"
+                                  ]
+                                }
+                              ],
+                              "description": "The kind of business: print, events or coaching"
+                            },
+                            "listing": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "type",
+                                    "id"
+                                  ],
+                                  "properties": {
+                                    "type": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "event"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "course"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^[a-f0-9]{24}$",
+                                      "description": "MongoDB ObjectId as hex"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "The event or course reviewed; null for print"
+                            },
+                            "orderId": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "status": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "live"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "removed"
+                                  ]
+                                }
+                              ]
+                            },
+                            "removedReason": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Null before the customer reviews the order"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete your review of a booking",
+        "tags": [
+          "events"
+        ],
+        "description": "You can review the booking again while it is still open for reviews.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/events/{id}/reviews": {
+      "get": {
+        "summary": "A event's reviews, newest first",
+        "tags": [
+          "events"
+        ],
+        "description": "No sign-in needed. The business's rating covers all its reviews and is on the detail.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {},
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "rating",
+                          "text",
+                          "product",
+                          "author",
+                          "reply",
+                          "createdAt",
+                          "editedAt"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "rating": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 5
+                          },
+                          "text": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "product": {
+                            "type": "string",
+                            "description": "What was bought: a print product such as Business cards, an event's title or a course's"
+                          },
+                          "author": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "username",
+                                  "avatarUrl"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "username": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "avatarUrl": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "reply": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "text",
+                                  "at",
+                                  "editedAt"
+                                ],
+                                "properties": {
+                                  "text": {
+                                    "type": "string"
+                                  },
+                                  "at": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  "editedAt": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "format": "date-time"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The shop's answer"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "editedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "module": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "pod"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "events"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coaching"
+                                ]
+                              }
+                            ],
+                            "description": "The kind of business: print, events or coaching"
+                          },
+                          "listing": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "type",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "event"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "course"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The event or course reviewed; null for print"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/events/reviews/{id}/report": {
+      "post": {
+        "summary": "Report a review to Ruxstar",
+        "tags": [
+          "events"
+        ],
+        "description": "One open report per review you report; reporting it again while it is open changes nothing. The writer isn't told.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "spam"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "fake"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "abuse"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "other"
+                        ]
+                      }
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/events/rules": {
       "get": {
         "summary": "Ruxstar's rules for events: refunds, the waitlist and limits",
         "tags": [
           "events"
         ],
+        "description": "No sign-in needed.",
         "security": [
+          {},
           {
             "bearer": []
           },
@@ -74992,7 +76741,7 @@
         "tags": [
           "events"
         ],
-        "description": "Including ones under way. With `city`, events there and online ones. Empty while Ruxstar has events switched off.",
+        "description": "No sign-in needed. Including ones under way. With `city`, events there and online ones. Empty while Ruxstar has events switched off.",
         "parameters": [
           {
             "schema": {
@@ -75065,6 +76814,7 @@
           }
         ],
         "security": [
+          {},
           {
             "bearer": []
           },
@@ -75290,6 +77040,7 @@
         "tags": [
           "events"
         ],
+        "description": "No sign-in needed. Signed out, `myOrders` and `myWaits` are empty, and drafts and events Ruxstar took down answer NOT_FOUND.",
         "parameters": [
           {
             "schema": {
@@ -75303,6 +77054,7 @@
           }
         ],
         "security": [
+          {},
           {
             "bearer": []
           },
@@ -75830,6 +77582,250 @@
                         },
                         "maxPerOrder": {
                           "type": "integer"
+                        },
+                        "rating": {
+                          "type": "object",
+                          "required": [
+                            "average",
+                            "count"
+                          ],
+                          "properties": {
+                            "average": {
+                              "anyOf": [
+                                {
+                                  "type": "number",
+                                  "minimum": 1,
+                                  "maximum": 5
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "To one decimal; null until there are 3 reviews"
+                            },
+                            "count": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Live reviews"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/events/{id}/offers": {
+      "get": {
+        "summary": "Coupons that work on this event's tickets, best first",
+        "tags": [
+          "events"
+        ],
+        "description": "With `code`, that code is checked too. Free tickets don't take coupons.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000000
+            },
+            "in": "query",
+            "name": "items",
+            "required": false,
+            "description": "Paise of the tickets picked, before the platform fee; the cheapest paid ticket when left out"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 20
+            },
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "description": "Check this code too"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "offers",
+                        "checked"
+                      ],
+                      "properties": {
+                        "offers": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "code",
+                              "fundedBy",
+                              "label",
+                              "terms",
+                              "discount",
+                              "problem"
+                            ],
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "fundedBy": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "ruxstar"
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "vendor"
+                                    ]
+                                  }
+                                ],
+                                "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "terms": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "description": "For example \"On items over ₹200 · First order only · Ends 30 Nov\""
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "discount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Paise it takes off this order; 0 when it doesn't apply yet"
+                              },
+                              "problem": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "description": "Why it doesn't apply yet, for example \"Add ₹50 more to use this\""
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "checked": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "code",
+                                "discount",
+                                "problem"
+                              ],
+                              "properties": {
+                                "code": {
+                                  "type": "string"
+                                },
+                                "discount": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Amount in paise"
+                                },
+                                "problem": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "With `code`"
                         }
                       },
                       "additionalProperties": false
@@ -75971,6 +77967,12 @@
                     "type": "string",
                     "pattern": "^[a-f0-9]{24}$",
                     "description": "MongoDB ObjectId as hex"
+                  },
+                  "coupon": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 20,
+                    "description": "A coupon code for the tickets; free tickets ignore it"
                   },
                   "returnTo": {
                     "type": "string",
@@ -76259,9 +78261,56 @@
                                   "type": "integer",
                                   "minimum": 0,
                                   "description": "Amount in paise"
+                                },
+                                "discount": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "description": "Amount in paise"
                                 }
                               },
                               "additionalProperties": false
+                            },
+                            "coupon": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "code",
+                                    "fundedBy",
+                                    "label"
+                                  ],
+                                  "properties": {
+                                    "code": {
+                                      "type": "string"
+                                    },
+                                    "fundedBy": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "ruxstar"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "vendor"
+                                          ]
+                                        }
+                                      ],
+                                      "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                    },
+                                    "label": {
+                                      "type": "string",
+                                      "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
                             },
                             "refund": {
                               "anyOf": [
@@ -76554,6 +78603,22 @@
                                 "additionalProperties": false
                               },
                               "description": "GST invoices and credit notes for it, oldest first. Open one with its invoice routes."
+                            },
+                            "canReview": {
+                              "type": "boolean",
+                              "description": "The order is open for a review now (write or change it), and Ruxstar hasn't removed one"
+                            },
+                            "reviewUntil": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "The last moment to write or change the review; null when it can't be reviewed now"
                             },
                             "createdAt": {
                               "type": "string",
@@ -77190,9 +79255,56 @@
                                 "type": "integer",
                                 "minimum": 0,
                                 "description": "Amount in paise"
+                              },
+                              "discount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Amount in paise"
                               }
                             },
                             "additionalProperties": false
+                          },
+                          "coupon": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "code",
+                                  "fundedBy",
+                                  "label"
+                                ],
+                                "properties": {
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "fundedBy": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "ruxstar"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "vendor"
+                                        ]
+                                      }
+                                    ],
+                                    "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                  },
+                                  "label": {
+                                    "type": "string",
+                                    "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           },
                           "refund": {
                             "anyOf": [
@@ -77485,6 +79597,22 @@
                               "additionalProperties": false
                             },
                             "description": "GST invoices and credit notes for it, oldest first. Open one with its invoice routes."
+                          },
+                          "canReview": {
+                            "type": "boolean",
+                            "description": "The order is open for a review now (write or change it), and Ruxstar hasn't removed one"
+                          },
+                          "reviewUntil": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The last moment to write or change the review; null when it can't be reviewed now"
                           },
                           "createdAt": {
                             "type": "string",
@@ -77822,9 +79950,56 @@
                               "type": "integer",
                               "minimum": 0,
                               "description": "Amount in paise"
+                            },
+                            "discount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
                             }
                           },
                           "additionalProperties": false
+                        },
+                        "coupon": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "code",
+                                "fundedBy",
+                                "label"
+                              ],
+                              "properties": {
+                                "code": {
+                                  "type": "string"
+                                },
+                                "fundedBy": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "ruxstar"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "vendor"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                },
+                                "label": {
+                                  "type": "string",
+                                  "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "refund": {
                           "anyOf": [
@@ -78117,6 +80292,22 @@
                             "additionalProperties": false
                           },
                           "description": "GST invoices and credit notes for it, oldest first. Open one with its invoice routes."
+                        },
+                        "canReview": {
+                          "type": "boolean",
+                          "description": "The order is open for a review now (write or change it), and Ruxstar hasn't removed one"
+                        },
+                        "reviewUntil": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The last moment to write or change the review; null when it can't be reviewed now"
                         },
                         "createdAt": {
                           "type": "string",
@@ -78554,9 +80745,56 @@
                               "type": "integer",
                               "minimum": 0,
                               "description": "Amount in paise"
+                            },
+                            "discount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Amount in paise"
                             }
                           },
                           "additionalProperties": false
+                        },
+                        "coupon": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "code",
+                                "fundedBy",
+                                "label"
+                              ],
+                              "properties": {
+                                "code": {
+                                  "type": "string"
+                                },
+                                "fundedBy": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "ruxstar"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "vendor"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "Who pays for the discount: Ruxstar, or the vendor out of their share"
+                                },
+                                "label": {
+                                  "type": "string",
+                                  "description": "\"Ruxstar offer\" or \"Shop offer\""
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "refund": {
                           "anyOf": [
@@ -78849,6 +81087,22 @@
                             "additionalProperties": false
                           },
                           "description": "GST invoices and credit notes for it, oldest first. Open one with its invoice routes."
+                        },
+                        "canReview": {
+                          "type": "boolean",
+                          "description": "The order is open for a review now (write or change it), and Ruxstar hasn't removed one"
+                        },
+                        "reviewUntil": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The last moment to write or change the review; null when it can't be reviewed now"
                         },
                         "createdAt": {
                           "type": "string",
@@ -83081,13 +85335,1244 @@
         }
       }
     },
+    "/v1/coaching/orders/{id}/review": {
+      "get": {
+        "summary": "Your review of one of your enrolments",
+        "tags": [
+          "coaching"
+        ],
+        "description": "Null until you review it. One Ruxstar removed comes back with its reason; it can't be changed or written again.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "rating",
+                            "text",
+                            "product",
+                            "author",
+                            "reply",
+                            "createdAt",
+                            "editedAt",
+                            "orderId",
+                            "status",
+                            "removedReason"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "rating": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 5
+                            },
+                            "text": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "product": {
+                              "type": "string",
+                              "description": "What was bought: a print product such as Business cards, an event's title or a course's"
+                            },
+                            "author": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "id",
+                                    "name",
+                                    "username",
+                                    "avatarUrl"
+                                  ],
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^[a-f0-9]{24}$",
+                                      "description": "MongoDB ObjectId as hex"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "username": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "avatarUrl": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "reply": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "text",
+                                    "at",
+                                    "editedAt"
+                                  ],
+                                  "properties": {
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "at": {
+                                      "type": "string",
+                                      "format": "date-time"
+                                    },
+                                    "editedAt": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "The shop's answer"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "editedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "module": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "pod"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "events"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "coaching"
+                                  ]
+                                }
+                              ],
+                              "description": "The kind of business: print, events or coaching"
+                            },
+                            "listing": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "type",
+                                    "id"
+                                  ],
+                                  "properties": {
+                                    "type": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "event"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "course"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^[a-f0-9]{24}$",
+                                      "description": "MongoDB ObjectId as hex"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "The event or course reviewed; null for print"
+                            },
+                            "orderId": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "status": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "live"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "removed"
+                                  ]
+                                }
+                              ]
+                            },
+                            "removedReason": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Null before the customer reviews the order"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Review a enrolment, or change your review",
+        "tags": [
+          "coaching"
+        ],
+        "description": "Once the first class it covers has been held, until 30 days after its last class; confirmed enrolments and demos. 1 to 5 stars and, if you like, a few words; one review per enrolment. Leaving out `text` keeps what you wrote; null or blank clears it. The business is told about a new review.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "rating"
+                ],
+                "properties": {
+                  "rating": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  },
+                  "text": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500,
+                        "description": "Optional; blank clears it"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "rating",
+                            "text",
+                            "product",
+                            "author",
+                            "reply",
+                            "createdAt",
+                            "editedAt",
+                            "orderId",
+                            "status",
+                            "removedReason"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "rating": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 5
+                            },
+                            "text": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "product": {
+                              "type": "string",
+                              "description": "What was bought: a print product such as Business cards, an event's title or a course's"
+                            },
+                            "author": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "id",
+                                    "name",
+                                    "username",
+                                    "avatarUrl"
+                                  ],
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^[a-f0-9]{24}$",
+                                      "description": "MongoDB ObjectId as hex"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "username": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "avatarUrl": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "reply": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "text",
+                                    "at",
+                                    "editedAt"
+                                  ],
+                                  "properties": {
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "at": {
+                                      "type": "string",
+                                      "format": "date-time"
+                                    },
+                                    "editedAt": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "format": "date-time"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "The shop's answer"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "editedAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "module": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "pod"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "events"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "coaching"
+                                  ]
+                                }
+                              ],
+                              "description": "The kind of business: print, events or coaching"
+                            },
+                            "listing": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "required": [
+                                    "type",
+                                    "id"
+                                  ],
+                                  "properties": {
+                                    "type": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "event"
+                                          ]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": [
+                                            "course"
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    "id": {
+                                      "type": "string",
+                                      "pattern": "^[a-f0-9]{24}$",
+                                      "description": "MongoDB ObjectId as hex"
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "The event or course reviewed; null for print"
+                            },
+                            "orderId": {
+                              "type": "string",
+                              "pattern": "^[a-f0-9]{24}$",
+                              "description": "MongoDB ObjectId as hex"
+                            },
+                            "status": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "live"
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "removed"
+                                  ]
+                                }
+                              ]
+                            },
+                            "removedReason": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Null before the customer reviews the order"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete your review of a enrolment",
+        "tags": [
+          "coaching"
+        ],
+        "description": "You can review the enrolment again while it is still open for reviews.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/coaching/{id}/reviews": {
+      "get": {
+        "summary": "A course's reviews, newest first",
+        "tags": [
+          "coaching"
+        ],
+        "description": "No sign-in needed. The business's rating covers all its reviews and is on the detail.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {},
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "rating",
+                          "text",
+                          "product",
+                          "author",
+                          "reply",
+                          "createdAt",
+                          "editedAt"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{24}$",
+                            "description": "MongoDB ObjectId as hex"
+                          },
+                          "rating": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 5
+                          },
+                          "text": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "product": {
+                            "type": "string",
+                            "description": "What was bought: a print product such as Business cards, an event's title or a course's"
+                          },
+                          "author": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "username",
+                                  "avatarUrl"
+                                ],
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "username": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "avatarUrl": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "reply": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "text",
+                                  "at",
+                                  "editedAt"
+                                ],
+                                "properties": {
+                                  "text": {
+                                    "type": "string"
+                                  },
+                                  "at": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  "editedAt": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "format": "date-time"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The shop's answer"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "editedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "module": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "pod"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "events"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coaching"
+                                ]
+                              }
+                            ],
+                            "description": "The kind of business: print, events or coaching"
+                          },
+                          "listing": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "type",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "event"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "course"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The event or course reviewed; null for print"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId",
+                        "nextCursor"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        },
+                        "nextCursor": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/coaching/reviews/{id}/report": {
+      "post": {
+        "summary": "Report a review to Ruxstar",
+        "tags": [
+          "coaching"
+        ],
+        "description": "One open report per review you report; reporting it again while it is open changes nothing. The writer isn't told.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "spam"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "fake"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "abuse"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "other"
+                        ]
+                      }
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "MongoDB ObjectId as hex"
+          }
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "done"
+                      ],
+                      "properties": {
+                        "done": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "requestId"
+                      ],
+                      "properties": {
+                        "requestId": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/coaching/rules": {
       "get": {
         "summary": "Ruxstar's rules for coaching: certificates, minimum batch size checks, limits and fees",
         "tags": [
           "coaching"
         ],
+        "description": "No sign-in needed.",
         "security": [
+          {},
           {
             "bearer": []
           },
@@ -83209,7 +86694,7 @@
         "tags": [
           "coaching"
         ],
-        "description": "With `city`, courses taught there and online ones (unless `online` is false). Courses with no batch open show `openBatches` 0. Empty while Ruxstar has coaching switched off.",
+        "description": "No sign-in needed. With `city`, courses taught there and online ones (unless `online` is false). Courses with no batch open show `openBatches` 0. Empty while Ruxstar has coaching switched off.",
         "parameters": [
           {
             "schema": {
@@ -83334,6 +86819,7 @@
           }
         ],
         "security": [
+          {},
           {
             "bearer": []
           },
@@ -84497,6 +87983,22 @@
                             },
                             "description": "GST invoices and credit notes for it, oldest first. Open one with its invoice routes."
                           },
+                          "canReview": {
+                            "type": "boolean",
+                            "description": "The order is open for a review now (write or change it), and Ruxstar hasn't removed one"
+                          },
+                          "reviewUntil": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The last moment to write or change the review; null when it can't be reviewed now"
+                          },
                           "createdAt": {
                             "type": "string",
                             "format": "date-time"
@@ -85380,6 +88882,22 @@
                             "additionalProperties": false
                           },
                           "description": "GST invoices and credit notes for it, oldest first. Open one with its invoice routes."
+                        },
+                        "canReview": {
+                          "type": "boolean",
+                          "description": "The order is open for a review now (write or change it), and Ruxstar hasn't removed one"
+                        },
+                        "reviewUntil": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The last moment to write or change the review; null when it can't be reviewed now"
                         },
                         "createdAt": {
                           "type": "string",
@@ -86364,6 +89882,22 @@
                             "additionalProperties": false
                           },
                           "description": "GST invoices and credit notes for it, oldest first. Open one with its invoice routes."
+                        },
+                        "canReview": {
+                          "type": "boolean",
+                          "description": "The order is open for a review now (write or change it), and Ruxstar hasn't removed one"
+                        },
+                        "reviewUntil": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The last moment to write or change the review; null when it can't be reviewed now"
                         },
                         "createdAt": {
                           "type": "string",
@@ -87677,6 +91211,7 @@
         "tags": [
           "coaching"
         ],
+        "description": "No sign-in needed; signed out, `myOrders` and `demoTaken` are empty and courses Ruxstar took down aren't found.",
         "parameters": [
           {
             "schema": {
@@ -87690,6 +91225,7 @@
           }
         ],
         "security": [
+          {},
           {
             "bearer": []
           },
@@ -88378,7 +91914,7 @@
                             },
                             "additionalProperties": false
                           },
-                          "description": "Your enrolments and demos in it, newest first"
+                          "description": "Your enrolments and demos in it, newest first. Empty when signed out"
                         },
                         "demoTaken": {
                           "type": "array",
@@ -88408,7 +91944,35 @@
                             },
                             "additionalProperties": false
                           },
-                          "description": "Students who have had, or booked, this course's demo"
+                          "description": "Students who have had, or booked, this course's demo. Empty when signed out"
+                        },
+                        "rating": {
+                          "type": "object",
+                          "required": [
+                            "average",
+                            "count"
+                          ],
+                          "properties": {
+                            "average": {
+                              "anyOf": [
+                                {
+                                  "type": "number",
+                                  "minimum": 1,
+                                  "maximum": 5
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "To one decimal; null until there are 3 reviews"
+                            },
+                            "count": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          },
+                          "additionalProperties": false,
+                          "description": "Live reviews"
                         }
                       },
                       "additionalProperties": false
@@ -89539,6 +93103,22 @@
                               },
                               "description": "GST invoices and credit notes for it, oldest first. Open one with its invoice routes."
                             },
+                            "canReview": {
+                              "type": "boolean",
+                              "description": "The order is open for a review now (write or change it), and Ruxstar hasn't removed one"
+                            },
+                            "reviewUntil": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "The last moment to write or change the review; null when it can't be reviewed now"
+                            },
                             "createdAt": {
                               "type": "string",
                               "format": "date-time"
@@ -90481,6 +94061,22 @@
                                 "additionalProperties": false
                               },
                               "description": "GST invoices and credit notes for it, oldest first. Open one with its invoice routes."
+                            },
+                            "canReview": {
+                              "type": "boolean",
+                              "description": "The order is open for a review now (write or change it), and Ruxstar hasn't removed one"
+                            },
+                            "reviewUntil": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "The last moment to write or change the review; null when it can't be reviewed now"
                             },
                             "createdAt": {
                               "type": "string",
@@ -106736,7 +110332,7 @@
                           },
                           "product": {
                             "type": "string",
-                            "description": "What was ordered, for example Business cards"
+                            "description": "What was bought: a print product such as Business cards, an event's title or a course's"
                           },
                           "author": {
                             "anyOf": [
@@ -106836,6 +110432,68 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "module": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "pod"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "events"
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "coaching"
+                                ]
+                              }
+                            ],
+                            "description": "The kind of business: print, events or coaching"
+                          },
+                          "listing": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "required": [
+                                  "type",
+                                  "id"
+                                ],
+                                "properties": {
+                                  "type": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "event"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "course"
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-f0-9]{24}$",
+                                    "description": "MongoDB ObjectId as hex"
+                                  }
+                                },
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The event or course reviewed; null for print"
                           },
                           "orderId": {
                             "type": "string",
@@ -107009,7 +110667,7 @@
                         },
                         "product": {
                           "type": "string",
-                          "description": "What was ordered, for example Business cards"
+                          "description": "What was bought: a print product such as Business cards, an event's title or a course's"
                         },
                         "author": {
                           "anyOf": [
@@ -107109,6 +110767,68 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "module": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "pod"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "events"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "coaching"
+                              ]
+                            }
+                          ],
+                          "description": "The kind of business: print, events or coaching"
+                        },
+                        "listing": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "type",
+                                "id"
+                              ],
+                              "properties": {
+                                "type": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "event"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "course"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The event or course reviewed; null for print"
                         },
                         "orderId": {
                           "type": "string",
@@ -107246,7 +110966,7 @@
                         },
                         "product": {
                           "type": "string",
-                          "description": "What was ordered, for example Business cards"
+                          "description": "What was bought: a print product such as Business cards, an event's title or a course's"
                         },
                         "author": {
                           "anyOf": [
@@ -107346,6 +111066,68 @@
                               "type": "null"
                             }
                           ]
+                        },
+                        "module": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "pod"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "events"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "coaching"
+                              ]
+                            }
+                          ],
+                          "description": "The kind of business: print, events or coaching"
+                        },
+                        "listing": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "required": [
+                                "type",
+                                "id"
+                              ],
+                              "properties": {
+                                "type": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "event"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "course"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-f0-9]{24}$",
+                                  "description": "MongoDB ObjectId as hex"
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "The event or course reviewed; null for print"
                         },
                         "orderId": {
                           "type": "string",
@@ -122737,7 +126519,7 @@
                                   },
                                   "product": {
                                     "type": "string",
-                                    "description": "What was ordered, for example Business cards"
+                                    "description": "What was bought: a print product such as Business cards, an event's title or a course's"
                                   },
                                   "author": {
                                     "anyOf": [
@@ -122837,6 +126619,68 @@
                                         "type": "null"
                                       }
                                     ]
+                                  },
+                                  "module": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "pod"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "events"
+                                        ]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": [
+                                          "coaching"
+                                        ]
+                                      }
+                                    ],
+                                    "description": "The kind of business: print, events or coaching"
+                                  },
+                                  "listing": {
+                                    "anyOf": [
+                                      {
+                                        "type": "object",
+                                        "required": [
+                                          "type",
+                                          "id"
+                                        ],
+                                        "properties": {
+                                          "type": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "enum": [
+                                                  "event"
+                                                ]
+                                              },
+                                              {
+                                                "type": "string",
+                                                "enum": [
+                                                  "course"
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          "id": {
+                                            "type": "string",
+                                            "pattern": "^[a-f0-9]{24}$",
+                                            "description": "MongoDB ObjectId as hex"
+                                          }
+                                        },
+                                        "additionalProperties": false
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "description": "The event or course reviewed; null for print"
                                   },
                                   "status": {
                                     "anyOf": [
@@ -123160,7 +127004,7 @@
                                 },
                                 "product": {
                                   "type": "string",
-                                  "description": "What was ordered, for example Business cards"
+                                  "description": "What was bought: a print product such as Business cards, an event's title or a course's"
                                 },
                                 "author": {
                                   "anyOf": [
@@ -123260,6 +127104,68 @@
                                       "type": "null"
                                     }
                                   ]
+                                },
+                                "module": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "pod"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "events"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "coaching"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "The kind of business: print, events or coaching"
+                                },
+                                "listing": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "type",
+                                        "id"
+                                      ],
+                                      "properties": {
+                                        "type": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "event"
+                                              ]
+                                            },
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "course"
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{24}$",
+                                          "description": "MongoDB ObjectId as hex"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "The event or course reviewed; null for print"
                                 },
                                 "status": {
                                   "anyOf": [
@@ -123594,7 +127500,7 @@
                                 },
                                 "product": {
                                   "type": "string",
-                                  "description": "What was ordered, for example Business cards"
+                                  "description": "What was bought: a print product such as Business cards, an event's title or a course's"
                                 },
                                 "author": {
                                   "anyOf": [
@@ -123694,6 +127600,68 @@
                                       "type": "null"
                                     }
                                   ]
+                                },
+                                "module": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "pod"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "events"
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "coaching"
+                                      ]
+                                    }
+                                  ],
+                                  "description": "The kind of business: print, events or coaching"
+                                },
+                                "listing": {
+                                  "anyOf": [
+                                    {
+                                      "type": "object",
+                                      "required": [
+                                        "type",
+                                        "id"
+                                      ],
+                                      "properties": {
+                                        "type": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "event"
+                                              ]
+                                            },
+                                            {
+                                              "type": "string",
+                                              "enum": [
+                                                "course"
+                                              ]
+                                            }
+                                          ]
+                                        },
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-f0-9]{24}$",
+                                          "description": "MongoDB ObjectId as hex"
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ],
+                                  "description": "The event or course reviewed; null for print"
                                 },
                                 "status": {
                                   "anyOf": [
@@ -129429,6 +133397,12 @@
                         {
                           "type": "string",
                           "enum": [
+                            "events"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
                             "coaching"
                           ]
                         }
@@ -129436,7 +133410,7 @@
                     },
                     "minItems": 1,
                     "uniqueItems": true,
-                    "description": "Where it works: print orders, coaching enrolments or both. Print only when left out"
+                    "description": "Where it works: print orders, event tickets, coaching enrolments, or any of them. Print only when left out"
                   }
                 },
                 "additionalProperties": false
@@ -145161,6 +149135,84 @@
             "name": "business",
             "required": false,
             "description": "MongoDB ObjectId as hex"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9:.]+(Z|[+-][0-9]{2}:[0-9]{2}))?$",
+              "maxLength": 40
+            },
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "description": "Issued on or after: a day (YYYY-MM-DD, India time) or an exact ISO 8601 time"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9:.]+(Z|[+-][0-9]{2}:[0-9]{2}))?$",
+              "maxLength": 40
+            },
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "description": "Issued on or before: a day (YYYY-MM-DD, India time, the whole day) or an exact ISO 8601 time"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "in": "query",
+            "name": "orderId",
+            "required": false,
+            "description": "MongoDB ObjectId as hex"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "pod"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "events"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "coaching"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "stays"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "turf"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "ecommerce"
+                  ]
+                }
+              ]
+            },
+            "in": "query",
+            "name": "module",
+            "required": false,
+            "description": "turf and ecommerce have defaults ready for when they open"
           }
         ],
         "security": [

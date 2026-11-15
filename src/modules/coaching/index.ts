@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { ObjectId, type Filter } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { actorOf } from "../../platform/audit.js";
-import { requireAuth } from "../../platform/auth.js";
+import { publicCache, requireAuth, signedInIfPossible } from "../../platform/auth.js";
 import { requireDatabase } from "../../platform/context.js";
 import type { CoachingCourseDoc, CoachingOrderDoc, Database } from "../../platform/db.js";
 import { stamp } from "../../platform/db.js";
@@ -15,6 +15,8 @@ import { findPage } from "../../platform/pagination.js";
 import { checkCode, offersFor } from "../coupons/coupons.js";
 import { safeReturn } from "../pod/orders.js";
 import { escapeRegex } from "../pod/shops.js";
+import { ratingOf } from "../reviews/reviews.js";
+import { reviewRoutes } from "../reviews/routes.js";
 import { Done } from "../social/contracts.js";
 import { coachingCheckoutUrl, coachingFileLinks } from "./checkout.js";
 import {
@@ -47,9 +49,22 @@ import {
 import desk from "./desk.js";
 import { cancelOrder, catchUp, placeOrder, syncCoachingPayment } from "./orders.js";
 import { addDays, atTime, coachingSettings, DAY_MS, dayOf } from "./rules.js";
-import { batchViews, classView, courseCard, courseCards, isOpen, materialView, orderViews, photoView, REFUND_RULE, sortBatches } from "./views.js";
+import {
+  batchViews,
+  classView,
+  coachingReviewable,
+  courseCard,
+  courseCards,
+  isOpen,
+  materialView,
+  orderViews,
+  photoView,
+  REFUND_RULE,
+  sortBatches,
+} from "./views.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
+const signedInOrNot: Record<string, string[]>[] = [{}, { bearer: [] }, { cookie: [] }];
 const MAX_CHILDREN = 10;
 
 /** Runs the checks a missed sweep would leave undone on these orders' batches, and reads the orders again if anything moved. */
@@ -61,9 +76,31 @@ export async function freshOrders(app: FastifyInstance, db: Database, orders: Co
   return orders.map((o) => again.find((a) => a._id.equals(o._id)) ?? o);
 }
 
+/** A course's page is public while it's live and its business isn't suspended; drafts and Ruxstar's take-downs aren't. */
+async function publicCourse(db: Database, id: ObjectId): Promise<boolean> {
+  const course = await db.coachingCourses.findOne({ _id: id }, { projection: { status: 1, businessId: 1 } });
+  if (!course || course.status !== "live") return false;
+  return !(await db.businesses.findOne({ _id: course.businessId, suspension: { $exists: true } }, { projection: { _id: 1 } }));
+}
+
 /** Coaching for customers: finding courses, demos, enrolling and paying, their classes, children and certificates. Teaching is under /desk. */
 const coaching: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(desk, { prefix: "/desk" });
+  await app.register(
+    reviewRoutes({
+      module: "coaching",
+      tag: "coaching",
+      noun: "enrolment",
+      rule: "Once the first class it covers has been held, until 30 days after its last class; confirmed enrolments and demos.",
+      order: async (_app, db, userId, id) => {
+        const order = await db.coachingOrders.findOne({ _id: new ObjectId(id), customerId: userId });
+        if (!order) throw new AppError("NOT_FOUND", "Enrolment not found.");
+        const batch = await db.coachingBatches.findOne({ _id: order.batchId }, { projection: { lastEndsAt: 1 } });
+        return coachingReviewable(order, batch);
+      },
+      listing: { type: "course", label: "course", visible: publicCourse },
+    }),
+  );
   const db = () => requireDatabase(app.db);
 
   async function heldBusinesses(ids: ObjectId[]) {
@@ -90,15 +127,17 @@ const coaching: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/rules",
     {
-      preHandler: requireAuth,
+      preHandler: signedInIfPossible,
       schema: {
         tags: ["coaching"],
         summary: "Ruxstar's rules for coaching: certificates, minimum batch size checks, limits and fees",
+        description: "No sign-in needed.",
         response: { 200: CoachingRulesOne, ...Errors },
-        security,
+        security: signedInOrNot,
       },
     },
-    async (request) => {
+    async (request, reply) => {
+      publicCache(request, reply);
       const { live: _live, ...rules } = await coachingSettings(db());
       return ok(request, rules);
     },
@@ -107,19 +146,20 @@ const coaching: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/",
     {
-      preHandler: requireAuth,
+      preHandler: signedInIfPossible,
       schema: {
         tags: ["coaching"],
         summary: "Courses taking students, newest first",
         description:
-          "With `city`, courses taught there and online ones (unless `online` is false). Courses with no batch open show `openBatches` 0. " +
+          "No sign-in needed. With `city`, courses taught there and online ones (unless `online` is false). Courses with no batch open show `openBatches` 0. " +
           "Empty while Ruxstar has coaching switched off.",
         querystring: CoursesQuery,
         response: { 200: CourseList, ...Errors },
-        security,
+        security: signedInOrNot,
       },
     },
-    async (request) => {
+    async (request, reply) => {
+      publicCache(request, reply);
       if (!(await isModuleLive(db(), "coaching"))) return page(request, [], null);
       const { city, category, online, q, cursor, limit } = request.query;
       const filters: Filter<CoachingCourseDoc>[] = [{ status: "live" }];
@@ -497,21 +537,22 @@ const coaching: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/:id",
     {
-      preHandler: requireAuth,
+      preHandler: signedInIfPossible,
       schema: {
         tags: ["coaching"],
         summary: "One course: its batches with seats left, demo classes, the refund rule, and your enrolments in it",
+        description: "No sign-in needed; signed out, `myOrders` and `demoTaken` are empty and courses Ruxstar took down aren't found.",
         params: IdParams,
         response: { 200: CourseOne, ...Errors },
-        security,
+        security: signedInOrNot,
       },
     },
-    async (request) => {
-      const userId = request.auth!.userId;
+    async (request, reply) => {
+      const userId = request.auth?.userId ?? null;
       const course = await db().coachingCourses.findOne({ _id: new ObjectId(request.params.id) });
-      const own = course?.vendorId.equals(userId);
-      if (!course || (course.status === "draft" && !own)) throw new AppError("NOT_FOUND", "This course isn't on Ruxstar.");
-      const business = await db().businesses.findOne({ _id: course.businessId }, { projection: { suspension: 1 } });
+      const own = Boolean(userId && course?.vendorId.equals(userId));
+      if (!course || (course.status === "draft" && !own) || (course.status === "removed" && !userId)) throw new AppError("NOT_FOUND", "This course isn't on Ruxstar.");
+      const business = await db().businesses.findOne({ _id: course.businessId }, { projection: { suspension: 1, rating: 1 } });
       if (business?.suspension && !own) throw new AppError("NOT_FOUND", "This course isn't on Ruxstar.");
       let batches = await db().coachingBatches.find({ courseId: course._id }).toArray();
       if (await catchUp(app, db(), batches)) batches = await db().coachingBatches.find({ courseId: course._id }).toArray();
@@ -525,7 +566,7 @@ const coaching: FastifyPluginAsyncTypebox = async (app) => {
       const [settings, live, orders, demoSessions] = await Promise.all([
         coachingSettings(db()),
         isModuleLive(db(), "coaching"),
-        db().coachingOrders.find({ courseId: course._id, customerId: userId }).sort({ createdAt: -1 }).limit(50).toArray(),
+        userId ? db().coachingOrders.find({ courseId: course._id, customerId: userId }).sort({ createdAt: -1 }).limit(50).toArray() : [],
         course.demo
           ? db()
               .coachingSessions.find({
@@ -581,11 +622,13 @@ const coaching: FastifyPluginAsyncTypebox = async (app) => {
         demoTaken: orders
           .filter((o) => o.kind === "demo" && o.status !== "cancelled")
           .map((o) => ({ childId: o.student.childId?.toHexString() ?? null, name: o.student.name })),
+        rating: ratingOf(business ?? {}),
       };
       if (!course.photo) {
         const shop = await db().businesses.findOne({ _id: course.businessId }, { projection: { photos: { $slice: 1 } } });
         detail.photo = photoView(shop?.photos?.[0]);
       }
+      publicCache(request, reply);
       return ok(request, detail);
     },
   );

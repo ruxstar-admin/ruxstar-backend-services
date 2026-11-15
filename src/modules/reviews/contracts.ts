@@ -22,17 +22,23 @@ export type Rating = Static<typeof Rating>;
 const Stars = Type.Integer({ minimum: 1, maximum: 5 });
 const Reply = Strict({ text: Type.String(), at: DateTime, editedAt: Nullable(DateTime) });
 const Author = Strict({ id: ObjectIdString, name: Type.String(), username: Nullable(Type.String()), avatarUrl: Nullable(Type.String()) });
+export const ReviewModuleName = Type.Union([Type.Literal("pod"), Type.Literal("events"), Type.Literal("coaching")], {
+  description: "The kind of business: print, events or coaching",
+});
+const Listing = Strict({ type: Type.Union([Type.Literal("event"), Type.Literal("course")]), id: ObjectIdString });
 
-/** A review as anyone sees it on the shop's page. */
+/** A review as anyone sees it on the business's page. */
 export const Review = Strict({
   id: ObjectIdString,
   rating: Stars,
   text: Nullable(Type.String()),
-  product: Type.String({ description: "What was ordered, for example Business cards" }),
+  product: Type.String({ description: "What was bought: a print product such as Business cards, an event's title or a course's" }),
   author: Nullable(Author),
   reply: Nullable(Reply, { description: "The shop's answer" }),
   createdAt: DateTime,
   editedAt: Nullable(DateTime),
+  module: Type.Optional(ReviewModuleName),
+  listing: Type.Optional(Nullable(Listing, { description: "The event or course reviewed; null for print" })),
 });
 export type Review = Static<typeof Review>;
 export const ReviewList = ListEnvelope(Review);
@@ -61,6 +67,12 @@ export const ReplyBody = Strict({ text: Type.String({ minLength: 2, maxLength: R
 
 export const ReviewReportReason = Type.Union([Type.Literal("spam"), Type.Literal("fake"), Type.Literal("abuse"), Type.Literal("other")]);
 export const ReviewReportBody = Strict({ reason: ReviewReportReason, note: Type.Optional(Type.String({ maxLength: 300 })) });
+
+/** Optional fields on an order view of any module: whether the customer can write or change a review of it now, and until when. */
+export const ReviewEligibility = {
+  canReview: Type.Optional(Type.Boolean({ description: "The order is open for a review now (write or change it), and Ruxstar hasn't removed one" })),
+  reviewUntil: Type.Optional(Nullable(DateTime, { description: "The last moment to write or change the review; null when it can't be reviewed now" })),
+};
 
 export const Done = Envelope(Strict({ done: Type.Literal(true) }));
 export const ReviewParams = Strict({ id: ObjectIdString });

@@ -1,6 +1,8 @@
 import { Type, type Static, type TSchema } from "typebox";
 import { DateTime, Envelope, ListEnvelope, ObjectIdString, PageQuery, Paise, Strict } from "../../contracts/common.js";
+import { AppliedCoupon, Offer } from "../coupons/contracts.js";
 import { InvoiceRefs } from "../invoices/contracts.js";
+import { Rating, ReviewEligibility } from "../reviews/contracts.js";
 import { Point } from "../vendor/contracts.js";
 
 const Nullable = <T extends TSchema>(schema: T, options?: { description: string }) => Type.Union([schema, Type.Null()], options);
@@ -164,6 +166,7 @@ export const EventDetail = Strict({
   ),
   myWaits: Type.Array(MyWait),
   maxPerOrder: Type.Integer(),
+  rating: Type.Optional(Rating),
 });
 export type EventDetail = Static<typeof EventDetail>;
 export const EventOne = Envelope(EventDetail);
@@ -263,9 +266,22 @@ export const CreateTicketsBody = Strict({
   tickets: Type.Array(HolderBody, { minItems: 1, maxItems: 50, description: "One per person, or per player for a team entry" }),
   team: Type.Optional(Strict({ tierId: Type.String({ maxLength: 40 }), name: Type.String({ minLength: 2, maxLength: 60 }) })),
   waitlistId: Type.Optional(ObjectIdString),
+  coupon: Type.Optional(Type.String({ minLength: 3, maxLength: 20, description: "A coupon code for the tickets; free tickets ignore it" })),
   returnTo: ReturnTo,
 });
 export const PayTicketsBody = Strict({ returnTo: ReturnTo });
+export const EventOffersQuery = Strict({
+  items: Type.Optional(
+    Type.Integer({ minimum: 0, maximum: MAX_TICKET_PRICE * MAX_PER_ORDER, description: "Paise of the tickets picked, before the platform fee; the cheapest paid ticket when left out" }),
+  ),
+  code: Type.Optional(Type.String({ minLength: 3, maxLength: 20, description: "Check this code too" })),
+});
+export const EventOffersOne = Envelope(
+  Strict({
+    offers: Type.Array(Offer),
+    checked: Nullable(Strict({ code: Type.String(), discount: Paise, problem: Nullable(Type.String()) }), { description: "With `code`" }),
+  }),
+);
 export const JoinWaitlistBody = Strict({
   tierId: Type.String({ maxLength: 40 }),
   quantity: Type.Integer({ minimum: 1, maximum: MAX_PER_ORDER }),
@@ -303,7 +319,8 @@ export const TicketOrder = Strict({
   business: Strict({ id: ObjectIdString, name: Type.String() }),
   lines: Type.Array(Strict({ tierId: Type.String(), name: Type.String(), quantity: Type.Integer(), unitPrice: Paise })),
   team: Nullable(Type.String()),
-  price: Strict({ items: Paise, platformFee: Paise, total: Paise }),
+  price: Strict({ items: Paise, platformFee: Paise, total: Paise, discount: Type.Optional(Paise) }),
+  coupon: Type.Optional(Nullable(AppliedCoupon)),
   refund: Nullable(Strict({ amount: Paise, status: Type.Union([Type.Literal("pending"), Type.Literal("done")]), reason: Nullable(Type.String()) })),
   reason: Nullable(Type.String()),
   canCancel: Type.Boolean(),
@@ -311,6 +328,7 @@ export const TicketOrder = Strict({
   payBy: Nullable(DateTime, { description: "Unpaid orders give their seats back after this" }),
   tickets: Type.Array(TicketView),
   invoices: InvoiceRefs,
+  ...ReviewEligibility,
   createdAt: DateTime,
 });
 export type TicketOrder = Static<typeof TicketOrder>;

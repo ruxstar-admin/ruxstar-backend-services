@@ -53,6 +53,24 @@ async function sendPdf(reply: FastifyReply, doc: InvoiceDoc, download = false) {
     .send(data);
 }
 
+/** The list filters every invoice list shares. A day covers the whole India day; an exact time is taken as it is. */
+function listFilter(query: { from?: string; to?: string; orderId?: string; module?: GstModule }): Filter<InvoiceDoc> {
+  const at = (value: string, path: string, end: boolean) => {
+    const day = value.length === 10;
+    const time = new Date(day ? `${value}T00:00:00+05:30` : value).getTime();
+    if (Number.isNaN(time)) throw invalid(path, "Use a date like 2026-04-01 or a time like 2026-04-01T10:00:00Z.");
+    return new Date(end ? time + (day ? DAY_MS : 1) : time);
+  };
+  const start = query.from ? at(query.from, "querystring/from", false) : null;
+  const end = query.to ? at(query.to, "querystring/to", true) : null;
+  if (start && end && end <= start) throw invalid("querystring/to", "The end date is before the start date.");
+  return {
+    ...(start || end ? { issuedAt: { ...(start ? { $gte: start } : {}), ...(end ? { $lt: end } : {}) } } : {}),
+    ...(query.orderId ? { "source.id": new ObjectId(query.orderId) } : {}),
+    ...(query.module ? { module: query.module } : {}),
+  };
+}
+
 async function findOne(db: Database, filter: Filter<InvoiceDoc>): Promise<InvoiceDoc> {
   const doc = await db.invoices.findOne(filter);
   if (!doc) throw new AppError("NOT_FOUND", "Invoice not found.");
@@ -78,8 +96,8 @@ export const customerInvoices: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (request) => {
-      const { orderId, cursor, limit } = request.query;
-      const filter: Filter<InvoiceDoc> = { customerId: request.auth!.userId, ...(orderId ? { "source.id": new ObjectId(orderId) } : {}) };
+      const { cursor, limit } = request.query;
+      const filter: Filter<InvoiceDoc> = { customerId: request.auth!.userId, ...listFilter(request.query) };
       const { items, nextCursor } = await findPage(db().invoices, { filter, sortField: "issuedAt", cursor, limit });
       const links = invoicePdfLinks(app, request);
       return page(request, items.map((d) => invoiceView(d, links, "customer")), nextCursor);
@@ -141,6 +159,7 @@ export const vendorInvoices: FastifyPluginAsyncTypebox = async (app) => {
         role: "supply",
         ...(business ? { businessId: new ObjectId(business) } : {}),
         ...(kind ? { kind } : {}),
+        ...listFilter(request.query),
       };
       const { items, nextCursor } = await findPage(db().invoices, { filter, sortField: "issuedAt", cursor, limit });
       const links = invoicePdfLinks(app, request);
@@ -289,6 +308,7 @@ export const consoleInvoices: FastifyPluginAsyncTypebox = async (app) => {
         ...(number ? { number: number.trim().toUpperCase() } : {}),
         ...(orderNo ? { "source.orderNo": orderNo } : {}),
         ...(business ? { businessId: new ObjectId(business) } : {}),
+        ...listFilter(request.query),
       };
       const { items, nextCursor } = await findPage(db().invoices, { filter, sortField: "issuedAt", cursor, limit });
       const links = invoicePdfLinks(app, request);

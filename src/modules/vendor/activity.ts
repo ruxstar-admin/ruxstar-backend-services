@@ -136,8 +136,10 @@ export function lineOf(e: Entry, refs: Refs): string {
 async function present(db: Database, business: { _id: ObjectId; ownerId: ObjectId }, items: Entry[]): Promise<ActivityEntry[]> {
   const targets = (type: string) => items.flatMap((e) => (e.target.type === type && typeof e.target.id !== "string" ? [e.target.id] : []));
   const actorIds = items.flatMap((e) => (e.actor.id ? [e.actor.id] : []));
-  const [orders, coupons, places, crew] = await Promise.all([
+  const [orders, tickets, enrolments, coupons, places, crew] = await Promise.all([
     db.podOrders.find({ _id: { $in: targets("pod_order") } }, { projection: { orderNo: 1 } }).toArray(),
+    db.eventOrders.find({ _id: { $in: targets("event_order") } }, { projection: { orderNo: 1 } }).toArray(),
+    db.coachingOrders.find({ _id: { $in: targets("coaching_order") } }, { projection: { orderNo: 1 } }).toArray(),
     db.coupons.find({ _id: { $in: targets("coupon") } }, { projection: { code: 1 } }).toArray(),
     db.employments.find({ _id: { $in: targets("employment") }, businessId: business._id }, { projection: { userId: 1 } }).toArray(),
     db.employments.find({ businessId: business._id, userId: { $in: actorIds } }, { projection: { userId: 1 } }).toArray(),
@@ -151,7 +153,7 @@ async function present(db: Database, business: { _id: ObjectId; ownerId: ObjectI
     return u?.name || (u?.username ? `@${u.username}` : "Someone");
   };
   const refs: Refs = {
-    orders: new Map(orders.map((o) => [o._id.toHexString(), o.orderNo])),
+    orders: new Map([...orders, ...tickets, ...enrolments].map((o) => [o._id.toHexString(), o.orderNo])),
     coupons: new Map(coupons.map((c) => [c._id.toHexString(), c.code])),
     people: new Map(places.map((p) => [p._id.toHexString(), nameOf(p.userId)])),
   };

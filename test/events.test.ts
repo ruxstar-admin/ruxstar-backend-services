@@ -413,6 +413,7 @@ describe("events and tickets", () => {
     expect(team.permissions.map((p: { key: string; verify: boolean }) => [p.key, p.verify])).toEqual([
       ["tickets.scan", false],
       ["tickets.guests", true],
+      ["reviews.reply", true],
     ]);
   });
 

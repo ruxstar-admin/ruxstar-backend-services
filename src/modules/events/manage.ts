@@ -139,7 +139,21 @@ export async function vendorViews(db: Database, events: WithId<EventDoc>[], busi
     db.eventOrders
       .aggregate<{ _id: ObjectId; items: number; share: number; lines: { tierId: string; quantity: number }[][] }>([
         { $match: { eventId: { $in: ids }, status: "confirmed" } },
-        { $group: { _id: "$eventId", items: { $sum: "$price.items" }, share: { $sum: { $subtract: ["$price.items", "$price.commission"] } }, lines: { $push: "$lines" } } },
+        {
+          $group: {
+            _id: "$eventId",
+            items: { $sum: "$price.items" },
+            share: {
+              $sum: {
+                $subtract: [
+                  { $subtract: ["$price.items", "$price.commission"] },
+                  { $cond: [{ $eq: ["$price.coupon.fundedBy", "vendor"] }, { $ifNull: ["$price.discount", 0] }, 0] },
+                ],
+              },
+            },
+            lines: { $push: "$lines" },
+          },
+        },
       ])
       .toArray(),
   ]);

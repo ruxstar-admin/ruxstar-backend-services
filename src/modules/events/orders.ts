@@ -5,6 +5,7 @@ import { writeAudit } from "../../platform/audit.js";
 import type { AuditLogDoc, Database, EventDoc, EventOrderDoc, EventTicketDoc, EventWaitDoc } from "../../platform/db.js";
 import { stamp } from "../../platform/db.js";
 import { AppError } from "../../platform/errors.js";
+import { checkCode, giveBack, redeem } from "../coupons/coupons.js";
 import { creditOrder, invoiceEventOrder } from "../invoices/issue.js";
 import { notifyEvent } from "../notifications/notify.js";
 import { rupees, signingKey } from "../pod/orders.js";
@@ -130,10 +131,27 @@ export async function bookTickets(
   }
 
   const items = lines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0);
+  let coupon: EventOrderDoc["price"]["coupon"] = null;
+  let discount = 0;
+  if (body.coupon && items > 0) {
+    const check = await checkCode(db, body.coupon, { module: "events", shop: { id: event.businessId, name: event.businessName }, customerId: customer.id, items });
+    if (check.problem !== null) throw new AppError("COUPON_INVALID", check.problem, [{ path: "body/coupon", message: check.problem }]);
+    coupon = { id: check.coupon._id, code: check.coupon.code, fundedBy: check.coupon.fundedBy };
+    discount = check.discount;
+  }
   const platformFee = items > 0 ? settings.platformFee : 0;
-  const total = items + platformFee;
+  const charged = coupon?.fundedBy === "vendor" ? items - discount : items;
+  const total = items - discount + platformFee;
   if (total > MAX_ORDER_TOTAL) throw invalid("body/tickets", "Bookings over ₹5,00,000 can't be paid online. Split it up.");
-  const price = { items, platformFee, total, commissionBps: settings.commissionBps, commission: Math.round((items * settings.commissionBps) / 10_000) };
+  const price: EventOrderDoc["price"] = {
+    items,
+    platformFee,
+    total,
+    commissionBps: settings.commissionBps,
+    commission: Math.round((charged * settings.commissionBps) / 10_000),
+    discount,
+    coupon,
+  };
   const free = total === 0;
 
   const id = new ObjectId();
@@ -272,6 +290,7 @@ export async function confirmTickets(app: FastifyInstance, db: Database, order: 
     if (!done) return null;
     await db.eventTickets.updateMany({ orderId: order._id, status: "awaiting_payment" }, { $set: { status: "valid", updatedAt: now } }, { session });
     for (const entry of eventLedger("payment", done, now)) await db.ledgerEntries.insertOne(entry, { session });
+    await redeem(db, done, session);
     const issued = await invoiceEventOrder(db, done, session);
     if (issued.length) done.invoices = [...(done.invoices ?? []), ...issued];
     return done;
@@ -321,7 +340,10 @@ export async function cancelTickets(
     if (!done) return null;
     await db.eventTickets.updateMany({ orderId: order._id }, { $set: { status: "cancelled", updatedAt: now } }, { session });
     await returnSeats(db, order, session);
-    if (paid) for (const entry of eventLedger("refund", done, now)) await db.ledgerEntries.insertOne(entry, { session });
+    if (paid) {
+      for (const entry of eventLedger("refund", done, now)) await db.ledgerEntries.insertOne(entry, { session });
+      await giveBack(db, done, session);
+    }
     if (refund) {
       const credited = await creditOrder(db, "event_order", done._id, { id: refund.refundId, reason: refund.reason, amount: null }, session);
       if (credited.length) done.invoices = [...(done.invoices ?? []), ...credited];

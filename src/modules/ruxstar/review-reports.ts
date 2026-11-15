@@ -11,7 +11,7 @@ import { idempotent } from "../../platform/idempotency.js";
 import { DEFAULT_LIMIT, MAX_LIMIT, decodeCursor, encodeCursor } from "../../platform/pagination.js";
 import { notifyReview } from "../notifications/notify.js";
 import { RemoveReviewBody, ReviewCaseList, ReviewCaseOne, ReviewCaseParams, type ReviewCase } from "../reviews/contracts.js";
-import { authorsOf, refreshRating, reviewView } from "../reviews/reviews.js";
+import { authorsOf, moduleOf, orderLinkOf, refreshRating, reviewView } from "../reviews/reviews.js";
 import { ReportsQuery } from "./contracts.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
@@ -27,7 +27,7 @@ interface Group {
   key: Date;
 }
 
-/** Reported shop reviews, one row per review. Ruxstar keeps a review or removes it with a reason the customer is told. */
+/** Reported reviews of every kind of business, one row per review. Ruxstar keeps a review or removes it with a reason the customer is told. */
 const reviewReports: FastifyPluginAsyncTypebox = async (app) => {
   const db = () => requireDatabase(app.db);
 
@@ -60,7 +60,7 @@ const reviewReports: FastifyPluginAsyncTypebox = async (app) => {
 
   async function present(status: "open" | "closed", rows: Group[]): Promise<ReviewCase[]> {
     const reviews = await db()
-      .podReviews.find({ _id: { $in: rows.map((r) => r._id) } })
+      .reviews.find({ _id: { $in: rows.map((r) => r._id) } })
       .toArray();
     const [people, shops] = await Promise.all([
       authorsOf(db(), reviews),
@@ -142,6 +142,7 @@ const reviewReports: FastifyPluginAsyncTypebox = async (app) => {
     async (request) => {
       const database = db();
       const reviewId = new ObjectId(request.params.reviewId);
+      const review = await database.reviews.findOne({ _id: reviewId }, { projection: { module: 1, shopId: 1 } });
       await database.transaction(async (session) => {
         const { modifiedCount } = await database.reviewReports.updateMany(
           { reviewId, status: "open" },
@@ -153,7 +154,7 @@ const reviewReports: FastifyPluginAsyncTypebox = async (app) => {
           database,
           {
             actor: actorOf(request),
-            scope: { module: "pod" },
+            scope: { module: review ? moduleOf(review) : "pod" },
             action: "review_report.keep",
             target: { type: "pod_review", id: reviewId },
             diff: { openReports: { from: modifiedCount, to: 0 } },
@@ -185,12 +186,12 @@ const reviewReports: FastifyPluginAsyncTypebox = async (app) => {
       const database = db();
       const reviewId = new ObjectId(request.params.reviewId);
       const reason = request.body.reason.trim();
-      const review = await database.podReviews.findOne({ _id: reviewId });
+      const review = await database.reviews.findOne({ _id: reviewId });
       if (!review) throw new AppError("NOT_FOUND", "The customer deleted this review.");
       if (review.status === "removed") throw new AppError("CONFLICT", "This review is already removed.");
       const now = new Date();
       await database.transaction(async (session) => {
-        const res = await database.podReviews.updateOne(
+        const res = await database.reviews.updateOne(
           { _id: reviewId, status: "live" },
           { $set: { status: "removed", removal: { by: request.auth!.userId, reason, at: now }, updatedAt: now } },
           { session },
@@ -205,9 +206,9 @@ const reviewReports: FastifyPluginAsyncTypebox = async (app) => {
           database,
           {
             actor: actorOf(request),
-            scope: { module: "pod", businessId: review.shopId },
+            scope: { module: moduleOf(review), businessId: review.shopId },
             action: "review.remove",
-            target: { type: "pod_order", id: review.orderId },
+            target: { type: review.orderType ?? "pod_order", id: review.orderId },
             diff: { status: { from: "live", to: "removed" }, reason: { from: null, to: reason } },
             ip: request.ip,
           },
@@ -221,7 +222,7 @@ const reviewReports: FastifyPluginAsyncTypebox = async (app) => {
         type: "review.removed",
         title: "Your review was removed",
         body: `Ruxstar removed your review of order #${review.orderNo}: ${reason}`,
-        link: { screen: "order", id: review.orderId.toHexString() },
+        link: orderLinkOf(review),
       });
       return ok(request, await latestCase(reviewId));
     },

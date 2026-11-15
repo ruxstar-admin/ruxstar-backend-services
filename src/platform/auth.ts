@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { SignJWT, jwtVerify } from "jose";
 import { ObjectId } from "mongodb";
 import type { AuthContext, ClientKind } from "./context.js";
@@ -111,6 +111,23 @@ export async function requireAuth(request: FastifyRequest): Promise<void> {
 
   request.auth = { userId, sessionId, roles: user.roles ?? {}, kyc: user.kyc ?? {} };
   cache.set({ ...request.auth }, session.expiresAt);
+}
+
+/** Public reads show personal bits to whoever is signed in, and work for anyone who is not. */
+export async function signedInIfPossible(request: FastifyRequest): Promise<void> {
+  try {
+    await requireAuth(request);
+  } catch (err) {
+    if (!(err instanceof AppError) || err.code !== "UNAUTHENTICATED") throw err;
+    request.auth = null;
+  }
+}
+
+/** A signed-out answer may be cached briefly by the website's server; a signed-in one never, and the two never mix. */
+export function publicCache(request: FastifyRequest, reply: FastifyReply, seconds = 60): void {
+  const vary = reply.getHeader("vary");
+  reply.header("vary", [vary, "Cookie, Authorization"].filter(Boolean).join(", "));
+  reply.header("cache-control", request.auth ? "private, no-store" : `public, max-age=${seconds}`);
 }
 
 export async function requireAdmin(request: FastifyRequest): Promise<void> {

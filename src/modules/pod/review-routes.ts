@@ -9,7 +9,7 @@ import { AppError } from "../../platform/errors.js";
 import { isModuleLive } from "../../platform/module-switch.js";
 import { findPage } from "../../platform/pagination.js";
 import { Done, MyReviewOne, ReviewBody, ReviewList, ReviewParams, ReviewReportBody, ShopReviewsQuery } from "../reviews/contracts.js";
-import { authorsOf, deleteReview, myReviewView, reviewView, writeReview } from "../reviews/reviews.js";
+import { authorsOf, deleteReview, myReviewView, podReviewable, reportReview, reviewView, writeReview } from "../reviews/reviews.js";
 import { OrderParams, ShopParams } from "./contracts.js";
 import { applyDue } from "./order-rules.js";
 import { visibleShops } from "./shops.js";
@@ -42,7 +42,7 @@ const reviews: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const order = await mine(request.auth!.userId, request.params.id);
-      const doc = await db().podReviews.findOne({ orderId: order._id });
+      const doc = await db().reviews.findOne({ orderId: order._id });
       return ok(request, doc ? myReviewView(doc, await authorsOf(db(), [doc])) : null);
     },
   );
@@ -66,7 +66,7 @@ const reviews: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const order = await mine(request.auth!.userId, request.params.id);
-      const doc = await writeReview(db(), order, request.body, { actor: actorOf(request), ip: request.ip, log: request.log });
+      const doc = await writeReview(db(), podReviewable(order), request.body, { actor: actorOf(request), ip: request.ip, log: request.log });
       return ok(request, myReviewView(doc, await authorsOf(db(), [doc])));
     },
   );
@@ -86,7 +86,7 @@ const reviews: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const order = await mine(request.auth!.userId, request.params.id);
-      await deleteReview(db(), order, { actor: actorOf(request), ip: request.ip });
+      await deleteReview(db(), order._id, { actor: actorOf(request), ip: request.ip });
       return ok(request, { done: true as const });
     },
   );
@@ -108,7 +108,7 @@ const reviews: FastifyPluginAsyncTypebox = async (app) => {
     async (request) => {
       const shop = await db().businesses.findOne({ ...visibleShops, _id: new ObjectId(request.params.id) }, { projection: { _id: 1 } });
       if (!shop || !(await isModuleLive(db(), "pod"))) throw new AppError("NOT_FOUND", "This shop is not on Ruxstar right now.");
-      const { items, nextCursor } = await findPage(db().podReviews, {
+      const { items, nextCursor } = await findPage(db().reviews, {
         filter: { shopId: shop._id, status: "live" },
         sortField: "createdAt",
         cursor: request.query.cursor,
@@ -139,17 +139,7 @@ const reviews: FastifyPluginAsyncTypebox = async (app) => {
       },
     },
     async (request) => {
-      const userId = request.auth!.userId;
-      const review = await db().podReviews.findOne({ _id: new ObjectId(request.params.id), status: "live" }, { projection: { customerId: 1 } });
-      if (!review) throw new AppError("NOT_FOUND", "Review not found.");
-      if (review.customerId.equals(userId)) {
-        throw new AppError("VALIDATION_FAILED", "You can't report your own review.", [{ path: "params/id", message: "That is yours" }]);
-      }
-      await db().reviewReports.updateOne(
-        { reviewId: review._id, reporterId: userId, status: "open" },
-        { $setOnInsert: { reason: request.body.reason, note: request.body.note?.trim() || null, createdAt: new Date() } },
-        { upsert: true },
-      );
+      await reportReview(db(), request.auth!.userId, request.params.id, request.body);
       return ok(request, { done: true as const });
     },
   );

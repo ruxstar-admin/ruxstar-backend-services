@@ -894,7 +894,16 @@ export interface EventOrderDoc extends Stamped {
   endsAt: Date;
   lines: { tierId: string; name: string; quantity: number; unitPrice: number }[];
   team: { name: string } | null;
-  price: { items: number; platformFee: number; total: number; commissionBps: number; commission: number };
+  price: {
+    items: number;
+    platformFee: number;
+    total: number;
+    commissionBps: number;
+    commission: number;
+    /** Missing before event coupons (15 Nov 2026). */
+    discount?: number;
+    coupon?: { id: ObjectId; code: string; fundedBy: "ruxstar" | "vendor" } | null;
+  };
   status: EventOrderStatus;
   timeline: { status: EventOrderStatus; at: Date; by: "customer" | "vendor" | "staff" | "system" }[];
   /** Null on free orders. */
@@ -1338,18 +1347,31 @@ export type TeamPermission =
   | "classes.materials"
   | "classes.reschedule";
 
+/** Modules whose orders can be reviewed. */
+export type ReviewModule = "pod" | "events" | "coaching";
+export type ReviewOrderType = "pod_order" | "event_order" | "coaching_order";
+
 /**
- * A customer's review of one delivered print order (decision 55): 1 to 5 stars and an optional note, written or changed within
- * 30 days of delivery. The shop replies once and can change or remove the reply. `removed` when the Ruxstar team took it down.
+ * A customer's review of one finished order at any business (decisions 55 and A6): 1 to 5 stars and an optional note, written
+ * or changed while the module's window is open. The business replies once and can change or remove the reply. `removed` when
+ * the Ruxstar team took it down. Print reviews written before 15 Nov 2026 have no `module`, `orderType` or `listing`.
  */
-export interface PodReviewDoc extends Stamped {
+export interface ReviewDoc extends Stamped {
   _id: ObjectId;
   orderId: ObjectId;
   orderNo: number;
+  /** The business reviewed, of any module. */
   shopId: ObjectId;
   vendorId: ObjectId;
   customerId: ObjectId;
+  /** What was bought: a print product, an event's title or a course's. */
   productLabel: string;
+  /** Missing means `pod`. */
+  module?: ReviewModule;
+  /** Missing means `pod_order`. */
+  orderType?: ReviewOrderType;
+  /** The event or course reviewed; null or missing for print. */
+  listing?: { type: "event" | "course"; id: ObjectId } | null;
   rating: number;
   text: string | null;
   status: "live" | "removed";
@@ -1357,6 +1379,7 @@ export interface PodReviewDoc extends Stamped {
   reply: { text: string; by: ObjectId; at: Date; editedAt: Date | null } | null;
   removal?: { by: ObjectId; reason: string; at: Date };
 }
+export type PodReviewDoc = ReviewDoc;
 
 export type ReviewReportReason = "spam" | "fake" | "abuse" | "other";
 
@@ -1610,8 +1633,12 @@ export class Database {
   get employments() {
     return this.db.collection<EmploymentDoc>("employments");
   }
+  /** Reviews of every module. The collection kept the name it had when only print orders were reviewed. */
+  get reviews() {
+    return this.db.collection<ReviewDoc>("pod_reviews");
+  }
   get podReviews() {
-    return this.db.collection<PodReviewDoc>("pod_reviews");
+    return this.reviews;
   }
   get reviewReports() {
     return this.db.collection<ReviewReportDoc>("review_reports");

@@ -1,7 +1,10 @@
 import { createHash, createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { ObjectId } from "mongodb";
 import type { Database, EventDoc, EventOrderDoc, EventRules, EventTicketDoc, LedgerEntryDoc } from "../../platform/db.js";
+import { appliedView } from "../coupons/coupons.js";
 import { invoiceRefs } from "../invoices/views.js";
+import { REVIEW_DAYS } from "../reviews/contracts.js";
+import { openUntil, type Reviewable } from "../reviews/reviews.js";
 import { MAX_EVENT_DAYS, MAX_PER_ORDER, type EventCard, type TicketOrder } from "./contracts.js";
 
 export const DEFAULT_EVENT_RULES: EventRules = { refundHours: 24, waitlistHours: 2, maxTicketTypes: 5, maxQuestions: 3 };
@@ -67,8 +70,12 @@ export const lastFour = (phone: string | null) => (phone ? `••${phone.slice(
 // Money.
 
 const vendorAccount = (order: EventOrderDoc) => `vendor:${order.vendorId.toHexString()}`;
-export const vendorShare = (order: Pick<EventOrderDoc, "price">) => order.price.items - order.price.commission;
-const ruxstarShare = (order: Pick<EventOrderDoc, "price">) => order.price.commission + order.price.platformFee;
+const discountFrom = (order: Pick<EventOrderDoc, "price">, fundedBy: "ruxstar" | "vendor") =>
+  order.price.coupon?.fundedBy === fundedBy ? (order.price.discount ?? 0) : 0;
+/** The organiser's share: the tickets less its own coupon and Ruxstar's commission. */
+export const vendorShare = (order: Pick<EventOrderDoc, "price">) => order.price.items - discountFrom(order, "vendor") - order.price.commission;
+/** Ruxstar's commission and platform fee, less a Ruxstar coupon it pays for. */
+const ruxstarShare = (order: Pick<EventOrderDoc, "price">) => order.price.commission + order.price.platformFee - discountFrom(order, "ruxstar");
 
 type Row = [string, LedgerEntryDoc["bucket"], number];
 /**
@@ -141,11 +148,43 @@ export function eventCard(event: EventDoc, businessPhoto?: EventCard["photo"]): 
   };
 }
 
+/**
+ * A booking opens for a review once one of its tickets is checked in, or once the event has ended, and stays open for 30 days
+ * after the end. Only confirmed bookings of events that weren't cancelled.
+ */
+export function eventReviewable(order: EventOrderDoc, event: Pick<EventDoc, "endsAt" | "status"> | null, checkedIn: boolean, now = Date.now()): Reviewable {
+  const endsAt = event?.endsAt ?? order.endsAt;
+  const over = endsAt.getTime() <= now;
+  const open = order.status === "confirmed" && event?.status !== "cancelled" && (over || checkedIn);
+  const until = open ? openUntil(endsAt, now) : null;
+  return {
+    module: "events",
+    orderType: "event_order",
+    orderId: order._id,
+    orderNo: order.orderNo,
+    businessId: order.businessId,
+    businessName: order.businessName,
+    vendorId: order.vendorId,
+    customerId: order.customerId,
+    label: order.eventTitle,
+    listing: { type: "event", id: order.eventId },
+    until,
+    closed:
+      order.status !== "confirmed"
+        ? "Only confirmed bookings can be reviewed."
+        : event?.status === "cancelled"
+          ? "This event was cancelled, so it can't be reviewed."
+          : open
+            ? `Reviews close ${REVIEW_DAYS} days after the event.`
+            : "You can review the event once you're checked in or it has ended.",
+  };
+}
+
 export function ticketOrderView(
   order: EventOrderDoc,
   event: EventDoc | null,
   tickets: EventTicketDoc[],
-  ctx: { key: Uint8Array; rules: Pick<EventRules, "refundHours">; now?: number },
+  ctx: { key: Uint8Array; rules: Pick<EventRules, "refundHours">; now?: number; review?: { canReview: boolean; reviewUntil: string | null } },
 ): TicketOrder {
   const now = ctx.now ?? Date.now();
   const until = event ? cancelUntil(event, ctx.rules) : null;
@@ -172,7 +211,8 @@ export function ticketOrderView(
     business: { id: order.businessId.toHexString(), name: order.businessName },
     lines: order.lines,
     team: order.team?.name ?? null,
-    price: { items: order.price.items, platformFee: order.price.platformFee, total: order.price.total },
+    price: { items: order.price.items, platformFee: order.price.platformFee, total: order.price.total, discount: order.price.discount ?? 0 },
+    coupon: appliedView(order.price.coupon),
     refund: order.refund ? { amount: order.refund.amount, status: order.refund.status, reason: order.refund.reason } : null,
     reason: order.reason,
     canCancel,
@@ -190,6 +230,7 @@ export function ticketOrderView(
       checkedInAt: t.checkIns.at(-1)?.at.toISOString() ?? null,
     })),
     invoices: invoiceRefs(order.invoices),
+    ...ctx.review,
     createdAt: order.createdAt.toISOString(),
   };
 }

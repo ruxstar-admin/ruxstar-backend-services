@@ -1,6 +1,15 @@
 import { MongoServerError, ObjectId, type ClientSession, type WithId } from "mongodb";
 import { writeAudit } from "../../platform/audit.js";
-import { stamp, type AuditLogDoc, type CouponDoc, type Database, type PodOrderDoc, type PodOrderStatus, type SwitchableModule } from "../../platform/db.js";
+import {
+  stamp,
+  type AuditLogDoc,
+  type BusinessDoc,
+  type CouponDoc,
+  type Database,
+  type PodOrderDoc,
+  type PodOrderStatus,
+  type SwitchableModule,
+} from "../../platform/db.js";
 import { AppError } from "../../platform/errors.js";
 import type { Coupon, CreateCouponBody, Offer, UpdateCouponBody } from "./contracts.js";
 
@@ -71,18 +80,23 @@ interface History {
 
 async function historyOf(db: Database, customerId: ObjectId, couponIds: ObjectId[]): Promise<History> {
   const unpaidFilter = { customerId, status: "awaiting_payment" as const, "price.coupon.id": { $in: couponIds }, createdAt: { $gt: new Date(Date.now() - UNPAID_HOLD_MS) } };
-  const [redemptions, unpaid, unpaidClasses, orderedFrom, enrolledAt] = await Promise.all([
+  const [redemptions, unpaid, unpaidClasses, unpaidTickets, orderedFrom, enrolledAt, bookedAt] = await Promise.all([
     db.couponRedemptions.find({ couponId: { $in: couponIds }, customerId }, { projection: { couponId: 1 } }).toArray(),
     db.podOrders.find(unpaidFilter, { projection: { "price.coupon.id": 1 } }).toArray(),
     db.coachingOrders.find(unpaidFilter, { projection: { "price.coupon.id": 1 } }).toArray(),
+    db.eventOrders.find(unpaidFilter, { projection: { "price.coupon.id": 1 } }).toArray(),
     db.podOrders.distinct("shopId", { customerId, status: { $in: PAID } }),
     db.coachingOrders.distinct("businessId", { customerId, "payment.paidAt": { $type: "date" } }),
+    db.eventOrders.distinct("businessId", { customerId, "payment.paidAt": { $type: "date" } }),
   ]);
-  const ids = [...redemptions.map((r) => r.couponId), ...unpaid.map((o) => o.price.coupon!.id), ...unpaidClasses.map((o) => o.price.coupon!.id)];
-  return { uses: (couponId) => ids.filter((id) => id.equals(couponId)).length, orderedFrom: [...orderedFrom, ...enrolledAt] };
+  const ids = [
+    ...redemptions.map((r) => r.couponId),
+    ...[...unpaid, ...unpaidClasses, ...unpaidTickets].map((o) => o.price.coupon!.id),
+  ];
+  return { uses: (couponId) => ids.filter((id) => id.equals(couponId)).length, orderedFrom: [...orderedFrom, ...enrolledAt, ...bookedAt] };
 }
 
-const WHERE: Partial<Record<SwitchableModule, string>> = { pod: "print orders", coaching: "classes" };
+const WHERE: Partial<Record<SwitchableModule, string>> = { pod: "print orders", events: "event tickets", coaching: "classes" };
 
 function problemOf(coupon: CouponDoc, ctx: CouponContext, history: History, now: Date): Problem | null {
   const state = stateOf(coupon, now);
@@ -337,16 +351,17 @@ async function modulesOf(db: Database, businessIds: ObjectId[]): Promise<Switcha
   const modules: string[] = await db.businesses.distinct("module", { _id: { $in: businessIds } });
   return COUPON_MODULES.filter((m) => modules.includes(m));
 }
-const COUPON_MODULES: SwitchableModule[] = ["pod", "coaching"];
+/** Modules whose orders take coupons. A new module adds itself here once its checkout calls `checkCode`, `redeem` and `giveBack`. */
+export const COUPON_MODULES: SwitchableModule[] = ["pod", "events", "coaching"];
 
-/** A vendor's own print shops and coaching businesses, by id, for the coupon's `businessIds`. */
+/** A vendor's own businesses that take coupons, by id, for the coupon's `businessIds`. */
 export async function vendorShops(db: Database, vendorId: ObjectId, ids: string[]): Promise<ObjectId[]> {
   const objectIds = ids.map((id) => new ObjectId(id));
   const found = await db.businesses
-    .find({ _id: { $in: objectIds }, ownerId: vendorId, module: { $in: ["pod", "coaching"] } }, { projection: { _id: 1 } })
+    .find({ _id: { $in: objectIds }, ownerId: vendorId, module: { $in: COUPON_MODULES as BusinessDoc["module"][] } }, { projection: { _id: 1 } })
     .toArray();
   ids.forEach((id, i) => {
-    if (!found.some((b) => b._id.toHexString() === id)) throw invalid(`body/businessIds/${i}`, "Pick one of your print shops or coaching businesses.");
+    if (!found.some((b) => b._id.toHexString() === id)) throw invalid(`body/businessIds/${i}`, "Pick one of your print shops, events or coaching businesses.");
   });
   return objectIds;
 }

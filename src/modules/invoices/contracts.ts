@@ -100,8 +100,16 @@ export const InvoiceOne = Envelope(Invoice);
 export const InvoiceList = ListEnvelope(Invoice);
 export const InvoiceParams = Strict({ id: ObjectIdString });
 
-export const MyInvoicesQuery = Strict({ ...PageQuery, orderId: Type.Optional(ObjectIdString) });
-export const VendorInvoicesQuery = Strict({ ...PageQuery, business: Type.Optional(ObjectIdString), kind: Type.Optional(InvoiceKind) });
+const dayOrTime = (description: string) =>
+  Type.String({ pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9:.]+(Z|[+-][0-9]{2}:[0-9]{2}))?$", maxLength: 40, description });
+const listFilters = {
+  from: Type.Optional(dayOrTime("Issued on or after: a day (YYYY-MM-DD, India time) or an exact ISO 8601 time")),
+  to: Type.Optional(dayOrTime("Issued on or before: a day (YYYY-MM-DD, India time, the whole day) or an exact ISO 8601 time")),
+  orderId: Type.Optional(ObjectIdString),
+  module: Type.Optional(GstModuleName),
+};
+export const MyInvoicesQuery = Strict({ ...PageQuery, ...listFilters });
+export const VendorInvoicesQuery = Strict({ ...PageQuery, business: Type.Optional(ObjectIdString), kind: Type.Optional(InvoiceKind), ...listFilters });
 const Day = Type.String({ pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", description: "YYYY-MM-DD, India time" });
 export const InvoiceExportQuery = Strict({ from: Day, to: Day, business: Type.Optional(ObjectIdString) });
 export const StaffInvoicesQuery = Strict({
@@ -110,6 +118,7 @@ export const StaffInvoicesQuery = Strict({
   number: Type.Optional(Type.String({ minLength: 1, maxLength: 16, description: "Exact document number" })),
   orderNo: Type.Optional(Type.Integer({ minimum: 1 })),
   business: Type.Optional(ObjectIdString),
+  ...listFilters,
 });
 
 // GST settings in the console.

@@ -306,6 +306,15 @@ export async function invoiceEventOrder(db: Database, order: EventOrderDoc, sess
   const holder = customer?.name ? null : await db.eventTickets.findOne({ orderId: order._id }, { session, projection: { "holder.name": 1 } });
   // Admission to an event is supplied where it happens; an online one where the organiser is.
   const venueState = event?.venue ? (stateOfPlace(event.venue.city) ?? business?.location?.state ?? null) : null;
+  const discount = order.price.discount ?? 0;
+  const vendorDiscount = order.price.coupon?.fundedBy === "vendor" ? discount : 0;
+  // The organiser's coupon comes off the lines by their value; the last line takes what rounding leaves.
+  let left = vendorDiscount;
+  const offs = order.lines.map((l, i) => {
+    const off = i === order.lines.length - 1 || !vendorDiscount ? left : Math.min(left, Math.round((vendorDiscount * l.quantity * l.unitPrice) / order.price.items));
+    left -= off;
+    return off;
+  });
   return issue(
     db,
     {
@@ -321,19 +330,19 @@ export async function invoiceEventOrder(db: Database, order: EventOrderDoc, sess
       feeState: null,
       lines: (rules) => {
         const rate = rateFor(rules, event?.kind ?? null);
-        return order.lines.map((l) => ({
+        return order.lines.map((l, i) => ({
           description: `${order.eventTitle}: ${l.name}${order.team ? " (team entry)" : ""}`,
           code: rate.code,
           codeKind: rate.codeKind,
           quantity: l.quantity,
           unitPrice: l.unitPrice,
-          discount: 0,
-          value: l.quantity * l.unitPrice,
+          discount: offs[i]!,
+          value: l.quantity * l.unitPrice - offs[i]!,
           rateBps: bpsAt(rate, l.unitPrice),
         }));
       },
       platformFee: order.price.platformFee,
-      ruxstarDiscount: 0,
+      ruxstarDiscount: order.price.coupon?.fundedBy === "ruxstar" ? discount : 0,
     },
     session,
   );

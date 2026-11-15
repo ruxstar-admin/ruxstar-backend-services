@@ -2,6 +2,7 @@ import { Type, type Static, type TSchema } from "typebox";
 import { DateTime, Envelope, ListEnvelope, ObjectIdString, PageQuery, Paise, Strict } from "../../contracts/common.js";
 import { AppliedCoupon, Offer } from "../coupons/contracts.js";
 import { InvoiceRefs } from "../invoices/contracts.js";
+import { Rating, ReviewEligibility } from "../reviews/contracts.js";
 import { Point } from "../vendor/contracts.js";
 import { MAX_FEE } from "./rules.js";
 
@@ -136,9 +137,10 @@ export const CourseDetail = Strict({
   whyNot: Nullable(Type.String({ description: "Why nobody can enrol right now" })),
   myOrders: Type.Array(
     Strict({ id: ObjectIdString, orderNo: Type.Integer(), kind: Kind, status: OrderStatus, student: Student, batchId: ObjectIdString }),
-    { description: "Your enrolments and demos in it, newest first" },
+    { description: "Your enrolments and demos in it, newest first. Empty when signed out" },
   ),
-  demoTaken: Type.Array(Student, { description: "Students who have had, or booked, this course's demo" }),
+  demoTaken: Type.Array(Student, { description: "Students who have had, or booked, this course's demo. Empty when signed out" }),
+  rating: Type.Optional(Rating),
 });
 export type CourseDetail = Static<typeof CourseDetail>;
 export const CourseOne = Envelope(CourseDetail);
@@ -223,6 +225,7 @@ export const CoachingOrder = Strict({
   }),
   certificate: Nullable(CertificateRef),
   invoices: InvoiceRefs,
+  ...ReviewEligibility,
   createdAt: DateTime,
 });
 export type CoachingOrder = Static<typeof CoachingOrder>;
