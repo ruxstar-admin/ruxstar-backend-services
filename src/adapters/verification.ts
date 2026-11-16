@@ -58,6 +58,18 @@ export interface Verifier {
 const FACE_MATCH_THRESHOLD = "0.75";
 const TIMEOUT_MS = 15_000;
 
+/**
+ * Cashfree grades the name only on accounts with name matching switched on. Without it the PAN comes back valid with
+ * the registered name and no grade, so we compare the two ourselves: same words in any order, any case, nothing else.
+ * Anything looser (initials, missing or extra words) stays a mismatch and goes to a person.
+ */
+export const nameGrade = (given: string, registered: string | null): "DIRECT_MATCH" | null => {
+  const words = (value: string) =>
+    value.toUpperCase().replace(/[^A-Z\s]/g, " ").split(/\s+/).filter(Boolean).sort().join(" ");
+  const a = words(given);
+  return registered && a && a === words(registered) ? "DIRECT_MATCH" : null;
+};
+
 type Json = Record<string, unknown>;
 const str = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : null);
 const num = (value: unknown) => (typeof value === "number" ? value : typeof value === "string" && value ? Number(value) : null);
@@ -156,7 +168,7 @@ class CashfreeVerifier implements Verifier {
   }
 
   async pan(pan: string, name: string): Promise<PanResult> {
-    const { status, body } = await this.json("/pan", { pan, name }, { answers: true });
+    const { status, body } = await this.json("/pan", { pan, name: name.toUpperCase() }, { answers: true });
     const valid = body.valid === true && body.pan_status === "VALID";
     // Cashfree's verdict, so a failed check can be explained from the logs. No PAN or names, only grades and codes.
     this.log.info(
@@ -176,10 +188,11 @@ class CashfreeVerifier implements Verifier {
     // The sandbox knows only Cashfree's test PANs (ABCPV1234D is JOHN DOE) and never grades the name,
     // so a valid sandbox PAN counts as a match. Production always grades it.
     const sandboxMatch = this.settings.env === "sandbox" && valid ? "DIRECT_MATCH" : null;
+    const registeredName = str(body.registered_name);
     return {
       valid,
-      registeredName: str(body.registered_name),
-      nameMatch: str(body.name_match_result) ?? sandboxMatch,
+      registeredName,
+      nameMatch: str(body.name_match_result) ?? sandboxMatch ?? (valid ? nameGrade(name, registeredName) : null),
       message: str(body.message),
     };
   }
