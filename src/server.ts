@@ -54,11 +54,19 @@ async function setUpDatabase(database: NonNullable<typeof db>, attempt: number):
   }
 }
 
+/** On Cloud Run, after this many tries the instance exits so a fresh one starts with full CPU. */
+const CLOUD_RUN_TRIES = 5;
+
 /** Keeps trying with backoff. A failed first connect must not leave the instance unready forever. */
 async function keepSettingUp(database: NonNullable<typeof db>) {
   for (let attempt = 2; ; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, Math.min(30, 2 ** (attempt - 1)) * 1000).unref());
     if (await setUpDatabase(database, attempt)) return;
+    // Throttled CPU between requests can starve every retry; one instance stayed unready for six hours that way.
+    if (process.env.K_SERVICE && attempt >= CLOUD_RUN_TRIES) {
+      app.log.error({ attempt }, "Database still not ready. Exiting so Cloud Run starts a new instance");
+      process.exit(1);
+    }
   }
 }
 
