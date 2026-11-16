@@ -196,6 +196,10 @@ const kyc: FastifyPluginAsyncTypebox = async (app) => {
             ? "The name on this PAN does not match your Aadhaar."
             : null;
 
+      request.log.info(
+        { userId: String(userId), panMasked: step.masked, taken: !!taken, valid: result?.valid ?? null, nameMatch: result?.nameMatch ?? null, outcome: reason ? "failed" : "verified", reason },
+        "KYC PAN check",
+      );
       await saveStep(doc, {
         $set: {
           "steps.pan": {
@@ -207,7 +211,13 @@ const kyc: FastifyPluginAsyncTypebox = async (app) => {
           },
         },
       });
-      if (reason) throw failed("body/pan", reason);
+      if (reason) {
+        // TEMPORARY, for diagnosing PAN failures: Cashfree's grades in the response. Remove once the cause is found.
+        // Grades only. The registered name stays out, or anyone could read the tax department's name for any PAN.
+        const error = failed("body/pan", reason);
+        const debug = `taken=${!!taken} valid=${result?.valid ?? null} nameMatch=${result?.nameMatch ?? null} cashfreeMessage=${result?.message ?? null} aadhaarNameWords=${(doc.steps.aadhaar.name ?? "").trim().split(/\s+/).length}`;
+        throw new AppError("KYC_CHECK_FAILED", reason, [...(error.details ?? []), { path: "debug", message: debug }]);
+      }
       return ok(request, await answer(userId));
     },
   );
