@@ -215,7 +215,7 @@ const kyc: FastifyPluginAsyncTypebox = async (app) => {
         // TEMPORARY, for diagnosing PAN failures: Cashfree's grades in the response. Remove once the cause is found.
         // Grades only. The registered name stays out, or anyone could read the tax department's name for any PAN.
         const error = failed("body/pan", reason);
-        const debug = `taken=${!!taken} valid=${result?.valid ?? null} nameMatch=${result?.nameMatch ?? null} cashfreeMessage=${result?.message ?? null} aadhaarNameWords=${(doc.steps.aadhaar.name ?? "").trim().split(/\s+/).length}`;
+        const debug = `taken=${!!taken} valid=${result?.valid ?? null} nameMatch=${result?.nameMatch ?? null} cashfreeMessage=${result?.message ?? null} cashfreeKeys=[${result?.rawKeys ?? ""}] aadhaarNameWords=${(doc.steps.aadhaar.name ?? "").trim().split(/\s+/).length}`;
         throw new AppError("KYC_CHECK_FAILED", reason, [...(error.details ?? []), { path: "debug", message: debug }]);
       }
       return ok(request, await answer(userId));

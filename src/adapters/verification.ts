@@ -19,6 +19,8 @@ export interface PanResult {
   /** Cashfree's grade, for example DIRECT_MATCH or NO_MATCH. */
   nameMatch: string | null;
   message: string | null;
+  /** TEMPORARY: names of the fields Cashfree sent, with the grade-like values. */
+  rawKeys?: string;
 }
 
 export interface GstinResult {
@@ -181,6 +183,7 @@ class CashfreeVerifier implements Verifier {
       registeredName: str(body.registered_name),
       nameMatch: str(body.name_match_result) ?? sandboxMatch,
       message: str(body.message),
+      rawKeys: Object.keys(body).join(",") + ` | pan_status=${str(body.pan_status)} name_match_score=${body.name_match_score ?? null} name_match_result=${body.name_match_result ?? null} name_provided=${body.name_provided !== undefined}`,
     };
   }
 
