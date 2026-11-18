@@ -2,9 +2,10 @@ import { randomUUID } from "node:crypto";
 import { ObjectId } from "mongodb";
 import sharp from "sharp";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import type { FakePayouts } from "../src/adapters/payouts.js";
 import { gigFileLinks } from "../src/modules/gigs/checkout.js";
 import { DEFAULT_GIGS_RULES, maxPartRefundOf, vendorLeftOf } from "../src/modules/gigs/rules.js";
-import type { GigOrderDoc } from "../src/platform/db.js";
+import { stamp, type GigOrderDoc } from "../src/platform/db.js";
 import { forgetModuleState } from "../src/platform/module-switch.js";
 import { JOB_TOKEN, signIn, startStack, web, type Stack } from "./helpers.js";
 
@@ -242,6 +243,119 @@ describe("gigs", () => {
     const over = await call("POST", "/gigs/me/gigs", u.token, gigBody());
     expect(over.statusCode).toBe(409);
     expect(over.json().error.message).toBe("You can have up to 1 gigs.");
+  });
+
+  it("lets Ruxstar change the freelancer limits within bounds, and holds profiles, gigs, files and orders to them", async () => {
+    const consoleRules = async () => (await call("GET", "/ruxstar/modules", admin.token)).json().data.find((m: { module: string }) => m.module === "gigs").gigsRules;
+    expect(await consoleRules()).toMatchObject({ maxPortfolio: 12, maxGigPhotos: 5, maxQuestions: 5, maxFiles: 10, maxLinks: 10, maxAnswer: 1000 });
+    expect((await consoleRules()).fileTypes).toEqual(DEFAULT_GIGS_RULES.fileTypes);
+    for (const bad of [
+      { maxPortfolio: 0 },
+      { maxPortfolio: 31 },
+      { maxGigPhotos: 0 },
+      { maxGigPhotos: 11 },
+      { maxQuestions: 0 },
+      { maxQuestions: 11 },
+      { maxFiles: 0 },
+      { maxFiles: 21 },
+      { maxLinks: 0 },
+      { maxLinks: 21 },
+      { maxAnswer: 99 },
+      { maxAnswer: 2001 },
+      { fileTypes: [] },
+      { fileTypes: ["html"] },
+      { fileTypes: ["svg", "pdf"] },
+      { fileTypes: ["pdf", "pdf"] },
+    ]) {
+      expect((await rules(bad)).statusCode, JSON.stringify(bad)).toBe(400);
+    }
+    expect(await stack.db.auditLogs.countDocuments({ action: "module_settings.update", "scope.module": "gigs" })).toBe(0);
+
+    const edited = await rules({ maxPortfolio: 1, maxGigPhotos: 1, maxQuestions: 1, maxFiles: 1, maxLinks: 1, maxAnswer: 100, fileTypes: ["pdf", "zip"] });
+    expect(edited.statusCode, edited.body).toBe(200);
+    expect(edited.json().data.gigsRules).toMatchObject({ maxPortfolio: 1, maxGigPhotos: 1, maxQuestions: 1, maxFiles: 1, maxLinks: 1, maxAnswer: 100, fileTypes: ["pdf", "zip"], acceptHours: 24 });
+    const audit = await stack.db.auditLogs.findOne({ action: "module_settings.update", "scope.module": "gigs" });
+    expect(audit!.diff.gigsRules).toMatchObject({ to: expect.objectContaining({ maxPortfolio: 1, maxFiles: 1, fileTypes: ["pdf", "zip"] }) });
+    expect((await anon("/gigs/rules")).json().data.limits).toEqual({ portfolio: 1, gigPhotos: 1, questions: 1, files: 1, links: 1, answer: 100, extensions: ["pdf", "zip"] });
+
+    const { u: f } = await freelancer();
+    expect((await call("POST", "/gigs/me/portfolio/links", f.token, { title: "My site", url: "https://asha.example.com" })).statusCode).toBe(200);
+    const fullPortfolio = await call("POST", "/gigs/me/portfolio/links", f.token, { title: "Another", url: "https://asha.example.com/2" });
+    expect(fullPortfolio.statusCode).toBe(409);
+    expect(fullPortfolio.json().error.message).toBe("Your portfolio has room for one photo or link.");
+
+    const twoQuestions = await call("POST", "/gigs/me/gigs", f.token, gigBody());
+    expect(twoQuestions.statusCode).toBe(400);
+    expect(twoQuestions.json().error.message).toBe("Up to 1 question.");
+    const gig = await liveGig(f, { questions: [{ text: "What is your brand called?", required: true }] });
+    const morePhotos = await addPhoto(f, gig.id);
+    expect(morePhotos.statusCode).toBe(409);
+    expect(morePhotos.json().error.message).toBe("A gig has up to 1 photo.");
+
+    const customer = await person();
+    const png = await upload(customer, "brief", 100, "refs.png");
+    expect(png.statusCode).toBe(422);
+    expect(png.json().error.message).toBe("This kind of file can't be sent. Use one of: pdf, zip.");
+    const briefs = [(await upload(customer, "brief", 100)).json().data.id, (await upload(customer, "brief", 100, "refs.zip")).json().data.id];
+    expect((await place(customer, gig, { fileIds: briefs })).json().error.message).toBe("Up to 1 file.");
+    const long = await place(customer, gig, { answers: [{ questionId: gig.questions[0]!.id, answer: "x".repeat(101) }] });
+    expect(long.json().error.message).toBe('Keep the answer to "What is your brand called?" to 100 characters.');
+    const o = await paid(customer, gig, { fileIds: [briefs[0]] });
+    expect(o.files).toHaveLength(1);
+
+    expect((await desk(f, o.id, "accept")).statusCode).toBe(200);
+    const twoLinks = await desk(f, o.id, "deliver", { message: "Done", links: ["https://a.example.com", "https://b.example.com"], fileIds: [] });
+    expect(twoLinks.json().error.message).toBe("Up to 1 link.");
+    const files = [(await upload(f, "delivery", 100, "a.pdf")).json().data.id, (await upload(f, "delivery", 100, "b.pdf")).json().data.id];
+    expect((await desk(f, o.id, "deliver", { message: "Done", links: [], fileIds: files })).json().error.message).toBe("Up to 1 file.");
+    expect((await delivered(f, o.id, [files[0]])).deliveries[0].files).toHaveLength(1);
+
+    // Raised past the old fixed numbers, up to the caps.
+    expect((await rules({ maxQuestions: 7 })).statusCode).toBe(200);
+    const seven = Array.from({ length: 7 }, (_, i) => ({ text: `Question number ${i + 1}?`, required: false }));
+    const edit = await call("PATCH", `/gigs/me/gigs/${gig.id}`, f.token, { questions: seven });
+    expect(edit.statusCode, edit.body).toBe(200);
+    expect(edit.json().data.questions).toHaveLength(7);
+    expect((await rules({ maxQuestions: 2 })).statusCode).toBe(200);
+    expect((await call("PATCH", `/gigs/me/gigs/${gig.id}`, f.token, { title: "I will design a fresh logo for you" })).json().error.message).toBe("Up to 2 questions.");
+    expect((await anon(`/gigs/${gig.id}`)).json().data).toMatchObject({ canOrder: true });
+  });
+
+  it("links a freelancer's withdrawal news to Freelancing, and a vendor's to the vendor portal", async () => {
+    const { u: f, businessId } = await freelancer({ vendor: false });
+    await stack.db.payoutMethods.deleteMany({ userId: f.userId });
+    await stack.db.payoutMethods.insertOne({ _id: new ObjectId(), userId: f.userId, kind: "upi", holderName: "ASHA RAO", nameMatch: "DIRECT_MATCH", upi: { vpa: "asha@okhdfc" }, verifiedAt: new Date(), ...stamp() });
+    const fake = stack.app.payouts as FakePayouts;
+    const release = (paise: number) =>
+      stack.db.ledgerEntries.insertMany([
+        { txnId: `release:${randomUUID()}`, kind: "release", accountId: `vendor:${f.userId.toHexString()}`, bucket: "withdrawable", signedPaise: paise, source: { type: "gig_order", id: new ObjectId() }, at: new Date() },
+        { txnId: `release:${randomUUID()}`, kind: "release", accountId: "gateway", bucket: "withdrawable", signedPaise: -paise, source: { type: "gig_order", id: new ObjectId() }, at: new Date() },
+      ]);
+    const withdraw = async (next: "paid" | "failed") => {
+      fake.next = next;
+      const res = await call("POST", "/vendor/payouts", f.token);
+      expect(res.statusCode, res.body).toBe(200);
+      return res.json().data as { id: string; status: string };
+    };
+    const told = async () => ((await call("GET", "/notifications", f.token)).json().data as { type: string; link: object }[]).filter((n) => n.type === "payout.updated");
+
+    await release(50_000);
+    const failed = await withdraw("failed");
+    const sent = await withdraw("paid");
+    expect(sent.status).toBe("paid");
+    expect((await told()).map((n) => n.link)).toEqual([
+      { screen: "freelance_payments", id: sent.id },
+      { screen: "freelance_payments", id: failed.id },
+    ]);
+    const pushed = await stack.db.notifications.findOne({ userId: f.userId, "link.id": sent.id });
+    expect(pushed!.link.screen).toBe("freelance_payments");
+
+    const own = await stack.db.businesses.findOne({ _id: new ObjectId(businessId) });
+    await stack.db.businesses.insertOne({ ...own!, _id: new ObjectId(), module: "pod", type: "print_shop", name: "Asha Prints" });
+    await release(30_000);
+    const vendorSent = await withdraw("paid");
+    expect((await told())[0]!.link).toEqual({ screen: "payments", id: vendorSent.id });
+    fake.next = "paid";
   });
 
   it("takes a coupon at checkout, and pays the freelancer when the customer approves the delivery", async () => {

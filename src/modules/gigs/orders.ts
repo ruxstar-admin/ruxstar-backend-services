@@ -25,12 +25,10 @@ import { rupees } from "../pod/orders.js";
 import { dueAt, gigOrderContext, nextTicketNo, slaHours } from "../support/tickets.js";
 import { expireQuotes, quoteClosed, touchQuote } from "./quotes.js";
 import {
-  ANSWER_MAX,
   DAY_MS,
   gigLedger,
   gigsSettings,
   HOUR_MS,
-  MAX_FILES,
   MAX_ORDER_TOTAL,
   maxPartRefundOf,
   MB,
@@ -42,6 +40,7 @@ import {
   UNUSED_FILE_MS,
   vendorLeftOf,
   vendorShareOf,
+  type GigsSettings,
 } from "./rules.js";
 
 export interface By {
@@ -70,10 +69,18 @@ function audit(db: Database, by: By, o: GigOrderDoc, action: string, diff: Audit
   return writeAudit(db, { actor: by.actor, scope: { module: "gigs", businessId: o.businessId }, action, target: { type: "gig_order", id: o._id }, diff, ip: by.ip ?? null }, session);
 }
 
-/** Files a person uploaded and hasn't used yet, for `use`, checked against the count and Ruxstar's size limit. */
-export async function unusedFiles(db: Database, userId: ObjectId, ids: string[], use: "brief" | "delivery", maxMb: number, path: string): Promise<GigFileRef[]> {
+/** Files a person uploaded and hasn't used yet, for `use`, checked against Ruxstar's count and size limits. */
+export async function unusedFiles(
+  db: Database,
+  userId: ObjectId,
+  ids: string[],
+  use: "brief" | "delivery",
+  limits: Pick<GigsSettings, "deliveryMaxMb" | "maxFiles">,
+  path: string,
+): Promise<GigFileRef[]> {
   if (!ids.length) return [];
-  if (ids.length > MAX_FILES) throw invalid(path, `Up to ${MAX_FILES} files.`);
+  const maxMb = limits.deliveryMaxMb;
+  if (ids.length > limits.maxFiles) throw invalid(path, `Up to ${limits.maxFiles} file${limits.maxFiles === 1 ? "" : "s"}.`);
   const unique = [...new Set(ids)].map((id) => new ObjectId(id));
   const docs = await db.gigFiles.find({ _id: { $in: unique }, userId, use, orderId: null }).toArray();
   if (docs.length !== unique.length) throw invalid(path, "Some of these files are gone or used already. Upload them again.");
@@ -127,7 +134,8 @@ export async function placeOrder(
     for (const q of gig.questions) {
       const given = source.answers.find((a) => a.questionId === q.id)?.answer.trim() ?? "";
       if (q.required && !given) throw invalid("body/answers", `Answer "${q.text}".`);
-      if (given) answers.push({ questionId: q.id, question: q.text, answer: given.slice(0, ANSWER_MAX) });
+      if (given.length > settings.maxAnswer) throw invalid("body/answers", `Keep the answer to "${q.text}" to ${settings.maxAnswer} characters.`);
+      if (given) answers.push({ questionId: q.id, question: q.text, answer: given });
     }
     title = gig.title;
     category = gig.category;
@@ -143,7 +151,7 @@ export async function placeOrder(
     answers = [];
   }
   const items = source.kind === "gig" ? source.gig.packages.find((p) => p.tier === source.tier)!.price : source.quote.price;
-  const files = await unusedFiles(db, customer.id, input.fileIds, "brief", settings.deliveryMaxMb, "body/fileIds");
+  const files = await unusedFiles(db, customer.id, input.fileIds, "brief", settings, "body/fileIds");
 
   let coupon: GigOrderDoc["price"]["coupon"] = null;
   let discount = 0;
@@ -476,12 +484,14 @@ export async function deliverOrder(
 ): Promise<GigOrderDoc> {
   if (order.status !== "in_progress") throw new AppError("ORDER_STATE", order.status === "paid" ? "Accept the order first." : "This order can't take a delivery now.");
   const settings = await gigsSettings(db);
-  const files = await unusedFiles(db, order.vendorId, input.fileIds, "delivery", settings.deliveryMaxMb, "body/fileIds");
+  const links = [...new Set(input.links.map((l) => l.trim()))];
+  if (links.length > settings.maxLinks) throw invalid("body/links", `Up to ${settings.maxLinks} link${settings.maxLinks === 1 ? "" : "s"}.`);
+  const files = await unusedFiles(db, order.vendorId, input.fileIds, "delivery", settings, "body/fileIds");
   const message = input.message.trim();
   if (!message) throw invalid("body/message", "Say what you're delivering.");
   const now = new Date();
   const autoCompleteAt = new Date(now.getTime() + settings.autoCompleteDays * DAY_MS);
-  const delivery = { id: new ObjectId(), message, links: [...new Set(input.links.map((l) => l.trim()))], files, at: now, answer: null };
+  const delivery = { id: new ObjectId(), message, links, files, at: now, answer: null };
   const after = await db.transaction(async (session) => {
     const done = await db.gigOrders.findOneAndUpdate(
       { _id: order._id, status: "in_progress" },

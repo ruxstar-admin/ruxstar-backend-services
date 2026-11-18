@@ -11,6 +11,41 @@ export const DEFAULT_GIG_CATEGORIES: GigCategory[] = [
   { key: "other", label: "Anything else", hidden: false },
 ];
 
+/** What can be uploaded, by extension, and the type it is served as. Pages and scripts aren't on it; only images and PDFs open in the browser. */
+export const FILE_TYPES: Record<string, string> = {
+  pdf: "application/pdf",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  heic: "image/heic",
+  psd: "image/vnd.adobe.photoshop",
+  ai: "application/postscript",
+  eps: "application/postscript",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  m4a: "audio/mp4",
+  zip: "application/zip",
+  txt: "text/plain",
+  csv: "text/csv",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ttf: "font/ttf",
+  otf: "font/otf",
+};
+export const FILE_EXTENSIONS = Object.keys(FILE_TYPES);
+
+/** The most Ruxstar can set each limit to. Request bodies are held to these; the stored limits are checked after. */
+export const LIMIT_CAPS = { maxPortfolio: 30, maxGigPhotos: 10, maxQuestions: 10, maxFiles: 20, maxLinks: 20, maxAnswer: 2000 } as const;
+
 export const DEFAULT_GIGS_RULES: GigsRules = {
   autoCompleteDays: 3,
   acceptHours: 24,
@@ -24,6 +59,13 @@ export const DEFAULT_GIGS_RULES: GigsRules = {
   minDays: 1,
   maxDays: 60,
   maxRevisions: 10,
+  maxPortfolio: 12,
+  maxGigPhotos: 5,
+  maxQuestions: 5,
+  maxFiles: 10,
+  maxLinks: 10,
+  maxAnswer: 1000,
+  fileTypes: FILE_EXTENSIONS,
   categories: DEFAULT_GIG_CATEGORIES,
 };
 
@@ -39,12 +81,6 @@ export const PAY_WINDOW_MS = 20 * MINUTE_MS;
 export const MAX_ORDER_TOTAL = 5_00_000_00;
 /** Uploads not used on an order by then are deleted. */
 export const UNUSED_FILE_MS = DAY_MS;
-export const MAX_PORTFOLIO = 12;
-export const MAX_GIG_PHOTOS = 5;
-export const MAX_QUESTIONS = 5;
-export const MAX_FILES = 10;
-export const MAX_LINKS = 10;
-export const ANSWER_MAX = 1000;
 export const TIERS: readonly GigTier[] = ["basic", "standard", "premium"];
 export const TIER_NAMES: Record<GigTier, string> = { basic: "Basic", standard: "Standard", premium: "Premium" };
 

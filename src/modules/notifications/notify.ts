@@ -206,7 +206,13 @@ export async function notifyTeamMove(
   }
 }
 
-/** Tells a vendor or a delivery partner a withdrawal reached the bank or came back. Logged, never thrown: the payout is already settled. */
+/** Payments in Freelancing for someone whose only businesses are freelancer ones; the vendor portal's Payments for everyone else. */
+async function vendorPaymentsScreen(db: Database, userId: ObjectId): Promise<"payments" | "freelance_payments"> {
+  const modules: string[] = await db.businesses.distinct("module", { ownerId: userId });
+  return modules.length > 0 && modules.every((m) => m === "gigs") ? "freelance_payments" : "payments";
+}
+
+/** Tells a vendor, a freelancer or a delivery partner a withdrawal reached the bank or came back. Logged, never thrown: the payout is already settled. */
 export async function notifyPayout(
   db: Database,
   log: FastifyBaseLogger,
@@ -220,7 +226,7 @@ export async function notifyPayout(
       actorId: event.to,
       title: clip(event.title, 60),
       body: clip(event.body, 140),
-      link: { screen: event.rider ? "delivery_earnings" : "payments", id: event.payoutId.toHexString() },
+      link: { screen: event.rider ? "delivery_earnings" : await vendorPaymentsScreen(db, event.to), id: event.payoutId.toHexString() },
       readAt: null,
       createdAt: new Date(),
     });

@@ -27373,9 +27373,15 @@
                                     "enum": [
                                       "freelance"
                                     ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": [
+                                      "freelance_payments"
+                                    ]
                                   }
                                 ],
-                                "description": "`verification` opens the KYC screen (`id` is the track: base or delivery), `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team), `team` a business's Team in the vendor portal (`id` is the business), `work_order` an order to a shop you work at, in the Work area, `reviews` a business's reviews in the vendor portal (`id` is the business), `work_reviews` the reviews of a shop you work at (`id` is the place on the team), `delivery_job` a delivery in the Ruxstar Delivery app and `delivery_earnings` Earnings in the Ruxstar Delivery app (`id` is the payout), `support` one of your help tickets, `event` an event's page, `event_order` your tickets for an event (`id` is the ticket order), `vendor_event` one of your events in the vendor portal, `coaching_course` a course's page, `coaching_order` your enrolment or demo class, `vendor_course` one of your courses in the vendor portal, `coaching_batch` a batch's classes for its owner or coaches, `turf_ground` a ground's page, `turf_order` your turf booking, `vendor_ground` a ground's board for its owner or team, `stay_property` a PG or hostel's page, `stay_order` your PG or hostel reservation, `vendor_property` a property's bed board for its owner or team, `store` a local shop's page, `store_product` one of its products, `store_order` your order at a local shop, `vendor_store_order` an order at the desk of a local shop you own or work at, `gig` a freelancer's gig, `gig_order` your freelance order, `vendor_gig_order` an order you are doing as a freelancer, `freelance` your Freelancing home (`id` is your freelancer business; apps that don't know a screen ignore it); `id` says which"
+                                "description": "`verification` opens the KYC screen (`id` is the track: base or delivery), `business` one of your businesses in the vendor portal, `order` one of your print orders, `shop_order` an order to your shop in the vendor portal, `profile` someone's profile (by user id), `payments` Payments in the vendor portal (`id` is the payout), `work` the Work area (`id` is the place on the team), `team` a business's Team in the vendor portal (`id` is the business), `work_order` an order to a shop you work at, in the Work area, `reviews` a business's reviews in the vendor portal (`id` is the business), `work_reviews` the reviews of a shop you work at (`id` is the place on the team), `delivery_job` a delivery in the Ruxstar Delivery app and `delivery_earnings` Earnings in the Ruxstar Delivery app (`id` is the payout), `support` one of your help tickets, `event` an event's page, `event_order` your tickets for an event (`id` is the ticket order), `vendor_event` one of your events in the vendor portal, `coaching_course` a course's page, `coaching_order` your enrolment or demo class, `vendor_course` one of your courses in the vendor portal, `coaching_batch` a batch's classes for its owner or coaches, `turf_ground` a ground's page, `turf_order` your turf booking, `vendor_ground` a ground's board for its owner or team, `stay_property` a PG or hostel's page, `stay_order` your PG or hostel reservation, `vendor_property` a property's bed board for its owner or team, `store` a local shop's page, `store_product` one of its products, `store_order` your order at a local shop, `vendor_store_order` an order at the desk of a local shop you own or work at, `gig` a freelancer's gig, `gig_order` your freelance order, `vendor_gig_order` an order you are doing as a freelancer, `freelance` your Freelancing home (`id` is your freelancer business), `freelance_payments` Payments in Freelancing, sent instead of `payments` when all your businesses are freelancer ones (`id` is the payout); apps that don't know a screen ignore it; `id` says which"
                               },
                               "id": {
                                 "type": "string"
@@ -179354,7 +179360,7 @@
         "tags": [
           "gigs"
         ],
-        "description": "Send the image itself with Content-Type image/jpeg, image/png or image/webp, up to 8 MB. Up to 12 photos and links together.",
+        "description": "Send the image itself with Content-Type image/jpeg, image/png or image/webp, up to 8 MB. Up to GET /v1/gigs/rules `limits.portfolio` photos and links together.",
         "security": [
           {
             "bearer": []
@@ -179993,7 +179999,7 @@
         "tags": [
           "gigs"
         ],
-        "description": "Up to 12 photos and links together.",
+        "description": "Up to GET /v1/gigs/rules `limits.portfolio` photos and links together.",
         "requestBody": {
           "required": true,
           "content": {
@@ -181308,8 +181314,8 @@
                       },
                       "additionalProperties": false
                     },
-                    "maxItems": 5,
-                    "description": "What to ask the customer when they order"
+                    "maxItems": 10,
+                    "description": "What to ask the customer when they order, up to GET /v1/gigs/rules `limits.questions`"
                   }
                 },
                 "additionalProperties": false
@@ -182360,8 +182366,8 @@
                       },
                       "additionalProperties": false
                     },
-                    "maxItems": 5,
-                    "description": "What to ask the customer when they order"
+                    "maxItems": 10,
+                    "description": "What to ask the customer when they order, up to GET /v1/gigs/rules `limits.questions`"
                   }
                 },
                 "additionalProperties": false,
@@ -182936,7 +182942,7 @@
         "tags": [
           "gigs"
         ],
-        "description": "Send the image itself with Content-Type image/jpeg, image/png or image/webp, up to 8 MB. Up to 5; the first is the cover.",
+        "description": "Send the image itself with Content-Type image/jpeg, image/png or image/webp, up to 8 MB. Up to GET /v1/gigs/rules `limits.gigPhotos`; the first is the cover.",
         "parameters": [
           {
             "schema": {
@@ -189820,8 +189826,8 @@
                       "pattern": "^https?://",
                       "maxLength": 500
                     },
-                    "maxItems": 10,
-                    "description": "For example a shared drive folder"
+                    "maxItems": 20,
+                    "description": "For example a shared drive folder. Up to GET /v1/gigs/rules `limits.links`"
                   },
                   "fileIds": {
                     "type": "array",
@@ -189830,9 +189836,9 @@
                       "pattern": "^[a-f0-9]{24}$",
                       "description": "MongoDB ObjectId as hex"
                     },
-                    "maxItems": 10,
+                    "maxItems": 20,
                     "uniqueItems": true,
-                    "description": "Files you uploaded with POST /v1/gigs/files and haven't used yet"
+                    "description": "Files you uploaded with POST /v1/gigs/files and haven't used yet, up to GET /v1/gigs/rules `limits.files`"
                   }
                 },
                 "additionalProperties": false
@@ -192513,7 +192519,7 @@
         "tags": [
           "gigs"
         ],
-        "description": "Send the file itself with Content-Type application/octet-stream and its name in `name`. Up to Ruxstar's delivery size (at most 25 MB); the files on one order or one delivery add up to that too. Allowed: pdf, jpg, jpeg, png, gif, webp, heic, psd, ai, eps, mp4, mov, webm, mp3, wav, m4a, zip, txt, csv, doc, docx, xls, xlsx, ppt, pptx, ttf, otf. Then pass its id in `fileIds`. Files not used within a day are deleted; used ones go a set number of days after the order ends.",
+        "description": "Send the file itself with Content-Type application/octet-stream and its name in `name`. Up to Ruxstar's delivery size (at most 25 MB); the files on one order or one delivery add up to that too. Allowed: the kinds in GET /v1/gigs/rules `limits.extensions`, out of pdf, jpg, jpeg, png, gif, webp, heic, psd, ai, eps, mp4, mov, webm, mp3, wav, m4a, zip, txt, csv, doc, docx, xls, xlsx, ppt, pptx, ttf, otf. Then pass its id in `fileIds`. Files not used within a day are deleted; used ones go a set number of days after the order ends.",
         "parameters": [
           {
             "schema": {
@@ -194207,7 +194213,7 @@
                             }
                           },
                           "additionalProperties": false,
-                          "description": "Fixed by Ruxstar; not settings"
+                          "description": "Set by Ruxstar in the console"
                         }
                       },
                       "additionalProperties": false
@@ -202975,9 +202981,9 @@
                       "pattern": "^[a-f0-9]{24}$",
                       "description": "MongoDB ObjectId as hex"
                     },
-                    "maxItems": 10,
+                    "maxItems": 20,
                     "uniqueItems": true,
-                    "description": "Files you uploaded with POST /v1/gigs/files and haven't used yet"
+                    "description": "Files you uploaded with POST /v1/gigs/files and haven't used yet, up to GET /v1/gigs/rules `limits.files`"
                   },
                   "note": {
                     "anyOf": [
@@ -204526,12 +204532,13 @@
                         },
                         "answer": {
                           "type": "string",
-                          "maxLength": 1000
+                          "maxLength": 2000,
+                          "description": "Up to GET /v1/gigs/rules `limits.answer` characters"
                         }
                       },
                       "additionalProperties": false
                     },
-                    "maxItems": 5
+                    "maxItems": 10
                   },
                   "fileIds": {
                     "type": "array",
@@ -204540,9 +204547,9 @@
                       "pattern": "^[a-f0-9]{24}$",
                       "description": "MongoDB ObjectId as hex"
                     },
-                    "maxItems": 10,
+                    "maxItems": 20,
                     "uniqueItems": true,
-                    "description": "Files you uploaded with POST /v1/gigs/files and haven't used yet"
+                    "description": "Files you uploaded with POST /v1/gigs/files and haven't used yet, up to GET /v1/gigs/rules `limits.files`"
                   },
                   "note": {
                     "anyOf": [
@@ -290904,6 +290911,13 @@
                                   "minDays",
                                   "maxDays",
                                   "maxRevisions",
+                                  "maxPortfolio",
+                                  "maxGigPhotos",
+                                  "maxQuestions",
+                                  "maxFiles",
+                                  "maxLinks",
+                                  "maxAnswer",
+                                  "fileTypes",
                                   "categories"
                                 ],
                                 "properties": {
@@ -290978,6 +290992,79 @@
                                     "minimum": 0,
                                     "maximum": 50,
                                     "description": "The most revisions a package or custom offer can include"
+                                  },
+                                  "maxPortfolio": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 30,
+                                    "description": "Photos and links on a freelancer's portfolio, together. A portfolio already over it keeps its items but can't add more"
+                                  },
+                                  "maxGigPhotos": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 10,
+                                    "description": "Photos on one gig; publishing needs one. A gig already over it keeps its photos but can't add more"
+                                  },
+                                  "maxQuestions": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 10,
+                                    "description": "Questions a gig asks the customer. A gig already over it keeps selling, and must fit when it is next edited"
+                                  },
+                                  "maxFiles": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 20,
+                                    "description": "Files on one order's brief or one delivery"
+                                  },
+                                  "maxLinks": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 20,
+                                    "description": "Links in one delivery"
+                                  },
+                                  "maxAnswer": {
+                                    "type": "integer",
+                                    "minimum": 100,
+                                    "maximum": 2000,
+                                    "description": "Characters in one answer to a gig's question. Orders made keep their answers"
+                                  },
+                                  "fileTypes": {
+                                    "type": "array",
+                                    "items": {
+                                      "enum": [
+                                        "pdf",
+                                        "jpg",
+                                        "jpeg",
+                                        "png",
+                                        "gif",
+                                        "webp",
+                                        "heic",
+                                        "psd",
+                                        "ai",
+                                        "eps",
+                                        "mp4",
+                                        "mov",
+                                        "webm",
+                                        "mp3",
+                                        "wav",
+                                        "m4a",
+                                        "zip",
+                                        "txt",
+                                        "csv",
+                                        "doc",
+                                        "docx",
+                                        "xls",
+                                        "xlsx",
+                                        "ppt",
+                                        "pptx",
+                                        "ttf",
+                                        "otf"
+                                      ]
+                                    },
+                                    "minItems": 1,
+                                    "uniqueItems": true,
+                                    "description": "File kinds, by extension, that customers and freelancers can upload. Files uploaded already stay"
                                   },
                                   "categories": {
                                     "type": "array",
@@ -291592,6 +291679,79 @@
                         "minimum": 0,
                         "maximum": 50,
                         "description": "The most revisions a package or custom offer can include"
+                      },
+                      "maxPortfolio": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 30,
+                        "description": "Photos and links on a freelancer's portfolio, together. A portfolio already over it keeps its items but can't add more"
+                      },
+                      "maxGigPhotos": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "description": "Photos on one gig; publishing needs one. A gig already over it keeps its photos but can't add more"
+                      },
+                      "maxQuestions": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 10,
+                        "description": "Questions a gig asks the customer. A gig already over it keeps selling, and must fit when it is next edited"
+                      },
+                      "maxFiles": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20,
+                        "description": "Files on one order's brief or one delivery"
+                      },
+                      "maxLinks": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20,
+                        "description": "Links in one delivery"
+                      },
+                      "maxAnswer": {
+                        "type": "integer",
+                        "minimum": 100,
+                        "maximum": 2000,
+                        "description": "Characters in one answer to a gig's question. Orders made keep their answers"
+                      },
+                      "fileTypes": {
+                        "type": "array",
+                        "items": {
+                          "enum": [
+                            "pdf",
+                            "jpg",
+                            "jpeg",
+                            "png",
+                            "gif",
+                            "webp",
+                            "heic",
+                            "psd",
+                            "ai",
+                            "eps",
+                            "mp4",
+                            "mov",
+                            "webm",
+                            "mp3",
+                            "wav",
+                            "m4a",
+                            "zip",
+                            "txt",
+                            "csv",
+                            "doc",
+                            "docx",
+                            "xls",
+                            "xlsx",
+                            "ppt",
+                            "pptx",
+                            "ttf",
+                            "otf"
+                          ]
+                        },
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "description": "File kinds, by extension, that customers and freelancers can upload. Files uploaded already stay"
                       },
                       "categories": {
                         "type": "array",
@@ -292357,6 +292517,13 @@
                                 "minDays",
                                 "maxDays",
                                 "maxRevisions",
+                                "maxPortfolio",
+                                "maxGigPhotos",
+                                "maxQuestions",
+                                "maxFiles",
+                                "maxLinks",
+                                "maxAnswer",
+                                "fileTypes",
                                 "categories"
                               ],
                               "properties": {
@@ -292431,6 +292598,79 @@
                                   "minimum": 0,
                                   "maximum": 50,
                                   "description": "The most revisions a package or custom offer can include"
+                                },
+                                "maxPortfolio": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 30,
+                                  "description": "Photos and links on a freelancer's portfolio, together. A portfolio already over it keeps its items but can't add more"
+                                },
+                                "maxGigPhotos": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 10,
+                                  "description": "Photos on one gig; publishing needs one. A gig already over it keeps its photos but can't add more"
+                                },
+                                "maxQuestions": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 10,
+                                  "description": "Questions a gig asks the customer. A gig already over it keeps selling, and must fit when it is next edited"
+                                },
+                                "maxFiles": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 20,
+                                  "description": "Files on one order's brief or one delivery"
+                                },
+                                "maxLinks": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 20,
+                                  "description": "Links in one delivery"
+                                },
+                                "maxAnswer": {
+                                  "type": "integer",
+                                  "minimum": 100,
+                                  "maximum": 2000,
+                                  "description": "Characters in one answer to a gig's question. Orders made keep their answers"
+                                },
+                                "fileTypes": {
+                                  "type": "array",
+                                  "items": {
+                                    "enum": [
+                                      "pdf",
+                                      "jpg",
+                                      "jpeg",
+                                      "png",
+                                      "gif",
+                                      "webp",
+                                      "heic",
+                                      "psd",
+                                      "ai",
+                                      "eps",
+                                      "mp4",
+                                      "mov",
+                                      "webm",
+                                      "mp3",
+                                      "wav",
+                                      "m4a",
+                                      "zip",
+                                      "txt",
+                                      "csv",
+                                      "doc",
+                                      "docx",
+                                      "xls",
+                                      "xlsx",
+                                      "ppt",
+                                      "pptx",
+                                      "ttf",
+                                      "otf"
+                                    ]
+                                  },
+                                  "minItems": 1,
+                                  "uniqueItems": true,
+                                  "description": "File kinds, by extension, that customers and freelancers can upload. Files uploaded already stay"
                                 },
                                 "categories": {
                                   "type": "array",

@@ -40,11 +40,11 @@ import {
   QuotePayBody,
 } from "./contracts.js";
 import desk from "./desk.js";
-import files, { FILE_EXTENSIONS } from "./files.js";
+import files, { allowedTypes } from "./files.js";
 import manage from "./manage.js";
 import { askRevision, cancelOrder, completeOrder, placeOrder, reportProblem, syncGigPayment, type By, type Source } from "./orders.js";
 import { quoteClosed, quoteView } from "./quotes.js";
-import { ANSWER_MAX, gigsSettings, MAX_FILES, MAX_GIG_PHOTOS, MAX_LINKS, MAX_PORTFOLIO, MAX_QUESTIONS } from "./rules.js";
+import { gigsSettings } from "./rules.js";
 import { gigCards, gigDetail, gigReviewable, orderProblem, orderViews, ownersOf, profileView } from "./views.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
@@ -123,18 +123,18 @@ const gigs: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request, reply) => {
       publicCache(request, reply);
-      const settings = await gigsSettings(db());
+      const { maxPortfolio, maxGigPhotos, maxQuestions, maxFiles, maxLinks, maxAnswer, fileTypes, ...settings } = await gigsSettings(db());
       return ok(request, {
         ...settings,
         categories: settings.categories.filter((c) => !c.hidden).map((c) => ({ key: c.key, label: c.label })),
         limits: {
-          portfolio: MAX_PORTFOLIO,
-          gigPhotos: MAX_GIG_PHOTOS,
-          questions: MAX_QUESTIONS,
-          files: MAX_FILES,
-          links: MAX_LINKS,
-          answer: ANSWER_MAX,
-          extensions: FILE_EXTENSIONS,
+          portfolio: maxPortfolio,
+          gigPhotos: maxGigPhotos,
+          questions: maxQuestions,
+          files: maxFiles,
+          links: maxLinks,
+          answer: maxAnswer,
+          extensions: allowedTypes(fileTypes),
         },
       });
     },

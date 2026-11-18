@@ -30,7 +30,7 @@ import {
   UpdateProfileBody,
 } from "./contracts.js";
 import { termsProblem } from "./quotes.js";
-import { gigsSettings, MAX_GIG_PHOTOS, MAX_PORTFOLIO, TIER_NAMES, TIERS, type GigsSettings } from "./rules.js";
+import { gigsSettings, TIER_NAMES, TIERS, type GigsSettings } from "./rules.js";
 import { missingOf, myGigViews, ownersOf, profileView } from "./views.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
@@ -40,6 +40,9 @@ const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const cleanList = (items: string[]) => [...new Map(items.map((s) => s.trim().replace(/\s+/g, " ")).filter(Boolean).map((s) => [s.toLowerCase(), s])).values()];
 
 type GigFields = Static<typeof CreateGigBody>;
+
+const portfolioFull = (max: number) => new AppError("CONFLICT", `Your portfolio has room for ${max === 1 ? "one photo or link" : `${max} photos and links`}.`);
+const portfolioRoom = (max: number) => ({ $expr: { $lt: [{ $add: [{ $size: "$freelancer.portfolio.photos" }, { $size: "$freelancer.portfolio.links" }] }, max] } });
 
 /** A category that can be picked now: one of Ruxstar's, not hidden (unless it's the one already set). */
 function categoryOf(settings: GigsSettings, key: string, path: string, keep?: string) {
@@ -51,6 +54,9 @@ function categoryOf(settings: GigsSettings, key: string, path: string, keep?: st
 /** Checks a gig's packages and questions against Ruxstar's limits: Basic first, then Standard, then Premium. */
 export function shapeGig(body: GigFields, settings: GigsSettings, before: GigDoc | null) {
   if (body.packages.length > settings.maxPackages) throw invalid("body/packages", `Up to ${settings.maxPackages} package${settings.maxPackages === 1 ? "" : "s"}.`);
+  if (body.questions.length > settings.maxQuestions) {
+    throw invalid("body/questions", `Up to ${settings.maxQuestions} question${settings.maxQuestions === 1 ? "" : "s"}.`);
+  }
   const packages: GigPackageDoc[] = body.packages.map((p, i) => {
     if (p.tier !== TIERS[i]) throw invalid(`body/packages/${i}/tier`, "Packages go Basic, then Standard, then Premium.");
     const problem = termsProblem(p, settings, `body/packages/${i}`);
@@ -249,7 +255,7 @@ const manage: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["gigs"],
         summary: "Add a photo to your portfolio",
-        description: `Send the image itself with Content-Type image/jpeg, image/png or image/webp, up to 8 MB. Up to ${MAX_PORTFOLIO} photos and links together.`,
+        description: "Send the image itself with Content-Type image/jpeg, image/png or image/webp, up to 8 MB. Up to GET /v1/gigs/rules `limits.portfolio` photos and links together.",
         consumes: PHOTO_TYPES,
         response: { 200: MyProfileOne, ...Errors },
         security,
@@ -257,17 +263,18 @@ const manage: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const before = await mine(request);
+      const { maxPortfolio } = await gigsSettings(db());
       const p = before.freelancer!.portfolio;
-      if (p.photos.length + p.links.length >= MAX_PORTFOLIO) throw new AppError("CONFLICT", `Your portfolio has room for ${MAX_PORTFOLIO} photos and links.`);
+      if (p.photos.length + p.links.length >= maxPortfolio) throw portfolioFull(maxPortfolio);
       const photo = await savePhoto(`portfolio/${before._id.toHexString()}`, request.body);
       const after = await db().businesses.findOneAndUpdate(
-        { _id: before._id, $expr: { $lt: [{ $add: [{ $size: "$freelancer.portfolio.photos" }, { $size: "$freelancer.portfolio.links" }] }, MAX_PORTFOLIO] } },
+        { _id: before._id, ...portfolioRoom(maxPortfolio) },
         { $push: { "freelancer.portfolio.photos": photo }, $set: { updatedAt: new Date() } },
         { returnDocument: "after" },
       );
       if (!after) {
         await dropPhoto(photo);
-        throw new AppError("CONFLICT", `Your portfolio has room for ${MAX_PORTFOLIO} photos and links.`);
+        throw portfolioFull(maxPortfolio);
       }
       return profile(request, after);
     },
@@ -301,7 +308,7 @@ const manage: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["gigs"],
         summary: "Add a link to your portfolio",
-        description: `Up to ${MAX_PORTFOLIO} photos and links together.`,
+        description: "Up to GET /v1/gigs/rules `limits.portfolio` photos and links together.",
         body: PortfolioLinkBody,
         response: { 200: MyProfileOne, ...Errors },
         security,
@@ -309,13 +316,14 @@ const manage: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const before = await mine(request);
+      const { maxPortfolio } = await gigsSettings(db());
       const link = { id: randomUUID().slice(0, 8), title: request.body.title.trim(), url: request.body.url.trim() };
       const after = await db().businesses.findOneAndUpdate(
-        { _id: before._id, $expr: { $lt: [{ $add: [{ $size: "$freelancer.portfolio.photos" }, { $size: "$freelancer.portfolio.links" }] }, MAX_PORTFOLIO] } },
+        { _id: before._id, ...portfolioRoom(maxPortfolio) },
         { $push: { "freelancer.portfolio.links": link }, $set: { updatedAt: new Date() } },
         { returnDocument: "after" },
       );
-      if (!after) throw new AppError("CONFLICT", `Your portfolio has room for ${MAX_PORTFOLIO} photos and links.`);
+      if (!after) throw portfolioFull(maxPortfolio);
       return profile(request, after);
     },
   );
@@ -453,7 +461,8 @@ const manage: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["gigs"],
         summary: "Add a photo to a gig",
-        description: `Send the image itself with Content-Type image/jpeg, image/png or image/webp, up to 8 MB. Up to ${MAX_GIG_PHOTOS}; the first is the cover.`,
+        description:
+          "Send the image itself with Content-Type image/jpeg, image/png or image/webp, up to 8 MB. Up to GET /v1/gigs/rules `limits.gigPhotos`; the first is the cover.",
         consumes: PHOTO_TYPES,
         params: IdParams,
         response: { 200: MyGigOne, ...Errors },
@@ -462,16 +471,18 @@ const manage: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const { gig } = await myGig(request, request.params.id);
-      if (gig.photos.length >= MAX_GIG_PHOTOS) throw new AppError("CONFLICT", `A gig has up to ${MAX_GIG_PHOTOS} photos.`);
+      const { maxGigPhotos } = await gigsSettings(db());
+      const full = () => new AppError("CONFLICT", `A gig has up to ${maxGigPhotos} photo${maxGigPhotos === 1 ? "" : "s"}.`);
+      if (gig.photos.length >= maxGigPhotos) throw full();
       const photo = await savePhoto(gig._id.toHexString(), request.body);
       const after = await db().gigs.findOneAndUpdate(
-        { _id: gig._id, [`photos.${MAX_GIG_PHOTOS - 1}`]: { $exists: false } },
+        { _id: gig._id, [`photos.${maxGigPhotos - 1}`]: { $exists: false } },
         { $push: { photos: photo }, $set: { updatedAt: new Date() } },
         { returnDocument: "after" },
       );
       if (!after) {
         await dropPhoto(photo);
-        throw new AppError("CONFLICT", `A gig has up to ${MAX_GIG_PHOTOS} photos.`);
+        throw full();
       }
       return gigView(request, after);
     },

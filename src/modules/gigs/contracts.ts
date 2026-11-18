@@ -4,7 +4,7 @@ import { AppliedCoupon, Offer } from "../coupons/contracts.js";
 import { InvoiceRefs } from "../invoices/contracts.js";
 import { Rating, ReviewEligibility } from "../reviews/contracts.js";
 import { QuoteCard } from "../social/chat-contracts.js";
-import { ANSWER_MAX, MAX_FILES, MAX_GIG_PHOTOS, MAX_LINKS, MAX_PORTFOLIO, MAX_QUESTIONS } from "./rules.js";
+import { LIMIT_CAPS } from "./rules.js";
 
 const Nullable = <T extends TSchema>(schema: T, options?: { description: string }) => Type.Union([schema, Type.Null()], options);
 
@@ -41,7 +41,11 @@ const ReturnTo = Type.String({
   description: "Where the checkout page sends the customer afterwards: this site, or the app's own link. `order=<id>` is added.",
 });
 const Coupon = Type.Optional(Type.String({ minLength: 3, maxLength: 20 }));
-const FileIds = Type.Array(ObjectIdString, { maxItems: MAX_FILES, uniqueItems: true, description: "Files you uploaded with POST /v1/gigs/files and haven't used yet" });
+const FileIds = Type.Array(ObjectIdString, {
+  maxItems: LIMIT_CAPS.maxFiles,
+  uniqueItems: true,
+  description: "Files you uploaded with POST /v1/gigs/files and haven't used yet, up to GET /v1/gigs/rules `limits.files`",
+});
 
 // Ruxstar's rules.
 
@@ -73,7 +77,7 @@ export const GigsRulesView = Strict({
       answer: Type.Integer({ description: "Characters in one answer to a gig's question" }),
       extensions: Type.Array(Type.String(), { description: "The kinds of file that can be uploaded, by the name's extension" }),
     },
-    { description: "Fixed by Ruxstar; not settings" },
+    { description: "Set by Ruxstar in the console" },
   ),
 });
 export const GigsRulesOne = Envelope(GigsRulesView);
@@ -212,7 +216,7 @@ const gigBody = {
   category: Category,
   description: Type.String({ minLength: 30, maxLength: 3000 }),
   packages: Type.Array(PackageBody, { minItems: 1, maxItems: 3, description: "One to Ruxstar's most, Basic first" }),
-  questions: Type.Array(QuestionBody, { maxItems: MAX_QUESTIONS, description: "What to ask the customer when they order" }),
+  questions: Type.Array(QuestionBody, { maxItems: LIMIT_CAPS.maxQuestions, description: "What to ask the customer when they order, up to GET /v1/gigs/rules `limits.questions`" }),
 };
 export const CreateGigBody = Strict(gigBody);
 export const UpdateGigBody = Strict(
@@ -358,7 +362,13 @@ export const CheckoutLinkOne = Envelope(Strict({ checkoutUrl: Type.String() }));
 export const PayBody = Strict({ returnTo: ReturnTo });
 export const OrderBody = Strict({
   tier: Tier,
-  answers: Type.Array(Strict({ questionId: Type.String({ minLength: 1, maxLength: 40 }), answer: Type.String({ maxLength: ANSWER_MAX }) }), { maxItems: MAX_QUESTIONS }),
+  answers: Type.Array(
+    Strict({
+      questionId: Type.String({ minLength: 1, maxLength: 40 }),
+      answer: Type.String({ maxLength: LIMIT_CAPS.maxAnswer, description: "Up to GET /v1/gigs/rules `limits.answer` characters" }),
+    }),
+    { maxItems: LIMIT_CAPS.maxQuestions },
+  ),
   fileIds: Type.Optional(FileIds),
   note: Type.Optional(Nullable(Type.String({ maxLength: 1000 }))),
   coupon: Coupon,
@@ -382,7 +392,7 @@ export const CancelBody = Strict({ reason: Type.Optional(Type.String({ minLength
 export const VendorCancelBody = Strict({ reason: Type.String({ minLength: 5, maxLength: 300, description: "The customer is told" }) });
 export const DeliverBody = Strict({
   message: Type.String({ minLength: 1, maxLength: 2000 }),
-  links: Type.Array(Link, { maxItems: MAX_LINKS, description: "For example a shared drive folder" }),
+  links: Type.Array(Link, { maxItems: LIMIT_CAPS.maxLinks, description: "For example a shared drive folder. Up to GET /v1/gigs/rules `limits.links`" }),
   fileIds: FileIds,
 });
 export const OffersQuery = Strict({

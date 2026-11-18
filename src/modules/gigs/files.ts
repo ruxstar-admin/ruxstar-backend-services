@@ -11,41 +11,12 @@ import { idempotent } from "../../platform/idempotency.js";
 import { isModuleLive } from "../../platform/module-switch.js";
 import { UploadedOne, UploadQuery } from "./contracts.js";
 import { sellingProfile } from "./quotes.js";
-import { gigsSettings, MAX_UPLOAD_MB, MB } from "./rules.js";
+import { FILE_EXTENSIONS, FILE_TYPES, gigsSettings, MAX_UPLOAD_MB, MB } from "./rules.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 
-/** What can be uploaded, by extension, and the type it is served as. Pages and scripts aren't on it; only images and PDFs open in the browser. */
-const TYPES: Record<string, string> = {
-  pdf: "application/pdf",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  gif: "image/gif",
-  webp: "image/webp",
-  heic: "image/heic",
-  psd: "image/vnd.adobe.photoshop",
-  ai: "application/postscript",
-  eps: "application/postscript",
-  mp4: "video/mp4",
-  mov: "video/quicktime",
-  webm: "video/webm",
-  mp3: "audio/mpeg",
-  wav: "audio/wav",
-  m4a: "audio/mp4",
-  zip: "application/zip",
-  txt: "text/plain",
-  csv: "text/csv",
-  doc: "application/msword",
-  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  xls: "application/vnd.ms-excel",
-  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ppt: "application/vnd.ms-powerpoint",
-  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  ttf: "font/ttf",
-  otf: "font/otf",
-};
-export const FILE_EXTENSIONS = Object.keys(TYPES);
+/** The kinds Ruxstar allows now, out of those the module can serve. */
+export const allowedTypes = (fileTypes: string[]) => fileTypes.filter((ext) => FILE_TYPES[ext]);
 
 const extensionOf = (name: string) => /\.([a-z0-9]{2,5})$/i.exec(name.trim())?.[1]?.toLowerCase() ?? "";
 const cleanName = (name: string) => name.replace(/[\u0000-\u001f\\/]/g, "_").trim().slice(0, 120);
@@ -65,7 +36,7 @@ const files: FastifyPluginAsyncTypebox = async (app) => {
         summary: "Upload a file to attach to an order or a delivery",
         description:
           `Send the file itself with Content-Type application/octet-stream and its name in \`name\`. Up to Ruxstar's delivery size (at most ${MAX_UPLOAD_MB} MB); ` +
-          `the files on one order or one delivery add up to that too. Allowed: ${FILE_EXTENSIONS.join(", ")}. Then pass its id in \`fileIds\`. ` +
+          `the files on one order or one delivery add up to that too. Allowed: the kinds in GET /v1/gigs/rules \`limits.extensions\`, out of ${FILE_EXTENSIONS.join(", ")}. Then pass its id in \`fileIds\`. ` +
           "Files not used within a day are deleted; used ones go a set number of days after the order ends.",
         consumes: ["application/octet-stream"],
         querystring: UploadQuery,
@@ -82,9 +53,10 @@ const files: FastifyPluginAsyncTypebox = async (app) => {
       if (!Buffer.isBuffer(data) || data.length === 0) throw new AppError("FILE_INVALID", "Choose a file.");
       const name = cleanName(request.query.name);
       const extension = extensionOf(name);
-      const contentType = TYPES[extension];
-      if (!contentType) throw new AppError("FILE_INVALID", `This kind of file can't be sent. Use one of: ${FILE_EXTENSIONS.join(", ")}.`);
-      const { deliveryMaxMb } = await gigsSettings(db());
+      const { deliveryMaxMb, fileTypes } = await gigsSettings(db());
+      const allowed = allowedTypes(fileTypes);
+      const contentType = allowed.includes(extension) ? FILE_TYPES[extension] : undefined;
+      if (!contentType) throw new AppError("FILE_INVALID", `This kind of file can't be sent. Use one of: ${allowed.join(", ")}.`);
       if (data.length > deliveryMaxMb * MB) throw new AppError("FILE_INVALID", `Files can be up to ${deliveryMaxMb} MB.`);
       const doc: GigFileDoc = {
         _id: new ObjectId(),

@@ -544,8 +544,9 @@ export interface NotificationDoc {
    * `stay_order` a customer's reservation, and `vendor_property` a property's bed board for its owner or team. `store` opens a
    * local shop's page, `store_product` one of its products, `store_order` a customer's order, and `vendor_store_order` the same
    * order at the shop's desk. `gig` opens a gig's page, `gig_order` a customer's freelance order, `vendor_gig_order` the same
-   * order for the freelancer, `freelance` the freelancer's own Freelancing home (its id is the business), and `chat` a chat
-   * (a custom offer in it).
+   * order for the freelancer, `freelance` the freelancer's own Freelancing home (its id is the business),
+   * `freelance_payments` Payments in Freelancing for someone whose only businesses are freelancer ones (its id is the payout),
+   * and `chat` a chat (a custom offer in it).
    */
   link: {
     screen:
@@ -584,7 +585,8 @@ export interface NotificationDoc {
       | "gig"
       | "gig_order"
       | "vendor_gig_order"
-      | "freelance";
+      | "freelance"
+      | "freelance_payments";
     id: string;
   };
   readAt: Date | null;
@@ -791,6 +793,19 @@ export interface GigsRules {
   minDays: number;
   maxDays: number;
   maxRevisions: number;
+  /** Photos and links on a profile's portfolio, together. */
+  maxPortfolio: number;
+  maxGigPhotos: number;
+  /** Questions on one gig. */
+  maxQuestions: number;
+  /** Files on one order's brief or one delivery. */
+  maxFiles: number;
+  /** Links in one delivery. */
+  maxLinks: number;
+  /** Characters in one answer to a gig's question. */
+  maxAnswer: number;
+  /** Extensions that can be uploaded, each one the gigs module knows how to serve. */
+  fileTypes: string[];
   categories: GigCategory[];
 }
 

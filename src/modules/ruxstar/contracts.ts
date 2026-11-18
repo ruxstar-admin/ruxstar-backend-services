@@ -1,5 +1,6 @@
 import { Type, type Static, type TSchema } from "typebox";
 import { DateTime, Envelope, ListEnvelope, ModuleName, ObjectIdString, PageQuery, Strict } from "../../contracts/common.js";
+import { FILE_EXTENSIONS, LIMIT_CAPS } from "../gigs/rules.js";
 import { Business, BusinessModule, PayoutMethod } from "../vendor/contracts.js";
 
 const Nullable = <T extends TSchema>(schema: T) => Type.Union([schema, Type.Null()]);
@@ -123,6 +124,29 @@ export const GigsRules = Strict(
     minDays: Type.Integer({ minimum: 1, maximum: 365, description: "The fewest delivery days a package or custom offer can have" }),
     maxDays: Type.Integer({ minimum: 1, maximum: 365, description: "The most delivery days. At least `minDays`" }),
     maxRevisions: Type.Integer({ minimum: 0, maximum: 50, description: "The most revisions a package or custom offer can include" }),
+    maxPortfolio: Type.Integer({
+      minimum: 1,
+      maximum: LIMIT_CAPS.maxPortfolio,
+      description: "Photos and links on a freelancer's portfolio, together. A portfolio already over it keeps its items but can't add more",
+    }),
+    maxGigPhotos: Type.Integer({
+      minimum: 1,
+      maximum: LIMIT_CAPS.maxGigPhotos,
+      description: "Photos on one gig; publishing needs one. A gig already over it keeps its photos but can't add more",
+    }),
+    maxQuestions: Type.Integer({
+      minimum: 1,
+      maximum: LIMIT_CAPS.maxQuestions,
+      description: "Questions a gig asks the customer. A gig already over it keeps selling, and must fit when it is next edited",
+    }),
+    maxFiles: Type.Integer({ minimum: 1, maximum: LIMIT_CAPS.maxFiles, description: "Files on one order's brief or one delivery" }),
+    maxLinks: Type.Integer({ minimum: 1, maximum: LIMIT_CAPS.maxLinks, description: "Links in one delivery" }),
+    maxAnswer: Type.Integer({ minimum: 100, maximum: LIMIT_CAPS.maxAnswer, description: "Characters in one answer to a gig's question. Orders made keep their answers" }),
+    fileTypes: Type.Array(Type.Enum(FILE_EXTENSIONS), {
+      minItems: 1,
+      uniqueItems: true,
+      description: "File kinds, by extension, that customers and freelancers can upload. Files uploaded already stay",
+    }),
     categories: Type.Array(GigCategory, {
       minItems: 1,
       maxItems: 30,
