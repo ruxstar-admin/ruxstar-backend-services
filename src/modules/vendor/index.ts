@@ -4,7 +4,7 @@ import { ObjectId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { actorOf, writeAudit } from "../../platform/audit.js";
 import { requireDatabase } from "../../platform/context.js";
-import { requireAuth } from "../../platform/auth.js";
+import { publicCache, requireAuth, signedInIfPossible } from "../../platform/auth.js";
 import { stamp, type BusinessDoc } from "../../platform/db.js";
 import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
@@ -47,6 +47,7 @@ import team from "./team.js";
 import { endPlacesFor } from "../team/team.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
+const signedInOrNot: Record<string, string[]>[] = [{}, ...security];
 const limit = (perMinutes: number, max: number) => ({ rateLimit: { max, timeWindow: perMinutes * 60_000 } });
 
 const by = (request: FastifyRequest) => ({ actor: actorOf(request), ip: request.ip });
@@ -85,16 +86,18 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/catalog",
     {
-      preHandler: requireAuth,
+      preHandler: signedInIfPossible,
       schema: {
         tags: ["vendor"],
         summary: "Categories, types, states and cities, and print products to choose from",
-        description: "Each category is one module, with whether it is live and taking new businesses. The Ruxstar console reads it for labels.",
+        description:
+          "No sign-in needed. Each category is one module, with whether it is live and taking new businesses. The Ruxstar console reads it for labels.",
         response: { 200: Catalog, ...Errors },
-        security,
+        security: signedInOrNot,
       },
     },
-    async (request) => {
+    async (request, reply) => {
+      publicCache(request, reply);
       const [docs, rules] = await Promise.all([
         db().moduleSettings.find({ module: { $in: CATEGORIES.map((c) => c.module) } }).toArray(),
         deliveryRules(db()),

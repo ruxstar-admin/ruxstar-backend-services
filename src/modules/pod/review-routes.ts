@@ -2,7 +2,7 @@ import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import { ObjectId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { actorOf } from "../../platform/audit.js";
-import { requireAuth } from "../../platform/auth.js";
+import { publicCache, requireAuth, signedInIfPossible } from "../../platform/auth.js";
 import { requireDatabase } from "../../platform/context.js";
 import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
@@ -94,18 +94,19 @@ const reviews: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/shops/:id/reviews",
     {
-      preHandler: requireAuth,
+      preHandler: signedInIfPossible,
       schema: {
         tags: ["pod"],
         summary: "A print shop's reviews, newest first",
-        description: "The shop's rating is on the shop itself.",
+        description: "No sign-in needed. The shop's rating is on the shop itself.",
         params: ShopParams,
         querystring: ShopReviewsQuery,
         response: { 200: ReviewList, ...Errors },
-        security,
+        security: [{}, ...security],
       },
     },
-    async (request) => {
+    async (request, reply) => {
+      publicCache(request, reply);
       const shop = await db().businesses.findOne({ ...visibleShops, _id: new ObjectId(request.params.id) }, { projection: { _id: 1 } });
       if (!shop || !(await isModuleLive(db(), "pod"))) throw new AppError("NOT_FOUND", "This shop is not on Ruxstar right now.");
       const { items, nextCursor } = await findPage(db().reviews, {

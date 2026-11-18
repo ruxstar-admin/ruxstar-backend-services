@@ -80532,8 +80532,9 @@
         "tags": [
           "vendor"
         ],
-        "description": "Each category is one module, with whether it is live and taking new businesses. The Ruxstar console reads it for labels.",
+        "description": "No sign-in needed. Each category is one module, with whether it is live and taking new businesses. The Ruxstar console reads it for labels.",
         "security": [
+          {},
           {
             "bearer": []
           },
@@ -98539,7 +98540,7 @@
         "tags": [
           "pod"
         ],
-        "description": "The shop's rating is on the shop itself.",
+        "description": "No sign-in needed. The shop's rating is on the shop itself.",
         "parameters": [
           {
             "schema": {
@@ -98573,6 +98574,7 @@
           }
         ],
         "security": [
+          {},
           {
             "bearer": []
           },
@@ -99045,7 +99047,7 @@
         "tags": [
           "pod"
         ],
-        "description": "Live shops that are not on hold. In each page, shops in your city (from your profile) come first, then open ones. Empty while Ruxstar has print on demand switched off.",
+        "description": "No sign-in needed. Live shops that are not on hold. In each page, shops in your city (from your profile, when signed in) come first, then open ones. Empty while Ruxstar has print on demand switched off.",
         "parameters": [
           {
             "schema": {
@@ -99110,6 +99112,7 @@
           }
         ],
         "security": [
+          {},
           {
             "bearer": []
           },
@@ -99406,6 +99409,7 @@
         "tags": [
           "pod"
         ],
+        "description": "No sign-in needed.",
         "parameters": [
           {
             "schema": {
@@ -99419,6 +99423,7 @@
           }
         ],
         "security": [
+          {},
           {
             "bearer": []
           },
@@ -100000,8 +100005,9 @@
         "tags": [
           "pod"
         ],
-        "description": "What customers see before paying and vendors before opening a shop. The commission and fees are Ruxstar's current settings.",
+        "description": "No sign-in needed. What customers see before paying and vendors before opening a shop. The commission and fees are Ruxstar's current settings.",
         "security": [
+          {},
           {
             "bearer": []
           },

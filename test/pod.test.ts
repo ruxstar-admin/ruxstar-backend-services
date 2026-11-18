@@ -182,7 +182,19 @@ describe("print shops for customers", () => {
     expect((await call("GET", `/pod/shops/${id}`, customer.token)).statusCode).toBe(404);
   });
 
-  it("needs a signed-in person", async () => {
-    expect((await stack.app.inject({ method: "GET", url: "/v1/pod/shops", headers: web() })).statusCode).toBe(401);
+  it("shows shops, reviews, terms and the catalog to someone signed out", async () => {
+    const owner = await vendor();
+    const id = await shop(owner, "Rao Tees", { products: ["tshirts"], serveAll: true, prices: [{ product: "tshirts", basePrice: 29_900 }] });
+    const get = (url: string) => stack.app.inject({ method: "GET", url, headers: web() });
+
+    const list = await get("/v1/pod/shops");
+    expect(list.statusCode).toBe(200);
+    expect(list.headers["cache-control"]).toBe("public, max-age=60");
+    expect(list.json().data.map((s: { id: string }) => s.id)).toEqual([id]);
+    expect((await get(`/v1/pod/shops/${id}`)).json().data).toMatchObject({ name: "Rao Tees" });
+    expect((await get(`/v1/pod/shops/${id}/reviews`)).json().data).toEqual([]);
+    expect((await get("/v1/pod/terms")).statusCode).toBe(200);
+    expect((await get("/v1/vendor/catalog")).statusCode).toBe(200);
+    expect((await call("GET", "/pod/shops", customer.token)).headers["cache-control"]).toBe("private, no-store");
   });
 });
