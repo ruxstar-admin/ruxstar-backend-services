@@ -28,17 +28,21 @@ function serversOf(err: unknown) {
   return servers ? [...servers].map(([address, s]) => ({ address, type: s.type, rttMs: Math.round(s.roundTripTime ?? -1), error: s.error?.message })) : undefined;
 }
 
+/** Per operation while building indexes and seeding; requests keep the client's own limit. */
+const SETUP_TIMEOUT_MS = 120_000;
+
 /** Connects and builds the indexes once. A failed client is swapped for a new one before the next try. */
 async function setUpDatabase(database: NonNullable<typeof db>, attempt: number): Promise<boolean> {
   const started = Date.now();
   let step = "connect";
   try {
     await database.client.connect();
+    const setup = database.withTimeout(SETUP_TIMEOUT_MS);
     // The unique index on module must exist before seeding, or two instances starting together can insert twins.
     step = "indexes";
-    await ensurePlatformIndexes(database);
+    await ensurePlatformIndexes(setup);
     step = "seed";
-    await seedModuleSettings(database);
+    await seedModuleSettings(setup);
     database.ready = true;
     app.log.info({ db: config.mongo!.db, attempt, ms: Date.now() - started }, "Database ready");
     return true;

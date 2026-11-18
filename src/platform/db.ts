@@ -2450,6 +2450,14 @@ export class Database {
     stale.close().catch(() => undefined);
   }
 
+  /**
+   * The same client with a longer limit per operation. Startup queues hundreds of index builds on a pool of 20, and the
+   * wait for a connection counts against `timeoutMS`, so under the request limit the last ones in the queue always fail.
+   */
+  withTimeout(timeoutMS: number): Database {
+    return Object.create(this, { db: { value: this.client.db(this.dbName, { timeoutMS }) } }) as Database;
+  }
+
   get users() {
     return this.db.collection<UserDoc>("users");
   }
