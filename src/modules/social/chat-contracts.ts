@@ -12,7 +12,10 @@ export const VOICE_MAX_MS = 2 * 60_000;
 export const VOICE_LEVELS_MAX = 48;
 export const REACTION_MAX_LENGTH = 16;
 
-const MessageKind = Type.Union([Type.Literal("text"), Type.Literal("post"), Type.Literal("photo"), Type.Literal("voice"), Type.Literal("event")]);
+const MessageKind = Type.Union(
+  [Type.Literal("text"), Type.Literal("post"), Type.Literal("photo"), Type.Literal("voice"), Type.Literal("event"), Type.Literal("quote")],
+  { description: "`quote` is a freelancer's custom offer; its card is in `quote`" },
+);
 const MemberState = Type.Union([Type.Literal("active"), Type.Literal("request")], {
   description: "`request`: someone you don't follow started it or added you. Accept to reply; it sits in Requests until then.",
 });
@@ -81,6 +84,25 @@ export const ReactionCount = Strict({
   mine: Type.Boolean({ description: "This one is yours" }),
 });
 
+export const QuoteCard = Strict({
+  id: ObjectIdString,
+  status: Type.Union([Type.Literal("open"), Type.Literal("withdrawn"), Type.Literal("expired"), Type.Literal("paid")], {
+    description: "`open` can be paid for until `expiresAt`. `paid` made the order in `orderId`",
+  }),
+  title: Type.String(),
+  description: Type.String({ description: "What's included" }),
+  category: Type.String({ description: "A freelancers category key" }),
+  price: Type.Integer({ minimum: 0, description: "Paise, before any coupon and the platform fee" }),
+  deliveryDays: Type.Integer({ description: "Counted from when it's paid" }),
+  revisions: Type.Integer(),
+  expiresAt: DateTime,
+  freelancer: Strict({ businessId: ObjectIdString, name: Type.String() }),
+  orderId: Type.Union([ObjectIdString, Type.Null()], { description: "Yours, once you paid for it (the customer only)" }),
+  canPay: Type.Boolean({ description: "You are the customer and it is open: POST /v1/gigs/quotes/{id}/pay" }),
+  canWithdraw: Type.Boolean({ description: "You sent it and it is open: POST /v1/gigs/desk/quotes/{id}/withdraw" }),
+});
+export type QuoteCard = Static<typeof QuoteCard>;
+
 export const Message = Strict({
   id: ObjectIdString,
   chatId: ObjectIdString,
@@ -89,6 +111,7 @@ export const Message = Strict({
   mine: Type.Boolean(),
   text: Type.String(),
   post: Type.Union([SharedPost, Type.Null()]),
+  quote: Type.Union([QuoteCard, Type.Null()], { description: "A custom offer; null on other kinds" }),
   photo: Type.Union([Strict({ url: Type.String({ description: "Works for at least an hour" }), width: Type.Integer(), height: Type.Integer() }), Type.Null()]),
   voice: Type.Union([
     Strict({
@@ -111,7 +134,7 @@ export const ChatUpdates = Envelope(
     messages: Type.Array(Message, {
       description: "Sent since `since`, oldest first, up to 100. Includes a few seconds before it, so merge by id. When 100 come back, `now` is set so the next call picks up the rest.",
     }),
-    updated: Type.Array(Message, { description: "Older messages whose reactions changed since `since`. Replace the ones you have." }),
+    updated: Type.Array(Message, { description: "Older messages whose reactions or custom offer changed since `since`. Replace the ones you have." }),
     unsent: Type.Array(ObjectIdString, { description: "Messages unsent since `since`. Remove them." }),
     seenAt: Type.Union([DateTime, Type.Null()]),
     activeAt: Type.Union([DateTime, Type.Null()], { description: "1:1 chats: when the other person last had Ruxstar open" }),
@@ -171,3 +194,12 @@ export const SendMessage = Strict({
   ...ReplyTo,
 });
 export const MuteBody = Strict({ muted: Type.Boolean() });
+export const SendQuote = Strict({
+  title: Type.String({ minLength: 3, maxLength: 80 }),
+  description: Type.String({ minLength: 10, maxLength: 1200, description: "What's included" }),
+  category: Type.String({ minLength: 2, maxLength: 30, description: "A freelancers category key that isn't hidden" }),
+  price: Type.Integer({ minimum: 1, description: "Paise, within Ruxstar's price range" }),
+  deliveryDays: Type.Integer({ minimum: 1, maximum: 365, description: "Within Ruxstar's delivery days, counted from payment" }),
+  revisions: Type.Integer({ minimum: 0, maximum: 50, description: "Up to Ruxstar's most" }),
+  ...ReplyTo,
+});

@@ -11,6 +11,7 @@ import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { findPage } from "../../platform/pagination.js";
+import { draftQuote, quoteCards, saveQuote } from "../gigs/quotes.js";
 import { pushTo } from "../notifications/push.js";
 import {
   AddPeople,
@@ -32,6 +33,7 @@ import {
   ReactBody,
   RenameGroup,
   SendMessage,
+  SendQuote,
   StartDm,
   TypingBody,
   UpdatesQuery,
@@ -91,7 +93,15 @@ function namesLine(names: string[]): string {
 function previewOf(kind: ChatMessageKind, text: string): string {
   const line = text.replace(/\s+/g, " ").trim();
   if (line) return line.length > PREVIEW_MAX ? `${line.slice(0, PREVIEW_MAX - 1)}…` : line;
-  return kind === "photo" ? "Sent a photo" : kind === "voice" ? "Sent a voice message" : kind === "post" ? "Shared a post" : "";
+  return kind === "photo"
+    ? "Sent a photo"
+    : kind === "voice"
+      ? "Sent a voice message"
+      : kind === "post"
+        ? "Shared a post"
+        : kind === "quote"
+          ? "Sent a custom offer"
+          : "";
 }
 
 /** A message's photo and voice files in the bucket. */
@@ -362,7 +372,17 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
         const mine = t.senderId.equals(viewer);
         const author = names.get(t.senderId.toHexString());
         const live = t.status === "live";
-        const text = !live ? "" : t.kind === "photo" ? "Photo" : t.kind === "voice" ? "Voice message" : t.kind === "post" ? previewOf("text", t.text) || "Post" : previewOf("text", t.text);
+        const text = !live
+          ? ""
+          : t.kind === "photo"
+            ? "Photo"
+            : t.kind === "voice"
+              ? "Voice message"
+              : t.kind === "quote"
+                ? "Custom offer"
+                : t.kind === "post"
+                  ? previewOf("text", t.text) || "Post"
+                  : previewOf("text", t.text);
         return [t._id.toHexString(), { id: t._id.toHexString(), available: live, sender: mine ? "You" : author?.name || author?.username || "Someone", mine, kind: t.kind, text }];
       }),
     );
@@ -373,11 +393,13 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
     const d = db();
     const viewer = me(request);
     const postIds = messages.flatMap((m) => (m.postId ? [m.postId] : []));
-    const [senders, posts, blocked, replies] = await Promise.all([
+    const quoteIds = messages.flatMap((m) => (m.quoteId ? [m.quoteId] : []));
+    const [senders, posts, blocked, replies, quotes] = await Promise.all([
       authorsOf(d, messages.filter((m) => m.kind !== "event").map((m) => m.senderId)),
       postIds.length ? d.posts.find({ _id: { $in: postIds }, status: "live" }, { projection: { authorId: 1, text: 1, media: 1 } }).toArray() : Promise.resolve([]),
       postIds.length ? blockedAround(d, viewer) : Promise.resolve([]),
       replyPreviews(request, messages),
+      quoteCards(d, quoteIds, viewer),
     ]);
     const postAuthors = await authorsOf(d, posts.map((p) => p.authorId));
     const hidden = new Set(blocked.map((id) => id.toHexString()));
@@ -408,6 +430,7 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
           mine: m.kind !== "event" && m.senderId.equals(viewer),
           text: m.text,
           post,
+          quote: m.quoteId ? (quotes.get(m.quoteId.toHexString()) ?? null) : null,
           photo: m.photo ? { url: chatPhotoUrl(app, request, m._id.toHexString()), width: m.photo.width, height: m.photo.height } : null,
           voice: m.voice ? { url: chatVoiceUrl(app, request, m._id.toHexString()), durationMs: m.voice.durationMs, levels: m.voice.levels } : null,
           replyTo: m.replyToId ? (replies.get(m.replyToId.toHexString()) ?? null) : null,
@@ -448,7 +471,8 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
     request: FastifyRequest,
     conversation: Conversation,
     mine: Member,
-    fields: Pick<ChatMessageDoc, "kind" | "text" | "postId" | "photo"> & Partial<Pick<ChatMessageDoc, "voice" | "replyToId">>,
+    fields: Pick<ChatMessageDoc, "kind" | "text" | "postId" | "photo"> & Partial<Pick<ChatMessageDoc, "voice" | "replyToId" | "quoteId">>,
+    alongside?: (session: ClientSession, message: ChatMessageDoc) => Promise<void>,
   ) {
     const d = db();
     const message: ChatMessageDoc = {
@@ -460,7 +484,10 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
       createdAt: new Date(),
       unsentAt: null,
     };
-    await d.transaction((session) => writeMessage(d, session, conversation, message));
+    await d.transaction(async (session) => {
+      await alongside?.(session, message);
+      await writeMessage(d, session, conversation, message);
+    });
     wake(conversation._id);
     const [view] = await messageViews(request, [message]);
     void notifyMembers(conversation, message, view!.sender?.name ?? "Someone");
@@ -921,6 +948,41 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
     },
   );
 
+  app.post(
+    "/chats/:id/quotes",
+    {
+      preHandler: [requireAuth, idempotent],
+      config: limit(10, 30),
+      schema: {
+        tags: ["chats"],
+        summary: "Send a custom offer, as a freelancer",
+        description:
+          "1:1 chats only, from someone with a freelancer profile who is verified. The other person can pay for it with " +
+          "POST /v1/gigs/quotes/{id}/pay, which makes an order that is accepted already. It can be paid for Ruxstar's quote days; withdraw it until then " +
+          "with POST /v1/gigs/desk/quotes/{id}/withdraw. It can't be unsent.",
+        params: ChatParams,
+        body: SendQuote,
+        response: { 201: MessageResult, ...Errors },
+        security,
+      },
+    },
+    async (request, reply) => {
+      const { conversation, mine } = await open(request, request.params.id);
+      if (conversation.kind !== "dm" || !mine.peerId) throw new AppError("VALIDATION_FAILED", "Custom offers are sent in 1:1 chats.", [{ path: "params/id", message: "Not a 1:1 chat" }]);
+      const draft = await draftQuote(db(), { senderId: me(request), customerId: mine.peerId, conversationId: conversation._id, body: request.body });
+      await assertCanSend(conversation, mine);
+      const replyToId = await replyTarget(conversation, mine, request.body.replyToId);
+      const message = await send(
+        request,
+        conversation,
+        mine,
+        { kind: "quote", text: "", postId: null, photo: null, quoteId: draft._id, replyToId },
+        (session, saved) => saveQuote(db(), { ...draft, messageId: saved._id }, session),
+      );
+      return reply.status(201).send(ok(request, message));
+    },
+  );
+
   app.addContentTypeParser(/^audio\//, { parseAs: "buffer", bodyLimit: VOICE_MAX_BYTES }, (_request, body, done) => done(null, body));
 
   app.post(
@@ -1037,8 +1099,13 @@ const chats: FastifyPluginAsyncTypebox = async (app) => {
       const d = db();
       const { conversation } = await open(request, request.params.id);
       const now = new Date();
+      const offer = await d.chatMessages.findOne(
+        { _id: new ObjectId(request.params.messageId), conversationId: conversation._id, senderId: me(request), status: "live", kind: "quote" },
+        { projection: { _id: 1 } },
+      );
+      if (offer) throw new AppError("CONFLICT", "A custom offer can't be unsent. Withdraw the offer instead.");
       const message = await d.chatMessages.findOneAndUpdate(
-        { _id: new ObjectId(request.params.messageId), conversationId: conversation._id, senderId: me(request), status: "live", kind: { $ne: "event" } },
+        { _id: new ObjectId(request.params.messageId), conversationId: conversation._id, senderId: me(request), status: "live", kind: { $nin: ["event", "quote"] } },
         { $set: { status: "unsent", unsentAt: now, text: "", postId: null, photo: null, voice: null, reactions: [] } },
         { returnDocument: "before" },
       );

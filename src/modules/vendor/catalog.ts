@@ -28,6 +28,7 @@ export const BUSINESS_TYPES = [
   "gifts",
   "bakery",
   "general_store",
+  "freelancer",
 ] as const;
 export type BusinessType = (typeof BUSINESS_TYPES)[number];
 
@@ -193,6 +194,15 @@ export const TYPES: readonly {
     namePlaceholder: "e.g. Corner Store",
     detailHint: "The name customers know your shop by. Delivery, returns and products come after this step.",
   },
+  {
+    id: "freelancer",
+    module: "gigs",
+    label: "Freelancer",
+    description: "Design, editing, writing and other work sold as fixed packages",
+    examples: "Logo designer, video editor, photographer, translator",
+    namePlaceholder: "e.g. Asha Rao",
+    detailHint: "Made with Start freelancing, one per person; it isn't added here.",
+  },
 ];
 
 export const typeOf = (id: BusinessType) => TYPES.find((t) => t.id === id)!;
@@ -204,6 +214,7 @@ export const DEFAULT_TYPE: Record<BusinessModule, BusinessType> = {
   stays: "pg",
   turf: "turf",
   shop: "general_store",
+  gigs: "freelancer",
 };
 
 const APPAREL_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "3XL"];

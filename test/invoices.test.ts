@@ -347,7 +347,7 @@ describe("GST invoices and credit notes", () => {
 
     const settings = (await call("GET", "/ruxstar/gst", admin.token)).json().data;
     expect(settings.seller).toMatchObject({ legalName: "Ruxstar", gstin: null, feeCode: "998599", feeRateBps: 1800, updatedAt: null });
-    expect(settings.modules.map((m: { module: string }) => m.module)).toEqual(["pod", "events", "coaching", "stays", "turf", "ecommerce"]);
+    expect(settings.modules.map((m: { module: string }) => m.module)).toEqual(["pod", "events", "coaching", "stays", "turf", "ecommerce", "gigs"]);
     expect(settings.modules[0]).toMatchObject({ enabled: true, seller: "vendor", withoutGstin: "bill_of_supply", pricesIncludeTax: true, tcsBps: 50 });
 
     const items = settings.modules[0].items.map((i: { key: string }) => (i.key === "tshirts" ? { ...i, rateBps: 1200, lowRate: null } : i));

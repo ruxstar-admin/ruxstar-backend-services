@@ -22,6 +22,7 @@ import { isAvailable, isReserved } from "../src/modules/account/usernames.js";
 import { DEFAULT_COACHING_RULES } from "../src/modules/coaching/rules.js";
 import { BUSINESS_MODULES, DEFAULT_OFFER_MINUTES, DEFAULT_RIDER_RATE, DEFAULT_SHOP_FEE_MAX } from "../src/modules/delivery/rates.js";
 import { DEFAULT_EVENT_RULES } from "../src/modules/events/rules.js";
+import { DEFAULT_GIGS_RULES } from "../src/modules/gigs/rules.js";
 import { DEFAULT_GST_RULES, DEFAULT_GST_SELLER, GST_MODULES, moduleKey, SELLER_KEY } from "../src/modules/invoices/gst.js";
 import { PAYOUT_MODULES } from "../src/modules/ruxstar/index.js";
 import { DEFAULT_BANNED, loadBanned } from "../src/modules/shop/products.js";
@@ -280,6 +281,7 @@ const MODULE_RULES: Partial<Record<SwitchableModule, Partial<ModuleSettingsDoc>>
   turf: { turfRules: DEFAULT_TURF_RULES },
   stays: { staysRules: DEFAULT_STAYS_RULES },
   shop: { shopRules: DEFAULT_SHOP_RULES },
+  gigs: { gigsRules: DEFAULT_GIGS_RULES },
 };
 
 /** A module's row with every default the console would otherwise fill in when it shows it. */

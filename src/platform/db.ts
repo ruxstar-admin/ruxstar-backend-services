@@ -135,7 +135,7 @@ export interface KycCaseDoc extends Stamped {
 }
 
 /** The modules a vendor can open a business in. Each business is in exactly one. */
-export type BusinessModule = "pod" | "events" | "coaching" | "stays" | "turf" | "shop";
+export type BusinessModule = "pod" | "events" | "coaching" | "stays" | "turf" | "shop" | "gigs";
 
 export interface BusinessPhoto extends PostPhoto {
   id: string;
@@ -208,6 +208,20 @@ export interface ShopSetup {
   notes: string | null;
 }
 
+/** A freelancer's profile, on their `gigs` business. The business's name is their display name and its description the bio. */
+export interface FreelancerProfile {
+  /** One line, up to 80 characters. */
+  headline: string;
+  /** A key of the freelancers module's categories. */
+  category: string;
+  skills: string[];
+  languages: string[];
+  /** Lower case; null when they don't say. */
+  city: string | null;
+  /** Up to 12 photos and links together. */
+  portfolio: { photos: BusinessPhoto[]; links: { id: string; title: string; url: string }[] };
+}
+
 export interface BusinessDoc extends Stamped {
   _id: ObjectId;
   ownerId: ObjectId;
@@ -223,6 +237,8 @@ export interface BusinessDoc extends Stamped {
   pod: PodSetup | null;
   /** Local shops only; missing until the owner sets delivery and returns. */
   shop?: ShopSetup | null;
+  /** Freelancer profiles only: one per person, made with "Start freelancing". */
+  freelancer?: FreelancerProfile | null;
   gstin: { number: string; legalName: string | null; status: string | null } | null;
   photos: BusinessPhoto[];
   /** `draft` until the vendor publishes it. Only drafts can be deleted. */
@@ -433,7 +449,7 @@ export interface ChatMemberDoc {
   typingUntil?: Date | null;
 }
 
-export type ChatMessageKind = "text" | "post" | "photo" | "voice" | "event";
+export type ChatMessageKind = "text" | "post" | "photo" | "voice" | "event" | "quote";
 
 /** One per person: reacting again swaps it. */
 export interface ChatReaction {
@@ -458,8 +474,10 @@ export interface ChatMessageDoc {
   voice?: { key: string; durationMs: number; levels: number[] } | null;
   /** The message this one answers. */
   replyToId?: ObjectId | null;
+  /** A freelancer's custom offer, in `gig_quotes`. */
+  quoteId?: ObjectId | null;
   reactions?: ChatReaction[];
-  /** When its reactions last changed, so open chats pick that up. */
+  /** When its reactions or its offer last changed, so open chats pick that up. */
   touchedAt?: Date;
   status: "live" | "unsent";
   createdAt: Date;
@@ -500,7 +518,9 @@ export type NotificationType =
   | "stays.reserved"
   | "stays.updated"
   | "shop.ordered"
-  | "shop.updated";
+  | "shop.updated"
+  | "gigs.ordered"
+  | "gigs.updated";
 
 export interface NotificationDoc {
   _id: ObjectId;
@@ -523,7 +543,8 @@ export interface NotificationDoc {
    * booking, and `vendor_ground` a ground's board for its owner or team. `stay_property` opens a PG or hostel's page,
    * `stay_order` a customer's reservation, and `vendor_property` a property's bed board for its owner or team. `store` opens a
    * local shop's page, `store_product` one of its products, `store_order` a customer's order, and `vendor_store_order` the same
-   * order at the shop's desk.
+   * order at the shop's desk. `gig` opens a gig's page, `gig_order` a customer's freelance order, `vendor_gig_order` the same
+   * order for the freelancer, and `chat` a chat (a custom offer in it).
    */
   link: {
     screen:
@@ -558,7 +579,10 @@ export interface NotificationDoc {
       | "store"
       | "store_product"
       | "store_order"
-      | "vendor_store_order";
+      | "vendor_store_order"
+      | "gig"
+      | "gig_order"
+      | "vendor_gig_order";
     id: string;
   };
   readAt: Date | null;
@@ -631,6 +655,8 @@ export interface ModuleSettingsDoc extends Stamped {
   staysRules?: StaysRules;
   /** The shop module only. Missing: the defaults in the shop module. */
   shopRules?: ShopRules;
+  /** The freelancers module only. Missing: the defaults in the gigs module. */
+  gigsRules?: GigsRules;
   deliveryEnabled: boolean;
   permissionCatalog: string[];
   updatedBy: ObjectId | null;
@@ -735,6 +761,35 @@ export interface ShopRules {
   maxLines: number;
   /** Of one variant in one order. */
   maxQuantity: number;
+}
+
+/** One kind of freelance work. Keys never change once made; hidden ones take no new gigs. */
+export interface GigCategory {
+  key: string;
+  label: string;
+  hidden: boolean;
+}
+
+/** What Ruxstar sets for freelancers. Prices are paise. */
+export interface GigsRules {
+  /** A delivered order the customer doesn't answer is completed this many days later. */
+  autoCompleteDays: number;
+  /** A paid order the freelancer hasn't accepted in this long is cancelled and fully refunded. */
+  acceptHours: number;
+  /** A custom offer in a chat can be paid for this many days. */
+  quoteDays: number;
+  /** The most one delivery, or a customer's files with an order, can add up to. Never above 25. */
+  deliveryMaxMb: number;
+  /** Delivered files are deleted this many days after the order ends; the order and messages stay. */
+  fileDays: number;
+  maxGigs: number;
+  maxPackages: number;
+  minPrice: number;
+  maxPrice: number;
+  minDays: number;
+  maxDays: number;
+  maxRevisions: number;
+  categories: GigCategory[];
 }
 
 /** A file a customer uploaded to print. Unused ones are deleted a day later, on the uploader's next upload. */
@@ -962,7 +1017,7 @@ export interface LedgerEntryDoc {
   accountId: string;
   bucket: "pending" | "withdrawable";
   signedPaise: number;
-  source: { type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "shop_order" | "payout"; id: ObjectId };
+  source: { type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "shop_order" | "gig_order" | "payout"; id: ObjectId };
   at: Date;
 }
 
@@ -1056,7 +1111,7 @@ export interface EventOrderDoc extends Stamped {
 
 export type InvoiceKind = "tax_invoice" | "bill_of_supply" | "credit_note";
 /** Modules with GST rules. `turf` and `ecommerce` have defaults ready for when they are built. */
-export type GstModule = "pod" | "events" | "coaching" | "stays" | "turf" | "ecommerce";
+export type GstModule = "pod" | "events" | "coaching" | "stays" | "turf" | "ecommerce" | "gigs";
 
 /** A rate for one module, or for one product or kind of business in it. Units priced at or below `lowRate.upTo` use its rate. */
 export interface GstRate {
@@ -1137,7 +1192,7 @@ export interface InvoiceDoc extends Stamped {
   /** `supply`: what was bought; `fee`: Ruxstar's platform fee. */
   role: "supply" | "fee";
   module: GstModule;
-  source: { type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "shop_order"; id: ObjectId; orderNo: number };
+  source: { type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "shop_order" | "gig_order"; id: ObjectId; orderNo: number };
   businessId: ObjectId;
   businessName: string;
   vendorId: ObjectId;
@@ -1915,6 +1970,191 @@ export interface ShopOrderDoc extends Stamped {
   invoices?: InvoiceRefDoc[];
 }
 
+export type GigTier = "basic" | "standard" | "premium";
+
+/** One fixed package of a gig: what's included, for how much, in how many days, with how many revisions. */
+export interface GigPackageDoc {
+  tier: GigTier;
+  name: string;
+  /** What's included. */
+  description: string;
+  price: number;
+  deliveryDays: number;
+  revisions: number;
+}
+
+/** A question the customer answers when ordering. Files can go with any order. */
+export interface GigQuestionDoc {
+  id: string;
+  text: string;
+  required: boolean;
+}
+
+/**
+ * One service a freelancer sells, with one to three packages. `draft` until published (base KYC needed), `paused` while the
+ * freelancer takes no new orders for it, `removed` when Ruxstar took it down.
+ */
+export interface GigDoc extends Stamped {
+  _id: ObjectId;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  businessName: string;
+  title: string;
+  category: string;
+  description: string;
+  photos: BusinessPhoto[];
+  packages: GigPackageDoc[];
+  questions: GigQuestionDoc[];
+  /** The cheapest package, for lists. */
+  priceFrom: number;
+  /** The freelancer's city, lower case, for the city filter; null when they don't say. */
+  city: string | null;
+  status: "draft" | "live" | "paused" | "removed";
+  publishedAt: Date | null;
+  removal: { actorId: ObjectId; reason: string; at: Date } | null;
+  rating?: { count: number; sum: number };
+}
+
+/**
+ * A file uploaded for a freelance order, kept privately in the print files bucket under `gigs/`: the customer's files for the
+ * brief, or the freelancer's for a delivery. Unused ones are deleted a day later; used ones `fileDays` after the order ends.
+ */
+export interface GigFileDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  key: string;
+  /** As the uploader named it. */
+  name: string;
+  contentType: string;
+  bytes: number;
+  use: "brief" | "delivery";
+  orderId: ObjectId | null;
+  createdAt: Date;
+}
+
+export interface GigFileRef {
+  id: ObjectId;
+  name: string;
+  contentType: string;
+  bytes: number;
+}
+
+/** One delivery: a message, links and files. The customer approves it, asks for a revision or reports a problem. */
+export interface GigDeliveryDoc {
+  id: ObjectId;
+  message: string;
+  links: string[];
+  files: GigFileRef[];
+  at: Date;
+  answer: { kind: "approved" | "revision" | "problem"; note: string | null; at: Date } | null;
+}
+
+export type GigOrderStatus = "awaiting_payment" | "paid" | "in_progress" | "delivered" | "disputed" | "completed" | "cancelled";
+export type GigActor = "customer" | "vendor" | "staff" | "system";
+
+/** Money sent back: everything, or part of it when Ruxstar decides a reported problem. `vendor` and `ruxstar` are where it came from. */
+export interface GigRefundDoc {
+  refundId: string;
+  kind: "full" | "part";
+  amount: number;
+  vendor: number;
+  ruxstar: number;
+  reason: string | null;
+  by: GigActor;
+  status: "pending" | "done";
+  at: Date;
+}
+
+/**
+ * A freelance order: one package of a gig, or a custom offer from a chat. Paid up front; the freelancer accepts within
+ * `acceptHours` (offers are accepted already), delivers by `dueAt`, and the money waits in pending until the customer
+ * approves, it completes by itself, or Ruxstar decides a reported problem.
+ */
+export interface GigOrderDoc extends Stamped {
+  _id: ObjectId;
+  orderNo: number;
+  customerId: ObjectId;
+  customerName: string;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  businessName: string;
+  /** The gig ordered from; null for a custom offer. */
+  gigId: ObjectId | null;
+  /** The custom offer paid for; null for a gig's package. */
+  quoteId: ObjectId | null;
+  title: string;
+  category: string;
+  package: { tier: GigTier | null; name: string; description: string; deliveryDays: number; revisions: number };
+  answers: { questionId: string; question: string; answer: string }[];
+  /** The customer's files for the brief. */
+  files: GigFileRef[];
+  note: string | null;
+  price: {
+    items: number;
+    platformFee: number;
+    discount: number;
+    coupon: { id: ObjectId; code: string; fundedBy: "ruxstar" | "vendor" } | null;
+    total: number;
+    commissionBps: number;
+    commission: number;
+  };
+  status: GigOrderStatus;
+  timeline: { status: GigOrderStatus; at: Date; by: GigActor }[];
+  payment: { gatewayOrderId: string; sessionId: string; paymentId: string | null; paidAt: Date | null };
+  /** The checkout link works until then. */
+  holdUntil: Date | null;
+  /** Cancelled and refunded if the freelancer hasn't accepted by then. */
+  acceptBy: Date | null;
+  acceptedAt: Date | null;
+  /** Acceptance plus the package's delivery days. */
+  dueAt: Date | null;
+  revisionsUsed: number;
+  deliveries: GigDeliveryDoc[];
+  deliveredAt: Date | null;
+  /** Completed by itself then, unless the customer answers the delivery first. */
+  autoCompleteAt: Date | null;
+  completedAt: Date | null;
+  /** A problem the customer reported: the money is held until Ruxstar decides a full, part or no refund. */
+  dispute: {
+    ticketId: ObjectId;
+    reason: string;
+    openedAt: Date;
+    decision: { outcome: "full" | "part" | "none"; amount: number; note: string; by: ObjectId; at: Date } | null;
+  } | null;
+  refunds: GigRefundDoc[];
+  cancellation: { by: GigActor; actorId: ObjectId | null; reason: string; at: Date } | null;
+  releasedAt: Date | null;
+  /** When its files are deleted: `fileDays` after it completed or was cancelled. */
+  filesUntil: Date | null;
+  filesDeletedAt: Date | null;
+  invoices?: InvoiceRefDoc[];
+}
+
+/**
+ * A custom offer a freelancer sends in a 1:1 chat. The customer's "Accept and pay" makes an order that is accepted already.
+ * It can be paid until `expiresAt`; the freelancer can withdraw it until it is paid.
+ */
+export interface GigQuoteDoc extends Stamped {
+  _id: ObjectId;
+  conversationId: ObjectId;
+  messageId: ObjectId;
+  businessId: ObjectId;
+  vendorId: ObjectId;
+  businessName: string;
+  customerId: ObjectId;
+  title: string;
+  /** What's included. */
+  description: string;
+  category: string;
+  price: number;
+  deliveryDays: number;
+  revisions: number;
+  status: "open" | "withdrawn" | "expired" | "paid";
+  expiresAt: Date;
+  orderId: ObjectId | null;
+  withdrawnAt: Date | null;
+}
+
 /**
  * A discount code. Ruxstar's work at every shop and Ruxstar pays for them; a vendor's work at the shops
  * they pick and come out of their share. The code and the discount never change once made.
@@ -1999,8 +2239,8 @@ export type TeamPermission =
   | "store.stock";
 
 /** Modules whose orders can be reviewed. */
-export type ReviewModule = "pod" | "events" | "coaching" | "turf" | "stays" | "shop";
-export type ReviewOrderType = "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "shop_order";
+export type ReviewModule = "pod" | "events" | "coaching" | "turf" | "stays" | "shop" | "gigs";
+export type ReviewOrderType = "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "shop_order" | "gig_order";
 
 /**
  * A customer's review of one finished order at any business (decisions 55 and A6): 1 to 5 stars and an optional note, written
@@ -2022,7 +2262,7 @@ export interface ReviewDoc extends Stamped {
   /** Missing means `pod_order`. */
   orderType?: ReviewOrderType;
   /** The event, course or ground reviewed; null or missing for print. */
-  listing?: { type: "event" | "course" | "ground" | "property" | "product"; id: ObjectId } | null;
+  listing?: { type: "event" | "course" | "ground" | "property" | "product" | "gig"; id: ObjectId } | null;
   /** The whole order when `orderId` is one line of it: a local shop's products are reviewed one by one. */
   parentId?: ObjectId;
   rating: number;
@@ -2122,7 +2362,7 @@ export type SupportCategory = "orders" | "refunds" | "verification" | "business"
 export type SupportPriority = "urgent" | "high" | "normal" | "low";
 /** `waiting` is waiting on the customer. A resolved ticket reads as closed once `reopenUntil` has passed. */
 export type SupportStatus = "open" | "waiting" | "resolved";
-export type SupportContextType = "order" | "business" | "verification" | "post" | "coupon" | "delivery";
+export type SupportContextType = "order" | "business" | "verification" | "post" | "coupon" | "delivery" | "gig_order";
 
 export interface SupportTicketDoc extends Stamped {
   _id: ObjectId;
@@ -2394,6 +2634,18 @@ export class Database {
   }
   get shopOrders() {
     return this.db.collection<ShopOrderDoc>("shop_orders");
+  }
+  get gigs() {
+    return this.db.collection<GigDoc>("gigs");
+  }
+  get gigOrders() {
+    return this.db.collection<GigOrderDoc>("gig_orders");
+  }
+  get gigFiles() {
+    return this.db.collection<GigFileDoc>("gig_files");
+  }
+  get gigQuotes() {
+    return this.db.collection<GigQuoteDoc>("gig_quotes");
   }
 
   /** Runs `work` in a majority-committed transaction, retrying transient errors. */

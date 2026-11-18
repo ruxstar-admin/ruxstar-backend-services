@@ -2,7 +2,7 @@ import { MongoBulkWriteError } from "mongodb";
 import type { Database, ModuleSettingsDoc, SwitchableModule } from "./db.js";
 import { stamp } from "./db.js";
 
-export const SWITCHABLE_MODULES: readonly SwitchableModule[] = ["pod", "events", "coaching", "stays", "turf", "shop", "delivery", "ledger"];
+export const SWITCHABLE_MODULES: readonly SwitchableModule[] = ["pod", "events", "coaching", "stays", "turf", "shop", "gigs", "delivery", "ledger"];
 /** Notifications are deleted after this many days. */
 export const NOTIFICATION_DAYS = 90;
 
@@ -285,6 +285,40 @@ export async function ensurePlatformIndexes(db: Database): Promise<void> {
       { "delivery.rider.id": 1, "delivery.releasedAt": 1, "delivery.releaseAt": 1 },
       { partialFilterExpression: { "delivery.releaseAt": { $type: "date" } } },
     ),
+    // Freelancers: one profile per person, the console's list; live gigs (all, a category's, a city's, a freelancer's), a
+    // freelancer's own and the console's list; orders by number, payment, customer, freelancer and status, the console's search
+    // and disputes, the timers (holds, acceptance, auto-complete, file clean-up), refunds to retry; uploads not yet used;
+    // offers by chat message and the expiry timer.
+    db.businesses.createIndex({ ownerId: 1, module: 1 }, { unique: true, name: "one_freelancer_profile", partialFilterExpression: { module: "gigs" } }),
+    db.businesses.createIndex({ module: 1, createdAt: -1, _id: -1 }),
+    db.gigs.createIndex({ status: 1, publishedAt: -1, _id: -1 }),
+    db.gigs.createIndex({ status: 1, category: 1, publishedAt: -1, _id: -1 }),
+    db.gigs.createIndex({ status: 1, city: 1, publishedAt: -1, _id: -1 }),
+    db.gigs.createIndex({ status: 1, createdAt: -1, _id: -1 }),
+    db.gigs.createIndex({ businessId: 1, status: 1, createdAt: -1, _id: -1 }),
+    db.gigs.createIndex({ businessId: 1, createdAt: -1, _id: -1 }),
+    db.gigs.createIndex({ createdAt: -1, _id: -1 }),
+    db.gigOrders.createIndex({ orderNo: 1 }, { unique: true }),
+    db.gigOrders.createIndex({ "payment.gatewayOrderId": 1 }, { unique: true }),
+    db.gigOrders.createIndex({ customerId: 1, createdAt: -1, _id: -1 }),
+    db.gigOrders.createIndex({ businessId: 1, status: 1, createdAt: -1, _id: -1 }),
+    db.gigOrders.createIndex({ businessId: 1, createdAt: -1, _id: -1 }),
+    db.gigOrders.createIndex({ vendorId: 1, status: 1, createdAt: -1, _id: -1 }),
+    db.gigOrders.createIndex({ vendorId: 1, createdAt: -1, _id: -1 }),
+    db.gigOrders.createIndex({ createdAt: -1, _id: -1 }),
+    db.gigOrders.createIndex({ status: 1, createdAt: -1, _id: -1 }),
+    db.gigOrders.createIndex({ gigId: 1, createdAt: -1 }),
+    db.gigOrders.createIndex({ quoteId: 1, status: 1 }, { partialFilterExpression: { quoteId: { $type: "objectId" } } }),
+    db.gigOrders.createIndex({ status: 1, holdUntil: 1 }),
+    db.gigOrders.createIndex({ status: 1, acceptBy: 1 }),
+    db.gigOrders.createIndex({ status: 1, autoCompleteAt: 1 }),
+    db.gigOrders.createIndex({ filesUntil: 1 }, { partialFilterExpression: { filesUntil: { $type: "date" } } }),
+    db.gigOrders.createIndex({ "refunds.status": 1 }, { partialFilterExpression: { "refunds.status": "pending" } }),
+    db.gigFiles.createIndex({ orderId: 1, createdAt: 1 }),
+    db.gigFiles.createIndex({ userId: 1, createdAt: -1 }),
+    db.gigQuotes.createIndex({ messageId: 1 }, { unique: true }),
+    db.gigQuotes.createIndex({ status: 1, expiresAt: 1 }),
+    db.gigQuotes.createIndex({ vendorId: 1, createdAt: -1 }),
     // GST documents: one per order part or refund, numbers unique per series, an order's documents, and the lists for
     // customers, vendors (all businesses or one) and the console (everything, one kind, or found by number or order),
     // each also by module. The `from`/`to` filters are ranges on `issuedAt`, the sort key, so they use the same indexes.

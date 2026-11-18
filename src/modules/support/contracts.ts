@@ -43,6 +43,7 @@ const ContextType = Type.Union([
   Type.Literal("post"),
   Type.Literal("coupon"),
   Type.Literal("delivery"),
+  Type.Literal("gig_order"),
 ]);
 const Text = Type.String({ minLength: 1, maxLength: SUPPORT_TEXT_MAX });
 
@@ -58,7 +59,7 @@ export const TicketCreate = Strict({
       { type: ContextType, id: Type.String({ minLength: 1, maxLength: 40 }) },
       {
         description:
-          "What it is about: an order, business, coupon or post by id, verification by track (base or delivery), or a delivery job by id. It must be yours, except a post; a delivery must be one you are or were the rider on.",
+          "What it is about: an order, business, coupon or post by id, verification by track (base or delivery), a delivery job by id, or a freelance order (`gig_order`) you bought or sold by id. It must be yours, except a post; a delivery must be one you are or were the rider on.",
       },
     ),
   ),

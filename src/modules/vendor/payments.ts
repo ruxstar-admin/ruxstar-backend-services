@@ -17,6 +17,7 @@ import { releaseTurfShares } from "../turf/orders.js";
 import { keptOf } from "../turf/rules.js";
 import { releaseStayShares } from "../stays/orders.js";
 import { vendorShareOf as stayShare } from "../stays/rules.js";
+import { vendorLeftOf } from "../gigs/rules.js";
 import { releaseShopShares } from "../shop/orders.js";
 import { vendorLeftOf as storeShareLeft } from "../shop/rules.js";
 import { vendorShare as coachingShare } from "../coaching/rules.js";
@@ -159,7 +160,7 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
       await releaseStayShares(app, db(), { vendorId }, now);
       await releaseShopShares(app, db(), { vendorId }, now);
       await settleDue(app, db(), vendorId, now);
-      const [method, payouts, paid, ledger, holding, tickets, places, slots, stays, stores, rules] = await Promise.all([
+      const [method, payouts, paid, ledger, holding, tickets, places, slots, stays, stores, gigs, rules] = await Promise.all([
         db().payoutMethods.findOne({ userId: vendorId }),
         db()
           .payouts.find({ vendorId, ...payeeFilter("vendor") })
@@ -207,6 +208,11 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           .sort({ releaseAt: 1 })
           .limit(20)
           .toArray(),
+        db()
+          .gigOrders.find({ vendorId, status: { $in: ["delivered", "disputed"] }, releasedAt: null }, { projection: { orderNo: 1, price: 1, refunds: 1, status: 1, autoCompleteAt: 1 } })
+          .sort({ createdAt: 1 })
+          .limit(20)
+          .toArray(),
         payoutRules(db()),
       ]);
       const sum = (bucket: "pending" | "withdrawable") => ledger.find((row) => row._id === bucket)?.total ?? 0;
@@ -251,6 +257,16 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
               amount: storeShareLeft(o),
               availableAt: o.releaseAt!.toISOString(),
               held: o.return?.status === "requested" || o.return?.status === "approved",
+            })),
+          // A delivered freelance order is paid out when the customer approves it or it completes by itself; a reported problem holds it.
+          ...gigs
+            .filter((o) => vendorLeftOf(o) > 0)
+            .map((o) => ({
+              orderId: o._id.toHexString(),
+              orderNo: o.orderNo,
+              amount: vendorLeftOf(o),
+              availableAt: (o.autoCompleteAt ?? now).toISOString(),
+              held: o.status === "disputed",
             })),
         ]
           .sort((a, b) => a.availableAt.localeCompare(b.availableAt))
@@ -308,9 +324,9 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
         cursor: request.query.cursor,
         limit: request.query.limit,
       });
-      const ids = (type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "shop_order" | "payout") =>
+      const ids = (type: "pod_order" | "event_order" | "coaching_order" | "turf_booking" | "stay_reservation" | "shop_order" | "gig_order" | "payout") =>
         items.filter((e) => e.source.type === type).map((e) => e.source.id);
-      const [orders, payouts, eventOrders, coachingOrders, turfBookings, stayReservations, storeOrders] = await Promise.all([
+      const [orders, payouts, eventOrders, coachingOrders, turfBookings, stayReservations, storeOrders, gigOrders] = await Promise.all([
         database.podOrders
           .find(
             { _id: { $in: ids("pod_order") } },
@@ -350,6 +366,12 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
           .find(
             { _id: { $in: ids("shop_order") } },
             { projection: { orderNo: 1, businessId: 1, businessName: 1, lines: 1, customerName: 1, "price.total": 1, payment: 1, refunds: 1, invoices: 1 } },
+          )
+          .toArray(),
+        database.gigOrders
+          .find(
+            { _id: { $in: ids("gig_order") } },
+            { projection: { orderNo: 1, businessId: 1, businessName: 1, title: 1, "package.name": 1, customerName: 1, "price.total": 1, payment: 1, refunds: 1, invoices: 1 } },
           )
           .toArray(),
       ]);
@@ -504,6 +526,34 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
                 paidAt: order.payment.paidAt?.toISOString() ?? null,
               },
               refund: refund ? { id: refund.refundId, reason: refund.reason, by: refund.by === "rider" ? "system" : refund.by } : null,
+              payout: null,
+              invoice: invoiceOf(order.invoices, kind, refund?.refundId ?? null),
+            },
+          ];
+        }
+        if (entry.source.type === "gig_order") {
+          const order = gigOrders.find((o) => o._id.equals(entry.source.id));
+          if (!order) return [];
+          const kind = entry.kind === "payment" ? "paid" : entry.kind === "release" ? "available" : "refund";
+          // A part refund's line carries its refund id: `refund:<order>:<refundId>`; a full refund's is `refund:<order>`.
+          const refundId = entry.txnId.split(":")[2];
+          const refund = kind === "refund" ? (order.refunds.find((r) => (refundId ? r.refundId === refundId : r.kind === "full")) ?? null) : null;
+          return [
+            {
+              ...base,
+              kind,
+              module: "gigs",
+              order: {
+                id: order._id.toHexString(),
+                orderNo: order.orderNo,
+                business: { id: order.businessId.toHexString(), name: order.businessName },
+                label: `${order.title}: ${order.package.name}`,
+                customer: order.customerName,
+                total: order.price.total,
+                paymentId: order.payment.paymentId,
+                paidAt: order.payment.paidAt?.toISOString() ?? null,
+              },
+              refund: refund ? { id: refund.refundId, reason: refund.reason, by: refund.by } : null,
               payout: null,
               invoice: invoiceOf(order.invoices, kind, refund?.refundId ?? null),
             },

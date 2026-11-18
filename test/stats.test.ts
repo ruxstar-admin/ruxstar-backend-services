@@ -89,7 +89,7 @@ describe("console stats", () => {
     const auditor = await staffWith("audit.view");
     const data = await fresh(auditor.token);
     expect(data).toMatchObject({ module: null, people: null, money: null });
-    expect(data.modules.map((m: { module: string }) => m.module)).toEqual(["pod", "events", "coaching", "turf", "stays", "shop", "delivery"]);
+    expect(data.modules.map((m: { module: string }) => m.module)).toEqual(["pod", "events", "coaching", "turf", "stays", "shop", "gigs", "delivery"]);
     for (const m of data.modules) expect(m).toMatchObject({ businesses: null, listings: null, orders: null, money: null });
     expect(Object.values(data.queues).every((v) => v === null)).toBe(true);
   });
@@ -263,7 +263,7 @@ describe("console stats", () => {
       held: 1400,
       payouts: { pending: { count: 2, amount: 8000 }, failed: { count: 2, amount: 3000 }, paidThisMonth: { count: 1, amount: 10000 } },
     });
-    expect(data.queues).toEqual({ kyc: 2, helpTickets: 1, reports: 3, orderProblems: 1, staysObjections: 1, shopReturns: 1 });
+    expect(data.queues).toEqual({ kyc: 2, helpTickets: 1, reports: 3, orderProblems: 1, staysObjections: 1, shopReturns: 1, gigDisputes: 0 });
     expect(Date.parse(data.asOf)).toBeLessThanOrEqual(Date.now());
   });
 
@@ -298,7 +298,7 @@ describe("console stats", () => {
     expect(other.people).toBeNull();
     expect(other.money).toEqual(everything.money);
     expect(block(other, "pod")).toMatchObject({ businesses: null, listings: null, orders: null, money: block(everything, "pod").money });
-    expect(other.queues).toEqual({ kyc: everything.queues.kyc, helpTickets: null, reports: null, orderProblems: null, staysObjections: null, shopReturns: null });
+    expect(other.queues).toEqual({ kyc: everything.queues.kyc, helpTickets: null, reports: null, orderProblems: null, staysObjections: null, shopReturns: null, gigDisputes: null });
 
     const again = (await stats(people.token)).json().data;
     expect(again).toEqual({ ...first, asOf: again.asOf });

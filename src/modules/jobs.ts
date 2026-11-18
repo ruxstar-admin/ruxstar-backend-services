@@ -7,6 +7,7 @@ import { sweepCoaching } from "./coaching/orders.js";
 import { sweepRiderPay } from "./delivery/pay.js";
 import { sweepOffers } from "./delivery/trips.js";
 import { sweepEvents } from "./events/orders.js";
+import { sweepGigs } from "./gigs/orders.js";
 import { sweepOrders } from "./pod/order-rules.js";
 import { sweepShop } from "./shop/orders.js";
 import { sweepStays } from "./stays/orders.js";
@@ -53,12 +54,13 @@ export function jobs(auth: JobAuth | null): FastifyPluginAsync {
       const turf = await sweepTurf(app, db);
       const stays = await sweepStays(app, db);
       const shop = await sweepShop(app, db);
+      const gigs = await sweepGigs(app, db);
       const payouts = await sweepPayouts(app, db);
       request.log.info(
-        { job: "orders", ...counts, ...events, ...coaching, ...turf, ...stays, ...shop, riderPay, payouts, offers },
-        "Order, ticket, class, slot, stay and shop timers, delivery offers, partners' pay and payouts swept",
+        { job: "orders", ...counts, ...events, ...coaching, ...turf, ...stays, ...shop, ...gigs, riderPay, payouts, offers },
+        "Order, ticket, class, slot, stay, shop and freelance timers, delivery offers, partners' pay and payouts swept",
       );
-      return { ok: true, ...counts, ...events, ...coaching, ...turf, ...stays, ...shop, riderPay, payouts, offers };
+      return { ok: true, ...counts, ...events, ...coaching, ...turf, ...stays, ...shop, ...gigs, riderPay, payouts, offers };
     });
   };
 }

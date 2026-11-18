@@ -60,6 +60,7 @@ const ORDER_SCREEN: Record<ReviewModule, NotificationDoc["link"]["screen"]> = {
   turf: "turf_order",
   stays: "stay_order",
   shop: "store_order",
+  gigs: "gig_order",
 };
 /** The order a review is of: the whole order when the review is of one part of it. */
 const wholeOrder = (review: Pick<ReviewDoc, "orderId" | "parentId">) => review.parentId ?? review.orderId;
@@ -127,6 +128,7 @@ export async function refreshRating(db: Database, shopId: ObjectId, listing?: Re
       .then(([row]) => ({ count: row?.count ?? 0, sum: row?.sum ?? 0 }));
   await db.businesses.updateOne({ _id: shopId }, { $set: { rating: await count({ shopId }) } });
   if (listing?.type === "product") await db.shopProducts.updateOne({ _id: listing.id }, { $set: { rating: await count({ "listing.id": listing.id }) } });
+  if (listing?.type === "gig") await db.gigs.updateOne({ _id: listing.id }, { $set: { rating: await count({ "listing.id": listing.id }) } });
 }
 
 type Person = Pick<UserDoc, "_id" | "name" | "username" | "avatar">;
@@ -250,6 +252,7 @@ const ORDER_WORD: Record<ReviewModule, string> = {
   turf: "booking",
   stays: "reservation",
   shop: "order",
+  gigs: "order",
 };
 
 /** The owner, and team members who may reply and are verified, hear about a new review. */

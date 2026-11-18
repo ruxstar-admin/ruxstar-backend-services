@@ -29,6 +29,7 @@ import coachingCheckout from "./modules/coaching/checkout.js";
 import turfCheckout from "./modules/turf/checkout.js";
 import staysCheckout from "./modules/stays/checkout.js";
 import shopCheckout from "./modules/shop/checkout.js";
+import gigsCheckout from "./modules/gigs/checkout.js";
 import chatPhotoLinks from "./modules/social/chat-photo-links.js";
 import supportPhotoLinks from "./modules/support/photo-links.js";
 import { registerAuth } from "./platform/auth.js";
@@ -191,6 +192,7 @@ export async function buildApp({
   await app.register(turfCheckout);
   await app.register(staysCheckout);
   await app.register(shopCheckout);
+  await app.register(gigsCheckout);
   await app.register(chatPhotoLinks);
   await app.register(kycPhotoLinks);
   await app.register(supportPhotoLinks);

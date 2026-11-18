@@ -50,6 +50,7 @@ const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 const limit = (perMinutes: number, max: number) => ({ rateLimit: { max, timeWindow: perMinutes * 60_000 } });
 
 const by = (request: FastifyRequest) => ({ actor: actorOf(request), ip: request.ip });
+const FREELANCE_ONLY = "Freelancer profiles are made and published from Freelancing: POST /v1/gigs/me starts one, and publishing a gig takes it live.";
 
 /** The vendor portal: a verified person's businesses, one module each, and how they get paid. */
 const vendor: FastifyPluginAsyncTypebox = async (app) => {
@@ -168,6 +169,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
       const database = db();
       const ownerId = request.auth!.userId;
       const { module, type, name, phone, description } = request.body;
+      if (module === "gigs") throw new AppError("CONFLICT", FREELANCE_ONLY);
       if (typeOf(type).module !== module) throw new AppError("VALIDATION_FAILED", undefined, [{ path: "body/type", message: "Pick a type in this category." }]);
       const location = toLocation(request.body.location);
       const settings = await database.moduleSettings.findOne({ module });
@@ -316,6 +318,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
     async (request) => {
       const database = db();
       const doc = await owned(request, request.params.id);
+      if (doc.module === "gigs") throw new AppError("CONFLICT", FREELANCE_ONLY);
       if (doc.status === "live") throw new AppError("CONFLICT", "This business is already live.");
       const missing = missingOf(doc, await needsGstin(doc.module));
       if (missing.length) throw incomplete(missing);
@@ -382,6 +385,7 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
     },
     async (request) => {
       const doc = await owned(request, request.params.id);
+      if (doc.module === "gigs") throw new AppError("CONFLICT", FREELANCE_ONLY);
       if (doc.status !== "draft") throw new AppError("CONFLICT", "Live businesses can't be deleted. Close it instead.");
       const res = await db().businesses.deleteOne({ _id: doc._id, status: "draft", suspension: { $exists: false } });
       if (res.deletedCount === 0) throw new AppError("CONFLICT");

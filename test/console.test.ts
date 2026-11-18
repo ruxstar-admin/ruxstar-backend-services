@@ -76,7 +76,7 @@ describe("ruxstar console", () => {
       expect(full.kyc).toEqual({ waiting: 0, delivery: 0 });
       expect(full.businesses).toEqual({ total: 0, live: 0, suspended: 0 });
       expect(full.users.total).toBeGreaterThan(0);
-      expect(full.modules).toHaveLength(8);
+      expect(full.modules).toHaveLength(9);
       expect(full.staff.active).toBeGreaterThanOrEqual(0);
 
       const support = await staffWith("kyc.view");

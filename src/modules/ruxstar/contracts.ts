@@ -103,6 +103,35 @@ export const ShopRules = Strict(
   { description: "The shop module only" },
 );
 
+export const GigCategory = Strict({
+  key: Type.String({ pattern: "^[a-z][a-z0-9_]{1,29}$", description: "Stays the same for ever; gigs, orders and GST items use it" }),
+  label: Type.String({ minLength: 1, maxLength: 40 }),
+  hidden: Type.Boolean({ description: "Hidden categories can't be picked for new gigs, and aren't offered as a filter. Gigs already in one stay" }),
+});
+
+export const GigsRules = Strict(
+  {
+    autoCompleteDays: Type.Integer({ minimum: 1, maximum: 30, description: "A delivered order the customer hasn't answered is completed this many days after delivery" }),
+    acceptHours: Type.Integer({ minimum: 1, maximum: 72, description: "A paid order the freelancer hasn't accepted in this long is cancelled and fully refunded" }),
+    quoteDays: Type.Integer({ minimum: 1, maximum: 30, description: "A custom offer can be paid for this many days after it is sent" }),
+    deliveryMaxMb: Type.Integer({ minimum: 1, maximum: 25, description: "Megabytes of files in one delivery, and in the files a customer attaches at checkout. Never more than 25" }),
+    fileDays: Type.Integer({ minimum: 1, maximum: 365, description: "Files on an order are deleted this many days after it is completed or cancelled. The order and its messages stay" }),
+    maxGigs: Type.Integer({ minimum: 1, maximum: 50, description: "Gigs per freelancer, drafts included" }),
+    maxPackages: Type.Integer({ minimum: 1, maximum: 3, description: "Packages on one gig: Basic, then Standard, then Premium" }),
+    minPrice: Type.Integer({ minimum: 100, maximum: 5_00_000_00, description: "Paise, the least a package or custom offer can cost" }),
+    maxPrice: Type.Integer({ minimum: 100, maximum: 5_00_000_00, description: "Paise, the most a package or custom offer can cost. At least `minPrice`" }),
+    minDays: Type.Integer({ minimum: 1, maximum: 365, description: "The fewest delivery days a package or custom offer can have" }),
+    maxDays: Type.Integer({ minimum: 1, maximum: 365, description: "The most delivery days. At least `minDays`" }),
+    maxRevisions: Type.Integer({ minimum: 0, maximum: 50, description: "The most revisions a package or custom offer can include" }),
+    categories: Type.Array(GigCategory, {
+      minItems: 1,
+      maxItems: 30,
+      description: "Every category, hidden ones too. When changing, send the full list: a key already used can be renamed or hidden but not removed",
+    }),
+  },
+  { description: "The freelancers (gigs) module only" },
+);
+
 export const ModuleSettings = Strict({
   module: ModuleName,
   live: Type.Boolean(),
@@ -135,6 +164,7 @@ export const ModuleSettings = Strict({
   turfRules: Nullable(TurfRules),
   staysRules: Nullable(StaysRules),
   shopRules: Nullable(ShopRules),
+  gigsRules: Nullable(GigsRules),
   permissionCatalog: Type.Array(Type.String()),
   updatedAt: DateTime,
 });
@@ -187,6 +217,13 @@ export const ModuleSettingsPatch = Strict(
         additionalProperties: false,
         minProperties: 1,
         description: "Local shops only. Send only what changes. Orders made keep their return days.",
+      }),
+    ),
+    gigsRules: Type.Optional(
+      Type.Partial(GigsRules, {
+        additionalProperties: false,
+        minProperties: 1,
+        description: "Freelancers only. Send only what changes. Orders made keep their package, price and days; gigs outside new limits keep selling until edited.",
       }),
     ),
   },
@@ -269,6 +306,7 @@ const statsModule = (description: string) =>
       Type.Literal("turf"),
       Type.Literal("stays"),
       Type.Literal("shop"),
+      Type.Literal("gigs"),
       Type.Literal("delivery"),
     ],
     { description },
@@ -312,8 +350,8 @@ const StatsModuleBlock = Strict({
   listings: Nullable(
     Strict(
       {
-        kind: Type.Union([Type.Literal("event"), Type.Literal("course"), Type.Literal("ground"), Type.Literal("property"), Type.Literal("product")], {
-          description: "What the module lists: events, courses, grounds, PG / hostel properties or shop products",
+        kind: Type.Union([Type.Literal("event"), Type.Literal("course"), Type.Literal("ground"), Type.Literal("property"), Type.Literal("product"), Type.Literal("gig")], {
+          description: "What the module lists: events, courses, grounds, PG / hostel properties, shop products or freelancers' gigs",
         }),
         live: counted("Published listings, past events included"),
         takenDown: counted("Taken down by the Ruxstar team (events: cancelled by staff)"),
@@ -329,7 +367,7 @@ const StatsModuleBlock = Strict({
         open: counted(
           "Still under way. Print and shop: paid and not yet delivered or cancelled. Events: confirmed ticket orders for events that " +
             "haven't ended. Coaching: confirmed batch enrolments in batches still running. Turf: confirmed bookings with a slot still to " +
-            "come. Stays: reservations confirmed or moved in. Delivery: trips offered, accepted or picked up.",
+            "come. Stays: reservations confirmed or moved in. Freelancers: paid and not yet completed or cancelled. Delivery: trips offered, accepted or picked up.",
         ),
       },
       { description: "Orders and bookings. Needs orders.view." },
@@ -355,7 +393,7 @@ export const StatsResult = Envelope(
           { description: "Needs users.view" },
         ),
       ),
-      modules: Type.Array(StatsModuleBlock, { description: "Print, events, coaching, turf, stays, shop and delivery, in that order; just one with `module`" }),
+      modules: Type.Array(StatsModuleBlock, { description: "Print, events, coaching, turf, stays, shop, freelancers and delivery, in that order; just one with `module`" }),
       money: Nullable(
         Strict(
           {
@@ -381,6 +419,7 @@ export const StatsResult = Envelope(
             orderProblems: queue("Print order problems waiting for a decision. Needs orders.view."),
             staysObjections: queue("Tenants' objections after \"Moved in\" waiting for a decision. Needs orders.view."),
             shopReturns: queue("Shop returns requested or approved and not yet refunded or rejected. Needs orders.view."),
+            gigDisputes: queue("Problems reported on freelance orders waiting for a refund decision. Needs orders.view."),
           },
           { description: "Work waiting for the Ruxstar team. Each count is null without its permission." },
         ),

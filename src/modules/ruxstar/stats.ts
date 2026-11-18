@@ -15,7 +15,9 @@ const IST_MS = 5.5 * 60 * 60_000;
 /** How long one server keeps a number before counting it again. */
 export const STATS_TTL_MS = 60_000;
 
-const MODULES: readonly StatsModule[] = ["pod", "events", "coaching", "turf", "stays", "shop", "delivery"];
+const MODULES: readonly StatsModule[] = ["pod", "events", "coaching", "turf", "stays", "shop", "gigs", "delivery"];
+/** Freelance orders paid and not yet completed or cancelled. */
+export const OPEN_GIG_ORDERS = ["paid", "in_progress", "delivered", "disputed"] as const;
 type BusinessModule = Exclude<StatsModule, "delivery">;
 type ModuleBlock = StatsData["modules"][number];
 type Money = NonNullable<ModuleBlock["money"]>;
@@ -29,6 +31,7 @@ const SOURCE_MODULE: Record<LedgerEntryDoc["source"]["type"], BusinessModule | n
   turf_booking: "turf",
   stay_reservation: "stays",
   shop_order: "shop",
+  gig_order: "gigs",
   payout: null,
 };
 
@@ -111,6 +114,8 @@ async function listings(d: Database, module: StatsModule): Promise<ModuleBlock["
       return pair("property", d.staysProperties.countDocuments({ status: "live" }), d.staysProperties.countDocuments({ status: "removed" }));
     case "shop":
       return pair("product", d.shopProducts.countDocuments({ status: "live" }), d.shopProducts.countDocuments({ status: "removed" }));
+    case "gigs":
+      return pair("gig", d.gigs.countDocuments({ status: "live" }), d.gigs.countDocuments({ status: "removed" }));
     default:
       return null;
   }
@@ -146,6 +151,8 @@ async function openCount(d: Database, module: StatsModule, now: Date): Promise<n
       return d.staysReservations.countDocuments({ status: { $in: ["confirmed", "moved_in"] } });
     case "shop":
       return d.shopOrders.countDocuments({ status: { $in: ["paid", "accepted", "packed", "out_for_delivery", "ready_for_pickup"] } });
+    case "gigs":
+      return d.gigOrders.countDocuments({ status: { $in: [...OPEN_GIG_ORDERS] } });
     case "delivery":
       return d.deliveryJobs.countDocuments({ status: { $in: ["offered", "accepted", "picked_up"] } });
   }
@@ -166,6 +173,8 @@ async function orders(d: Database, module: StatsModule, p: Periods, now: Date): 
         return placed(d.staysReservations, p);
       case "shop":
         return placed(d.shopOrders, p);
+      case "gigs":
+        return placed(d.gigOrders, p, { "payment.paidAt": { $type: "date" } });
       case "delivery":
         return placed(d.deliveryJobs, p, {});
     }
@@ -252,6 +261,7 @@ const QUEUES = {
   orderProblems: (d: Database) => d.podOrders.countDocuments({ "problem.status": "open" }),
   staysObjections: (d: Database) => d.staysReservations.countDocuments({ "objection.status": "open" }),
   shopReturns: (d: Database) => d.shopOrders.countDocuments({ "return.status": { $type: "string", $in: ["requested", "approved"] } }),
+  gigDisputes: (d: Database) => d.gigOrders.countDocuments({ status: "disputed" }),
 } as const;
 
 const QUEUE_PERMISSION: Record<keyof typeof QUEUES, Permission> = {
@@ -261,6 +271,7 @@ const QUEUE_PERMISSION: Record<keyof typeof QUEUES, Permission> = {
   orderProblems: "orders.view",
   staysObjections: "orders.view",
   shopReturns: "orders.view",
+  gigDisputes: "orders.view",
 };
 
 const sum = (rows: Flows[], key: keyof Flows) => rows.reduce((total, row) => total + row[key], 0);

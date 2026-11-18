@@ -17,8 +17,12 @@ export const IFSC_PATTERN = "^[A-Z]{4}0[A-Z0-9]{6}$";
 export const VPA_PATTERN = "^[a-zA-Z0-9._-]{2,256}@[a-zA-Z][a-zA-Z0-9.-]{1,64}$";
 
 export const BusinessModule = Type.Union(
-  [Type.Literal("pod"), Type.Literal("events"), Type.Literal("coaching"), Type.Literal("stays"), Type.Literal("turf"), Type.Literal("shop")],
-  { description: "pod is print on demand. turf is sports grounds and courts booked by the slot. shop is local shops that deliver in their city" },
+  [Type.Literal("pod"), Type.Literal("events"), Type.Literal("coaching"), Type.Literal("stays"), Type.Literal("turf"), Type.Literal("shop"), Type.Literal("gigs")],
+  {
+    description:
+      "pod is print on demand. turf is sports grounds and courts booked by the slot. shop is local shops that deliver in their city. " +
+      "gigs is a freelancer's profile, made with POST /v1/gigs/me rather than here",
+  },
 );
 export const BusinessTypeId = Type.Enum(BUSINESS_TYPES, { description: "Belongs to one module; GET /v1/vendor/catalog lists them" });
 export const PodProductId = Type.Enum(POD_PRODUCTS);

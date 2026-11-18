@@ -4,6 +4,7 @@ import type {
   CoachingOrderDoc,
   Database,
   EventOrderDoc,
+  GigOrderDoc,
   GstModule,
   GstRules,
   GstSeller,
@@ -148,6 +149,7 @@ async function remember(db: Database, type: SourceType, id: ObjectId, refs: Invo
   else if (type === "turf_booking") await db.turfBookings.updateOne({ _id: id }, update, { session });
   else if (type === "stay_reservation") await db.staysReservations.updateOne({ _id: id }, update, { session });
   else if (type === "shop_order") await db.shopOrders.updateOne({ _id: id }, update, { session });
+  else if (type === "gig_order") await db.gigOrders.updateOne({ _id: id }, update, { session });
   else await db.eventOrders.updateOne({ _id: id }, update, { session });
 }
 
@@ -531,6 +533,48 @@ export async function invoiceShopOrder(db: Database, order: ShopOrderDoc, sessio
         const first = lines[0]!;
         const delivery = order.price.delivery;
         return delivery > 0 ? [...lines, { ...first, description: "Delivery", quantity: 1, unitPrice: delivery, discount: 0, value: delivery }] : lines;
+      },
+      platformFee: order.price.platformFee,
+      ruxstarDiscount: order.price.coupon?.fundedBy === "ruxstar" ? discount : 0,
+    },
+    session,
+  );
+}
+
+export async function invoiceGigOrder(db: Database, order: GigOrderDoc, session: ClientSession): Promise<InvoiceRefDoc[]> {
+  const business = await db.businesses.findOne({ _id: order.businessId }, { session });
+  const customer = await db.users.findOne({ _id: order.customerId }, { session, projection: { name: 1 } });
+  const discount = order.price.discount;
+  const off = order.price.coupon?.fundedBy === "vendor" ? discount : 0;
+  // Work done from anywhere is supplied where the freelancer is.
+  const state = stateOfPlace(business?.freelancer?.city) ?? business?.location?.state ?? null;
+  return issue(
+    db,
+    {
+      module: "gigs",
+      source: { type: "gig_order", id: order._id, orderNo: order.orderNo },
+      business,
+      businessId: order.businessId,
+      businessName: business?.name ?? order.businessName,
+      vendorId: order.vendorId,
+      customerId: order.customerId,
+      buyer: party({ name: customer?.name ?? order.customerName, legalName: null, gstin: null, address: null, state: null }),
+      supplyState: state,
+      feeState: null,
+      lines: (rules) => {
+        const rate = rateFor(rules, order.category);
+        return [
+          {
+            description: `${order.title}: ${order.package.name}`,
+            code: rate.code,
+            codeKind: rate.codeKind,
+            quantity: 1,
+            unitPrice: order.price.items,
+            discount: off,
+            value: order.price.items - off,
+            rateBps: bpsAt(rate, order.price.items),
+          },
+        ];
       },
       platformFee: order.price.platformFee,
       ruxstarDiscount: order.price.coupon?.fundedBy === "ruxstar" ? discount : 0,

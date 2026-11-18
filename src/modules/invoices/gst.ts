@@ -2,7 +2,7 @@ import type { ClientSession } from "mongodb";
 import type { Database, GstModule, GstRate, GstRules, GstSeller } from "../../platform/db.js";
 import { INDIA } from "../vendor/india.js";
 
-export const GST_MODULES: readonly GstModule[] = ["pod", "events", "coaching", "stays", "turf", "ecommerce"];
+export const GST_MODULES: readonly GstModule[] = ["pod", "events", "coaching", "stays", "turf", "ecommerce", "gigs"];
 
 const rate = (code: string, codeKind: GstRate["codeKind"], rateBps: number, lowRate: GstRate["lowRate"] = null): GstRate => ({ code, codeKind, rateBps, lowRate });
 const item = (key: string, label: string, r: GstRate) => ({ key, label, ...r });
@@ -51,6 +51,19 @@ export const DEFAULT_GST_RULES: Record<GstModule, GstRules> = {
   },
   turf: { ...BASE, ...rate("999652", "sac", 1800) },
   ecommerce: { ...BASE, ...rate("", "hsn", 1800) },
+  // Freelance work is a service at 18%; each item is keyed by a freelancers category.
+  gigs: {
+    ...BASE,
+    ...rate("998399", "sac", 1800),
+    items: [
+      item("design", "Graphic and logo design", rate("998391", "sac", 1800)),
+      item("video_editing", "Video editing", rate("999612", "sac", 1800)),
+      item("photography", "Photography", rate("998381", "sac", 1800)),
+      item("writing", "Writing and translation", rate("998395", "sac", 1800)),
+      item("social_media", "Social media", rate("998361", "sac", 1800)),
+      item("websites", "Websites and apps", rate("998314", "sac", 1800)),
+    ],
+  },
 };
 
 export const DEFAULT_GST_SELLER: GstSeller = { legalName: "Ruxstar", tradeName: "Ruxstar", gstin: null, address: null, feeCode: "998599", feeRateBps: 1800 };

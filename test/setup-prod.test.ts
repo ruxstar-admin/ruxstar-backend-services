@@ -124,7 +124,7 @@ describe("setting up the production database", () => {
       expect(access.permissions).toEqual(PERMISSIONS.map((p) => p.key));
 
       const modules = (await get("/modules")).json().data as { module: string; live: boolean; signupsOpen: boolean; updatedAt: string }[];
-      expect(modules.map((m) => m.module)).toEqual(["pod", "events", "coaching", "stays", "turf", "shop", "delivery", "ledger"]);
+      expect(modules.map((m) => m.module)).toEqual(["pod", "events", "coaching", "stays", "turf", "shop", "gigs", "delivery", "ledger"]);
       expect(modules.every((m) => !m.live && !m.signupsOpen)).toBe(true);
       const gst = (await get("/gst")).json().data as { seller: { updatedAt: string | null }; modules: { updatedAt: string | null }[] };
       expect(gst.seller.updatedAt).not.toBeNull();

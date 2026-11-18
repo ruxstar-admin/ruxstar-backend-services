@@ -343,6 +343,9 @@ export const notifyStays = (db: Database, log: FastifyBaseLogger, event: Each<"s
 /** Orders at local shops, their moves, cancellations and returns, each person with their own link. Logged, never thrown. */
 export const notifyShop = (db: Database, log: FastifyBaseLogger, event: Each<"shop.ordered" | "shop.updated">) => notifyEach(db, log, event);
 
+/** Freelance orders, deliveries, revisions, disputes and custom offers, each person with their own link. Logged, never thrown. */
+export const notifyGigs = (db: Database, log: FastifyBaseLogger, event: Each<"gigs.ordered" | "gigs.updated">) => notifyEach(db, log, event);
+
 /** Enrolments, demo classes, class changes and batch messages, each person with their own link. Logged, never thrown. */
 export const notifyCoaching = (db: Database, log: FastifyBaseLogger, event: Each<"coaching.enrolled" | "coaching.updated">) => notifyEach(db, log, event);
 

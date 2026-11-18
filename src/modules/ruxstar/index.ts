@@ -15,6 +15,7 @@ import { DEFAULT_COACHING_RULES } from "../coaching/rules.js";
 import { DEFAULT_TURF_RULES, turfRulesProblem, turfRulesView } from "../turf/rules.js";
 import { DEFAULT_STAYS_RULES, staysRulesProblem } from "../stays/rules.js";
 import { DEFAULT_SHOP_RULES } from "../shop/rules.js";
+import { gigsRulesOf, gigsRulesProblem } from "../gigs/rules.js";
 import { consoleInvoices } from "../invoices/routes.js";
 import { ModuleParams, ModuleSettingsList, ModuleSettingsOne, ModuleSettingsPatch, type ModuleSettings } from "./contracts.js";
 import auditLog from "./audit-log.js";
@@ -36,9 +37,10 @@ import teams from "./teams.js";
 import turf from "./turf.js";
 import stays from "./stays.js";
 import shop from "./shop.js";
+import gigs from "./gigs.js";
 import users from "./users.js";
 
-const ORDER = ["pod", "events", "coaching", "stays", "turf", "shop", "delivery", "ledger"];
+const ORDER = ["pod", "events", "coaching", "stays", "turf", "shop", "gigs", "delivery", "ledger"];
 /** Vendors' withdrawals are set on the ledger module, delivery partners' on the delivery module. */
 export const PAYOUT_MODULES: string[] = ["ledger", "delivery"];
 
@@ -64,6 +66,7 @@ const view = (doc: ModuleSettingsDoc): ModuleSettings => ({
   turfRules: doc.module === "turf" ? turfRulesView({ ...DEFAULT_TURF_RULES, ...doc.turfRules }) : null,
   staysRules: doc.module === "stays" ? { ...DEFAULT_STAYS_RULES, ...doc.staysRules } : null,
   shopRules: doc.module === "shop" ? { ...DEFAULT_SHOP_RULES, ...doc.shopRules } : null,
+  gigsRules: doc.module === "gigs" ? gigsRulesOf(doc.gigsRules) : null,
   permissionCatalog: doc.permissionCatalog,
   updatedAt: doc.updatedAt.toISOString(),
 });
@@ -88,6 +91,7 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
   await app.register(turf);
   await app.register(stays);
   await app.register(shop);
+  await app.register(gigs);
   await app.register(consoleInvoices);
   await app.register(auditLog);
 
@@ -169,6 +173,15 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
         if (changes.shopRules !== undefined && module !== "shop") {
           throw new AppError("VALIDATION_FAILED", "Shop rules are set on the shop module.", [{ path: "body/shopRules", message: "Local shops only" }]);
         }
+        if (changes.gigsRules !== undefined && module !== "gigs") {
+          throw new AppError("VALIDATION_FAILED", "Freelancer rules are set on the gigs module.", [{ path: "body/gigsRules", message: "Freelancers only" }]);
+        }
+        const gigsBefore = gigsRulesOf(before.gigsRules);
+        const gigsRules = changes.gigsRules ? { ...gigsBefore, ...changes.gigsRules } : null;
+        const gigsProblem = gigsRules ? gigsRulesProblem(gigsRules, gigsBefore) : null;
+        if (gigsProblem) {
+          throw new AppError("VALIDATION_FAILED", gigsProblem.message, [{ path: `body/gigsRules/${gigsProblem.field}`, message: gigsProblem.message }]);
+        }
         const fee = changes.payoutFee ?? before.payoutFee ?? DEFAULT_PAYOUT_FEE;
         const minimum = changes.minPayout ?? before.minPayout ?? DEFAULT_MIN_PAYOUT;
         if (payoutsChanged && minimum < fee + 100) {
@@ -176,9 +189,10 @@ const ruxstar: FastifyPluginAsyncTypebox = async (app) => {
             { path: "body/minPayout", message: "At least ₹1 more than the fee" },
           ]);
         }
-        const { eventRules, coachingRules, turfRules: _turf, staysRules: _stays, shopRules, ...rest } = changes;
+        const { eventRules, coachingRules, turfRules: _turf, staysRules: _stays, shopRules, gigsRules: _gigs, ...rest } = changes;
         const next = {
           ...rest,
+          ...(gigsRules ? { gigsRules } : {}),
           ...(shopRules ? { shopRules: { ...DEFAULT_SHOP_RULES, ...before.shopRules, ...shopRules } } : {}),
           ...(eventRules ? { eventRules: { ...DEFAULT_EVENT_RULES, ...before.eventRules, ...eventRules } } : {}),
           ...(coachingRules ? { coachingRules: { ...DEFAULT_COACHING_RULES, ...before.coachingRules, ...coachingRules } } : {}),

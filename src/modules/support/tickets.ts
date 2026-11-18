@@ -108,8 +108,20 @@ export async function resolveContext(
       if (!job) throw notYours("delivery");
       return { type: "delivery", id: context.id, label: `Delivery for Order #${job.orderNo}` };
     }
+    case "gig_order": {
+      const order = await db.gigOrders.findOne({ _id: oid(context.id), $or: [{ customerId: userId }, { vendorId: userId }] }, { projection: { orderNo: 1 } });
+      if (!order) throw notYours("order");
+      return gigOrderContext(order);
+    }
   }
 }
+
+/** How a freelance order reads on a help ticket. */
+export const gigOrderContext = (order: { _id: ObjectId; orderNo: number }) => ({
+  type: "gig_order" as const,
+  id: order._id.toHexString(),
+  label: `Freelance order #${order.orderNo}`,
+});
 
 // Views.
 
