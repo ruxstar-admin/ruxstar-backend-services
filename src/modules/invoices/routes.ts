@@ -12,7 +12,7 @@ import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
 import { findPage } from "../../platform/pagination.js";
 import { signingKey } from "../pod/orders.js";
-import { requireVendor } from "../vendor/businesses.js";
+import { requireEarner } from "../vendor/businesses.js";
 import { POD_PRODUCTS } from "../vendor/catalog.js";
 import { COURSE_CATEGORIES } from "../coaching/rules.js";
 import { INDIAN_STATES } from "../vendor/india.js";
@@ -142,7 +142,7 @@ export const vendorInvoices: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/invoices",
     {
-      preHandler: requireVendor,
+      preHandler: requireEarner,
       schema: {
         tags: ["vendor"],
         summary: "GST invoices, bills of supply and credit notes for your sales, newest first",
@@ -170,7 +170,7 @@ export const vendorInvoices: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/invoices/export",
     {
-      preHandler: requireVendor,
+      preHandler: requireEarner,
       schema: {
         tags: ["vendor"],
         summary: "Your GST documents for a period as a spreadsheet (CSV)",
@@ -236,7 +236,7 @@ export const vendorInvoices: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/invoices/:id",
     {
-      preHandler: requireVendor,
+      preHandler: requireEarner,
       schema: { tags: ["vendor"], summary: "One GST document for your sales", params: InvoiceParams, response: { 200: InvoiceOne, ...Errors }, security },
     },
     async (request) => ok(request, invoiceView(await theirs(request.auth!.userId, request.params.id), invoicePdfLinks(app, request), "vendor")),
@@ -245,7 +245,7 @@ export const vendorInvoices: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/invoices/:id/pdf",
     {
-      preHandler: requireVendor,
+      preHandler: requireEarner,
       schema: { tags: ["vendor"], summary: "One GST document for your sales as a PDF", params: InvoiceParams, response: PdfResponse, security },
     },
     async (request, reply) => sendPdf(reply, await theirs(request.auth!.userId, request.params.id)),

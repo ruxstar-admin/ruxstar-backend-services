@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ObjectId } from "mongodb";
 import sharp from "sharp";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { gigFileLinks } from "../src/modules/gigs/checkout.js";
 import { DEFAULT_GIGS_RULES, maxPartRefundOf, vendorLeftOf } from "../src/modules/gigs/rules.js";
 import type { GigOrderDoc } from "../src/platform/db.js";
 import { forgetModuleState } from "../src/platform/module-switch.js";
@@ -87,16 +88,16 @@ describe("gigs", () => {
   const rules = (gigsRules: object) => call("PATCH", "/ruxstar/modules/gigs", admin.token, { gigsRules });
 
   let n = 0;
-  async function person(opts: { verified?: boolean; name?: string } = {}): Promise<User> {
+  async function person(opts: { verified?: boolean; vendor?: boolean; name?: string } = {}): Promise<User> {
     const verified = opts.verified ?? true;
-    const user = await signIn(stack, verified ? { vendor: true } : {});
+    const user = await signIn(stack, (opts.vendor ?? verified) ? { vendor: true } : {});
     const username = `gig${Date.now() % 1e6}${n++}`;
     await stack.db.users.updateOne({ _id: user.userId }, { $set: { name: opts.name ?? "Kiran Das", username, ...(verified ? { "kyc.base": "approved" } : {}) } });
     return { ...user, username };
   }
 
   const profileBody = { name: "Asha Designs", headline: "Logo designer for small brands", bio: "Ten years of logos.", category: "design", skills: ["Logos", "Branding"], languages: ["English", "Telugu"], city: "Hyderabad" };
-  async function freelancer(opts: { verified?: boolean } = {}) {
+  async function freelancer(opts: { verified?: boolean; vendor?: boolean } = {}) {
     const u = await person({ ...opts, name: "Asha Rao" });
     const res = await call("POST", "/gigs/me", u.token, profileBody);
     expect(res.statusCode, res.body).toBe(201);
@@ -134,7 +135,15 @@ describe("gigs", () => {
     const url = new URL(checkoutUrl);
     return (await stack.app.inject({ method: "POST", url: `${url.pathname}/test${url.search}` })).json() as { status: string };
   }
-  type Order = { id: string; orderNo: number; status: string; price: { items: number; total: number }; files: { url: string | null }[] };
+  type Order = {
+    id: string;
+    orderNo: number;
+    status: string;
+    price: { items: number; total: number };
+    files: { url: string | null }[];
+    paidAt: string | null;
+    timeline: { status: string; at: string }[];
+  };
   async function place(customer: User, gig: { id: string; questions: { id: string }[] }, body: object = {}) {
     return call("POST", `/gigs/${gig.id}/order`, customer.token, { tier: "basic", answers: [{ questionId: gig.questions[0]!.id, answer: "Chai Point" }], returnTo: BACK, ...body });
   }
@@ -171,6 +180,8 @@ describe("gigs", () => {
     await stack.db.moduleSettings.updateOne({ module: "gigs" }, { $set: { live: true, signupsOpen: false } });
     forgetModuleState();
     expect((await call("POST", "/gigs/me", early.token, profileBody)).json().error.code).toBe("SIGNUPS_CLOSED");
+    const catalog = (await anon("/vendor/catalog")).json().data;
+    expect(catalog.categories.find((c: { module: string }) => c.module === "gigs")).toMatchObject({ label: "Freelancers", live: true, signupsOpen: false });
     await stack.db.moduleSettings.updateOne({ module: "gigs" }, { $set: { signupsOpen: true } });
     forgetModuleState();
 
@@ -198,7 +209,16 @@ describe("gigs", () => {
     expect((await anon("/gigs?category=photography")).json().data).toEqual([]);
     const page = (await anon(`/gigs/freelancers/${businessId}`)).json().data;
     expect(page).toMatchObject({ headline: profileBody.headline, gigs: [{ id: g.id }] });
-    expect((await anon(`/gigs/${g.id}`)).json().data).toMatchObject({ canOrder: true, questions: [{ required: true }, { required: false }] });
+    expect((await anon(`/gigs/${g.id}`)).json().data).toMatchObject({
+      canOrder: true,
+      questions: [{ required: true }, { required: false }],
+      freelancer: { businessId, userId: u.userId.toHexString(), username: u.username },
+    });
+    const { limits } = (await anon("/gigs/rules")).json().data;
+    expect(limits).toMatchObject({ portfolio: 12, gigPhotos: 5, questions: 5, files: 10, links: 10, answer: 1000 });
+    expect(limits.extensions).toContain("pdf");
+    expect(limits.extensions).not.toContain("html");
+    expect(limits.extensions).not.toContain("svg");
 
     await call("POST", `/gigs/me/gigs/${g.id}/pause`, u.token);
     expect((await anon("/gigs")).json().data).toEqual([]);
@@ -238,7 +258,18 @@ describe("gigs", () => {
     const brief = await upload(customer, "brief", 2000);
     expect(brief.statusCode, brief.body).toBe(201);
     const o = await paid(customer, gig, { coupon: "LOGO100", fileIds: [brief.json().data.id], note: "Something warm" });
-    expect(o).toMatchObject({ status: "paid", price: { items: 50_000, discount: 10_000, platformFee: 500, total: 40_500 }, coupon: { code: "LOGO100" }, can: { cancel: true, approve: false } });
+    expect(o).toMatchObject({
+      status: "paid",
+      price: { items: 50_000, discount: 10_000, platformFee: 500, total: 40_500 },
+      coupon: { code: "LOGO100" },
+      can: { cancel: true, approve: false, decline: false },
+      freelancer: { businessId, userId: f.userId.toHexString(), username: f.username, name: "Asha Designs" },
+      timeline: [
+        { status: "awaiting_payment", by: "customer" },
+        { status: "paid", by: "system" },
+      ],
+    });
+    expect(o.paidAt).toBe(o.timeline[1]!.at);
     expect(o.files).toHaveLength(1);
     expect(await stack.db.couponRedemptions.countDocuments({})).toBe(1);
     expect(await balanceOf(f)).toEqual({ pending: 36_000 });
@@ -246,10 +277,15 @@ describe("gigs", () => {
     expect((await stack.db.invoices.find({ "source.id": new ObjectId(o.id) }).toArray()).length).toBeGreaterThan(0);
 
     const desked = (await call("GET", `/gigs/desk/orders/${o.id}`, f.token)).json().data;
-    expect(desked).toMatchObject({ role: "freelancer", share: 36_000, can: { accept: true, deliver: false } });
+    expect(desked).toMatchObject({ role: "freelancer", share: 36_000, can: { accept: true, decline: true, deliver: false } });
     expect((await desk(f, o.id, "deliver", { message: "Early", links: [], fileIds: [] })).json().error.message).toBe("Accept the order first.");
     const accepted = (await desk(f, o.id, "accept")).json().data;
-    expect(accepted.status).toBe("in_progress");
+    expect(accepted).toMatchObject({ status: "in_progress", can: { decline: false, deliver: true } });
+    expect(accepted.timeline.map((t: { status: string; by: string }) => [t.status, t.by])).toEqual([
+      ["awaiting_payment", "customer"],
+      ["paid", "system"],
+      ["in_progress", "vendor"],
+    ]);
     expect(new Date(accepted.dueAt).getTime() - new Date(accepted.acceptedAt).getTime()).toBe(3 * DAY);
 
     const file = (await upload(f, "delivery", 3000, "logo.zip")).json().data;
@@ -416,6 +452,29 @@ describe("gigs", () => {
 
     const stranger = await person();
     expect((await call("POST", `/gigs/quotes/${quoteId}/pay`, stranger.token, { returnTo: BACK })).statusCode).toBe(404);
+    expect((await call("GET", `/gigs/quotes/${quoteId}`, customer.token)).json().data).toMatchObject({
+      id: quoteId,
+      status: "open",
+      chatId: chat,
+      title: "Menu card design",
+      description: "A two-sided menu card, print ready.",
+      category: "design",
+      price: 80_000,
+      deliveryDays: 5,
+      revisions: 2,
+      freelancer: { businessId },
+      canPay: true,
+      canWithdraw: false,
+    });
+
+    expect((await call("POST", "/vendor/coupons", f.token, { code: "MENU50", kind: "flat", value: 5000, businessIds: [businessId] })).statusCode).toBe(201);
+    const offers = (await call("GET", `/gigs/quotes/${quoteId}/offers?code=menu50`, customer.token)).json().data;
+    expect(offers.offers.map((c: { code: string }) => c.code)).toContain("MENU50");
+    expect(offers.checked).toEqual({ code: "MENU50", discount: 5000, problem: null });
+    expect((await call("GET", `/gigs/quotes/${quoteId}/offers?code=NOPE99`, customer.token)).json().data.checked).toMatchObject({ code: "NOPE99", discount: 0 });
+    expect((await call("GET", `/gigs/quotes/${quoteId}/offers`, f.token)).statusCode).toBe(403);
+    expect((await call("GET", `/gigs/quotes/${quoteId}/offers`, stranger.token)).statusCode).toBe(404);
+
     const placed = await call("POST", `/gigs/quotes/${quoteId}/pay`, customer.token, { returnTo: BACK });
     expect(placed.statusCode, placed.body).toBe(201);
     const again = await call("POST", `/gigs/quotes/${quoteId}/pay`, customer.token, { returnTo: BACK });
@@ -424,11 +483,12 @@ describe("gigs", () => {
     const o = (await call("GET", `/gigs/orders/${placed.json().data.order.id}`, customer.token)).json().data;
     expect(o).toMatchObject({ status: "in_progress", gigId: null, quoteId, package: { name: "Custom offer", deliveryDays: 5, revisions: 2 }, price: { total: 80_500 } });
     expect(new Date(o.dueAt).getTime() - new Date(o.acceptedAt).getTime()).toBe(5 * DAY);
-    expect((await call("GET", `/gigs/quotes/${quoteId}`, customer.token)).json().data).toMatchObject({ status: "paid", orderId: o.id });
+    expect((await call("GET", `/gigs/quotes/${quoteId}`, customer.token)).json().data).toMatchObject({ status: "paid", orderId: o.id, canPay: false });
+    expect((await call("GET", `/gigs/quotes/${quoteId}/offers`, customer.token)).json().error.message).toBe("This offer is paid for already.");
     expect((await call("POST", `/gigs/desk/quotes/${quoteId}/withdraw`, f.token)).statusCode).toBe(409);
 
     const pulled = (await offer({ title: "Logo refresh" })).json().data.quote.id as string;
-    expect((await call("POST", `/gigs/desk/quotes/${pulled}/withdraw`, f.token)).json().data).toMatchObject({ status: "withdrawn" });
+    expect((await call("POST", `/gigs/desk/quotes/${pulled}/withdraw`, f.token)).json().data).toMatchObject({ status: "withdrawn", title: "Logo refresh", price: 80_000, canWithdraw: false });
     expect((await call("POST", `/gigs/quotes/${pulled}/pay`, customer.token, { returnTo: BACK })).json().error.message).toBe("The freelancer withdrew this offer.");
 
     const stale = (await offer({ title: "Poster design" })).json().data.quote.id as string;
@@ -454,9 +514,18 @@ describe("gigs", () => {
     const url = new URL(view.deliveries[0].files[0].url);
     const got = await stack.app.inject({ method: "GET", url: `${url.pathname}${url.search}` });
     expect(got.statusCode).toBe(200);
-    expect(got.headers["content-disposition"]).toBe('attachment; filename="logo.pdf"');
+    expect(got.headers["content-disposition"]).toBe('inline; filename="logo.pdf"');
     expect(got.headers["x-content-type-options"]).toBe("nosniff");
+    expect(got.headers["content-security-policy"]).toBe("default-src 'none'; sandbox");
     expect(got.rawPayload.length).toBe(500);
+    const saved = await stack.app.inject({ method: "GET", url: `${url.pathname}${url.search}&download=1` });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.headers["content-disposition"]).toBe('attachment; filename="logo.pdf"');
+    expect(saved.headers["content-security-policy"]).toBe("default-src 'none'; sandbox");
+    expect((await stack.app.inject({ method: "GET", url: `${url.pathname}${url.search}&download=yes` })).statusCode).toBe(400);
+    const zip = (await upload(customer, "brief", 300, "refs.zip")).json().data;
+    const zipLink = new URL(gigFileLinks(stack.app, { protocol: "http", host: "localhost" })(new ObjectId(zip.id)));
+    expect((await stack.app.inject({ method: "GET", url: `${zipLink.pathname}${zipLink.search}` })).headers["content-disposition"]).toBe('attachment; filename="refs.zip"');
     expect((await stack.app.inject({ method: "GET", url: `${url.pathname}?exp=${url.searchParams.get("exp")}&t=forged` })).statusCode).toBe(401);
     const stranger = await person();
     expect((await call("GET", `/gigs/orders/${o.id}`, stranger.token)).statusCode).toBe(404);
@@ -469,6 +538,56 @@ describe("gigs", () => {
     expect(stack.printFiles.objects.size).toBe(before - 2);
     const after = (await call("GET", `/gigs/orders/${o.id}`, customer.token)).json().data;
     expect(after).toMatchObject({ filesDeleted: true, status: "completed", deliveries: [{ message: "Here are your logo files.", files: [{ name: "logo.pdf", url: null }] }] });
+  });
+
+  it("opens a freelancer's own earnings, withdrawals and invoices without the vendor role, and nothing else under /vendor", async () => {
+    const { u: f, businessId } = await freelancer({ vendor: false });
+    const { u: other } = await freelancer({ vendor: false });
+    const customer = await person();
+    const o = await underway(customer, f, await liveGig(f));
+    await delivered(f, o.id);
+    expect((await mine(customer, o.id, "approve")).statusCode).toBe(200);
+    const theirs = await paid(customer, await liveGig(other));
+
+    const payments = await call("GET", "/vendor/payments", f.token);
+    expect(payments.statusCode, payments.body).toBe(200);
+    expect(payments.json().data).toMatchObject({ balance: { available: 45_000, pending: 0 }, payoutMethod: null });
+    const statement = (await call("GET", "/vendor/payments/statement", f.token)).json().data;
+    expect(statement.map((l: { kind: string; order: { id: string } }) => [l.kind, l.order.id])).toEqual([
+      ["available", o.id],
+      ["paid", o.id],
+    ]);
+    expect((await call("GET", "/vendor/payout-method", f.token)).statusCode).toBe(200);
+    expect((await call("POST", "/vendor/payouts", f.token)).json().error.code).toBe("PAYOUT_METHOD_REQUIRED");
+
+    const invoices = (await call("GET", "/vendor/invoices", f.token)).json().data as { id: string }[];
+    expect(invoices.length).toBeGreaterThan(0);
+    expect((await call("GET", `/vendor/invoices/${invoices[0]!.id}`, f.token)).statusCode).toBe(200);
+    expect((await call("GET", `/vendor/invoices/${invoices[0]!.id}/pdf`, f.token)).statusCode).toBe(200);
+    expect((await call("GET", `/vendor/invoices?business=${businessId}`, f.token)).json().data).toHaveLength(invoices.length);
+    const otherInvoice = await stack.db.invoices.findOne({ "source.id": new ObjectId(theirs.id), role: "supply" });
+    expect(otherInvoice).not.toBeNull();
+    expect(invoices.map((i) => i.id)).not.toContain(otherInvoice!._id.toHexString());
+    expect((await call("GET", `/vendor/invoices/${otherInvoice!._id.toHexString()}`, f.token)).statusCode).toBe(404);
+    expect((await call("GET", `/vendor/invoices/${otherInvoice!._id.toHexString()}/pdf`, f.token)).statusCode).toBe(404);
+    expect((await call("GET", "/vendor/payments", other.token)).json().data.balance).toMatchObject({ available: 0, pending: 45_000 });
+
+    for (const [method, url, body] of [
+      ["GET", "/vendor/businesses", undefined],
+      ["GET", `/vendor/businesses/${businessId}`, undefined],
+      ["POST", "/vendor/businesses", { module: "pod", type: "print_shop", name: "Asha Prints", phone: "9876543210", location: { state: "Telangana", city: "Hyderabad" } }],
+      ["PATCH", `/vendor/businesses/${businessId}`, { name: "Renamed" }],
+      ["GET", "/vendor/orders", undefined],
+      ["GET", "/vendor/coupons", undefined],
+      ["POST", "/vendor/coupons", { code: "ASHA10", kind: "flat", value: 1000, businessIds: [businessId] }],
+      ["GET", `/vendor/businesses/${businessId}/activity`, undefined],
+    ] as const) {
+      const res = await call(method, url, f.token, body);
+      expect(res.json().error?.code, `${method} ${url}`).toBe("KYC_REQUIRED");
+    }
+    const nobody = await person({ vendor: false });
+    expect((await call("GET", "/vendor/payments", nobody.token)).json().error.code).toBe("KYC_REQUIRED");
+    expect((await call("GET", "/vendor/invoices", nobody.token)).json().error.code).toBe("KYC_REQUIRED");
   });
 
   it("shows freelancers, gigs and orders in the console, with settings and take-downs", async () => {
@@ -489,6 +608,19 @@ describe("gigs", () => {
     expect((await call("GET", `/ruxstar/gigs/orders?q=${o.orderNo}`, admin.token)).json().data.map((x: { id: string }) => x.id)).toEqual([o.id]);
     expect((await call("GET", "/ruxstar/gigs/orders?q=logo", admin.token)).json().data).toHaveLength(1);
     expect((await call("GET", "/ruxstar/gigs/orders", customer.token)).statusCode).toBe(403);
+
+    expect((await call("POST", `/ruxstar/gigs/freelancers/${businessId}/suspend`, customer.token, { reason: "Not staff" })).statusCode).toBe(403);
+    const held = await call("POST", `/ruxstar/gigs/freelancers/${businessId}/suspend`, admin.token, { reason: "Reports of copied work" });
+    expect(held.json().data).toMatchObject({ businessId, suspended: true });
+    expect((await call("POST", `/ruxstar/gigs/freelancers/${businessId}/suspend`, admin.token, { reason: "Again please" })).statusCode).toBe(409);
+    expect((await anon(`/gigs/freelancers/${businessId}`)).statusCode).toBe(404);
+    expect((await anon("/gigs")).json().data).toEqual([]);
+    expect((await desk(f, o.id, "accept")).json().error.code).toBe("BUSINESS_SUSPENDED");
+    expect((await call("GET", `/ruxstar/businesses/${businessId}`, admin.token)).json().data.business.suspension).toMatchObject({ reason: "Reports of copied work" });
+    expect((await call("POST", `/ruxstar/gigs/freelancers/${businessId}/restore`, admin.token)).json().data).toMatchObject({ suspended: false });
+    expect((await anon(`/gigs/freelancers/${businessId}`)).statusCode).toBe(200);
+    expect(await stack.db.auditLogs.countDocuments({ action: { $in: ["business.suspend", "business.restore"] }, "target.id": new ObjectId(businessId) })).toBe(2);
+    expect(await stack.db.notifications.countDocuments({ userId: f.userId, type: { $in: ["business.suspended", "business.restored"] } })).toBe(2);
 
     const down = await call("POST", `/ruxstar/gigs/listings/${gig.id}/take-down`, admin.token, { reason: "Copies another designer's work" });
     expect(down.json().data).toMatchObject({ status: "removed", removal: { reason: "Copies another designer's work" } });

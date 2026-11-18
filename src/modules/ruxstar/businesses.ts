@@ -1,5 +1,5 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
-import type { FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { ObjectId, type Filter, type WithId } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { actorOf, writeAudit } from "../../platform/audit.js";
@@ -28,6 +28,36 @@ function matching(q: string | undefined): Filter<BusinessDoc> {
 
 const stateFilter = (state: "draft" | "live" | "suspended" | undefined): Filter<BusinessDoc> =>
   state === "suspended" ? { suspension: { $exists: true } } : state ? { status: state, suspension: { $exists: false } } : {};
+
+/** Puts a business on hold, or lifts the hold: audited, and its owner is told. The console's freelancer hold is this one too. */
+export async function holdBusiness(app: FastifyInstance, request: FastifyRequest, doc: WithId<BusinessDoc>, held: boolean, reason: string | null): Promise<void> {
+  const database = requireDatabase(app.db);
+  if (held === Boolean(doc.suspension)) throw new AppError("CONFLICT", held ? "This business is already on hold." : "This business isn't on hold.");
+  const now = new Date();
+  await database.transaction(async (session) => {
+    const res = await database.businesses.updateOne(
+      { _id: doc._id, suspension: { $exists: !held } },
+      held
+        ? { $set: { suspension: { by: request.auth!.userId, at: now, reason: reason! }, updatedAt: now } }
+        : { $unset: { suspension: "" }, $set: { updatedAt: now } },
+      { session },
+    );
+    if (res.matchedCount === 0) throw new AppError("CONFLICT");
+    await writeAudit(
+      database,
+      {
+        actor: actorOf(request),
+        scope: { module: doc.module, businessId: doc._id },
+        action: held ? "business.suspend" : "business.restore",
+        target: { type: "business", id: doc._id },
+        diff: held ? { suspended: { from: false, to: true }, reason: { from: null, to: reason } } : { suspended: { from: true, to: false } },
+        ip: request.ip,
+      },
+      session,
+    );
+  });
+  await notifyBusinessHold(database, app.log, { to: doc.ownerId, moderator: request.auth!.userId, businessId: doc._id, name: doc.name, held, reason });
+}
 
 /** Every vendor's businesses, for the Ruxstar team. Holding one hides it from customers and stops its vendor changing it. */
 const businesses: FastifyPluginAsyncTypebox = async (app) => {
@@ -78,33 +108,7 @@ const businesses: FastifyPluginAsyncTypebox = async (app) => {
   }
 
   async function hold(request: FastifyRequest, id: string, held: boolean, reason: string | null) {
-    const database = db();
-    const doc = await target(id);
-    if (held === Boolean(doc.suspension)) throw new AppError("CONFLICT", held ? "This business is already on hold." : "This business isn't on hold.");
-    const now = new Date();
-    await database.transaction(async (session) => {
-      const res = await database.businesses.updateOne(
-        { _id: doc._id, suspension: { $exists: !held } },
-        held
-          ? { $set: { suspension: { by: request.auth!.userId, at: now, reason: reason! }, updatedAt: now } }
-          : { $unset: { suspension: "" }, $set: { updatedAt: now } },
-        { session },
-      );
-      if (res.matchedCount === 0) throw new AppError("CONFLICT");
-      await writeAudit(
-        database,
-        {
-          actor: actorOf(request),
-          scope: { module: doc.module, businessId: doc._id },
-          action: held ? "business.suspend" : "business.restore",
-          target: { type: "business", id: doc._id },
-          diff: held ? { suspended: { from: false, to: true }, reason: { from: null, to: reason } } : { suspended: { from: true, to: false } },
-          ip: request.ip,
-        },
-        session,
-      );
-    });
-    await notifyBusinessHold(database, app.log, { to: doc.ownerId, moderator: request.auth!.userId, businessId: doc._id, name: doc.name, held, reason });
+    await holdBusiness(app, request, await target(id), held, reason);
     return ok(request, await detail(await target(id)));
   }
 

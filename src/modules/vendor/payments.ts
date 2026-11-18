@@ -26,7 +26,7 @@ import { invoiceRefs } from "../invoices/views.js";
 import { vendorShare } from "../events/rules.js";
 import { releaseShare } from "../pod/order-rules.js";
 import { refundsOf, shopShareLeft } from "../pod/orders.js";
-import { payoutMethodView, requireVendor } from "./businesses.js";
+import { payoutMethodView, requireEarner } from "./businesses.js";
 import { PayoutMethodBody, PayoutMethodResult, PayoutResult, Payments, Statement, StatementQuery, type Payout, type StatementLine } from "./contracts.js";
 import { failureText, methodsOf, payeeFilter, payoutRules, settleDue, withdraw, type Payee } from "./payouts.js";
 
@@ -135,7 +135,7 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/payments",
     {
-      preHandler: requireVendor,
+      preHandler: requireEarner,
       schema: {
         tags: ["vendor"],
         summary: "Your balance, payout account and latest payouts",
@@ -281,7 +281,7 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
   app.post(
     "/payouts",
     {
-      preHandler: [requireVendor, idempotent],
+      preHandler: [requireEarner, idempotent],
       config: { rateLimit: { max: 10, timeWindow: 60_000 } },
       schema: {
         tags: ["vendor"],
@@ -303,7 +303,7 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/payments/statement",
     {
-      preHandler: requireVendor,
+      preHandler: requireEarner,
       schema: {
         tags: ["vendor"],
         summary: "Every change to your earnings, newest first",
@@ -592,7 +592,7 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/payout-method",
     {
-      preHandler: requireVendor,
+      preHandler: requireEarner,
       schema: { tags: ["vendor"], summary: "Where you are paid", response: { 200: PayoutMethodResult, ...Errors }, security },
     },
     async (request) => {
@@ -604,7 +604,7 @@ const payments: FastifyPluginAsyncTypebox = async (app) => {
   app.put(
     "/payout-method",
     {
-      preHandler: requireVendor,
+      preHandler: requireEarner,
       config: { rateLimit: { max: 5, timeWindow: 60 * 60_000 } },
       schema: {
         tags: ["vendor"],

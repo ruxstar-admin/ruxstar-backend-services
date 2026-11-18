@@ -35,6 +35,21 @@ export function quoteCard(q: WithId<GigQuoteDoc>, viewer: ObjectId, now = Date.n
   };
 }
 
+/** Where an offer stands, with everything its card shows: for the customer it was sent to and the freelancer. */
+export const quoteView = (q: WithId<GigQuoteDoc>, viewer: ObjectId, now = Date.now()) => ({
+  ...quoteCard(q, viewer, now),
+  chatId: q.conversationId.toHexString(),
+  orderId: q.orderId?.toHexString() ?? null,
+  withdrawnAt: q.withdrawnAt?.toISOString() ?? null,
+});
+
+/** Why an offer can't be paid for, or null while it's open. */
+export function quoteClosed(q: Pick<GigQuoteDoc, "status" | "expiresAt">, now = Date.now()): string | null {
+  const status = quoteStatus(q, now);
+  if (status === "open") return null;
+  return status === "paid" ? "This offer is paid for already." : status === "withdrawn" ? "The freelancer withdrew this offer." : "This offer has expired.";
+}
+
 export async function quoteCards(db: Database, ids: ObjectId[], viewer: ObjectId): Promise<Map<string, QuoteCard>> {
   if (!ids.length) return new Map();
   const docs = await db.gigQuotes.find({ _id: { $in: ids } }).toArray();

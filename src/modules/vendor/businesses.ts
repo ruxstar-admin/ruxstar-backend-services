@@ -2,6 +2,7 @@ import type { FastifyRequest } from "fastify";
 import type { ObjectId } from "mongodb";
 import type { Static } from "typebox";
 import { requireAuth } from "../../platform/auth.js";
+import { requireDatabase } from "../../platform/context.js";
 import type { BusinessDoc, BusinessLocation, BusinessPhoto, Database, PayoutMethodDoc, PodPrice, PodSetup } from "../../platform/db.js";
 import { AppError } from "../../platform/errors.js";
 import { FREE_DELIVERY } from "../delivery/rates.js";
@@ -14,6 +15,17 @@ import { INDIAN_STATES } from "./india.js";
 export async function requireVendor(request: FastifyRequest): Promise<void> {
   await requireAuth(request);
   if (!request.auth!.roles.vendor) throw new AppError("KYC_REQUIRED", "Get verified to open the vendor portal.");
+}
+
+/**
+ * Earnings, withdrawals and GST documents: vendors, and freelancers, who only do base verification and so aren't vendors.
+ * Everyone sees only their own; nothing else under /v1/vendor opens to freelancers.
+ */
+export async function requireEarner(request: FastifyRequest): Promise<void> {
+  await requireAuth(request);
+  if (request.auth!.roles.vendor) return;
+  const freelancer = await requireDatabase(request.server.db).businesses.findOne({ ownerId: request.auth!.userId, module: "gigs" }, { projection: { _id: 1 } });
+  if (!freelancer) throw new AppError("KYC_REQUIRED", "Get verified to open the vendor portal.");
 }
 
 const invalid = (path: string, message: string) => new AppError("VALIDATION_FAILED", message, [{ path, message }]);

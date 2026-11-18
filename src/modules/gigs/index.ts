@@ -1,11 +1,11 @@
 import type { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
 import type { FastifyRequest } from "fastify";
-import { ObjectId, type Filter, type WithId } from "mongodb";
+import { ObjectId, type Filter } from "mongodb";
 import { Errors } from "../../contracts/common.js";
 import { actorOf } from "../../platform/audit.js";
 import { publicCache, requireAuth, signedInIfPossible } from "../../platform/auth.js";
 import { requireDatabase } from "../../platform/context.js";
-import type { BusinessDoc, Database, GigDoc, GigOrderDoc, GigQuoteDoc } from "../../platform/db.js";
+import type { BusinessDoc, Database, GigDoc, GigOrderDoc } from "../../platform/db.js";
 import { ok, page } from "../../platform/envelope.js";
 import { AppError } from "../../platform/errors.js";
 import { idempotent } from "../../platform/idempotency.js";
@@ -35,15 +35,16 @@ import {
   PayBody,
   PlacedOrder,
   ProblemBody,
+  QuoteOffersQuery,
   QuoteOne,
   QuotePayBody,
 } from "./contracts.js";
 import desk from "./desk.js";
-import files from "./files.js";
+import files, { FILE_EXTENSIONS } from "./files.js";
 import manage from "./manage.js";
 import { askRevision, cancelOrder, completeOrder, placeOrder, reportProblem, syncGigPayment, type By, type Source } from "./orders.js";
-import { quoteStatus } from "./quotes.js";
-import { gigsSettings } from "./rules.js";
+import { quoteClosed, quoteView } from "./quotes.js";
+import { ANSWER_MAX, gigsSettings, MAX_FILES, MAX_GIG_PHOTOS, MAX_LINKS, MAX_PORTFOLIO, MAX_QUESTIONS } from "./rules.js";
 import { gigCards, gigDetail, gigReviewable, orderProblem, orderViews, ownersOf, profileView } from "./views.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
@@ -107,13 +108,6 @@ const gigs: FastifyPluginAsyncTypebox = async (app) => {
     return { gig, business };
   }
   const one = async (request: FastifyRequest, o: GigOrderDoc) => ok(request, (await orderViews(app, db(), request, [o], "customer"))[0]!);
-  const quoteView = (q: WithId<GigQuoteDoc>) => ({
-    id: q._id.toHexString(),
-    status: quoteStatus(q),
-    chatId: q.conversationId.toHexString(),
-    orderId: q.orderId?.toHexString() ?? null,
-    withdrawnAt: q.withdrawnAt?.toISOString() ?? null,
-  });
 
   app.get(
     "/rules",
@@ -130,7 +124,19 @@ const gigs: FastifyPluginAsyncTypebox = async (app) => {
     async (request, reply) => {
       publicCache(request, reply);
       const settings = await gigsSettings(db());
-      return ok(request, { ...settings, categories: settings.categories.filter((c) => !c.hidden).map((c) => ({ key: c.key, label: c.label })) });
+      return ok(request, {
+        ...settings,
+        categories: settings.categories.filter((c) => !c.hidden).map((c) => ({ key: c.key, label: c.label })),
+        limits: {
+          portfolio: MAX_PORTFOLIO,
+          gigPhotos: MAX_GIG_PHOTOS,
+          questions: MAX_QUESTIONS,
+          files: MAX_FILES,
+          links: MAX_LINKS,
+          answer: ANSWER_MAX,
+          extensions: FILE_EXTENSIONS,
+        },
+      });
     },
   );
 
@@ -360,13 +366,39 @@ const gigs: FastifyPluginAsyncTypebox = async (app) => {
       schema: {
         tags: ["gigs"],
         summary: "Where a custom offer stands",
-        description: "For the customer it was sent to and the freelancer. The offer's terms are on its chat message.",
+        description: "For the customer it was sent to and the freelancer: its terms, as on its chat card, and whether it's open, paid, withdrawn or expired.",
         params: IdParams,
         response: { 200: QuoteOne, ...Errors },
         security,
       },
     },
-    async (request) => ok(request, quoteView(await myQuote(request, request.params.id))),
+    async (request) => ok(request, quoteView(await myQuote(request, request.params.id), request.auth!.userId)),
+  );
+
+  app.get(
+    "/quotes/:id/offers",
+    {
+      preHandler: requireAuth,
+      schema: {
+        tags: ["gigs"],
+        summary: "Coupons that work on a custom offer, best first, and checking a code",
+        description: "Only the customer it was sent to, while it's open. With `code`, that code is checked too.",
+        params: IdParams,
+        querystring: QuoteOffersQuery,
+        response: { 200: OffersOne, ...Errors },
+        security,
+      },
+    },
+    async (request) => {
+      const q = await myQuote(request, request.params.id);
+      if (!q.customerId.equals(request.auth!.userId)) throw new AppError("FORBIDDEN", "Only the customer the offer was sent to can pay for it.");
+      const closed = quoteClosed(q);
+      if (closed) throw new AppError("CONFLICT", closed);
+      const ctx = { module: "gigs" as const, shop: { id: q.businessId, name: q.businessName }, customerId: q.customerId, items: q.price };
+      const code = request.query.code;
+      const [offers, check] = await Promise.all([offersFor(db(), ctx), code ? checkCode(db(), code, ctx) : null]);
+      return ok(request, { offers, checked: check ? { code: code!.trim().toUpperCase(), discount: check.problem === null ? check.discount : 0, problem: check.problem } : null });
+    },
   );
 
   app.post(

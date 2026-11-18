@@ -23,7 +23,7 @@ import { creditOrder, invoiceGigOrder } from "../invoices/issue.js";
 import { notifyGigs } from "../notifications/notify.js";
 import { rupees } from "../pod/orders.js";
 import { dueAt, gigOrderContext, nextTicketNo, slaHours } from "../support/tickets.js";
-import { expireQuotes, quoteStatus, touchQuote } from "./quotes.js";
+import { expireQuotes, quoteClosed, touchQuote } from "./quotes.js";
 import {
   ANSWER_MAX,
   DAY_MS,
@@ -135,10 +135,8 @@ export async function placeOrder(
   } else {
     const { quote } = source;
     if (!quote.customerId.equals(customer.id)) throw new AppError("NOT_FOUND", "Offer not found.");
-    const status = quoteStatus(quote, now.getTime());
-    if (status !== "open") {
-      throw new AppError("CONFLICT", status === "paid" ? "This offer is paid for already." : status === "withdrawn" ? "The freelancer withdrew this offer." : "This offer has expired.");
-    }
+    const closed = quoteClosed(quote, now.getTime());
+    if (closed) throw new AppError("CONFLICT", closed);
     title = quote.title;
     category = quote.category;
     pack = { tier: null, name: "Custom offer", description: quote.description, deliveryDays: quote.deliveryDays, revisions: quote.revisions };

@@ -29,6 +29,8 @@ import {
 import { decideDispute, syncGigPayment, type By } from "../gigs/orders.js";
 import { gigsSettings } from "../gigs/rules.js";
 import { myGigViews, orderViews, ownersOf, profileView } from "../gigs/views.js";
+import { holdBusiness } from "./businesses.js";
+import { SuspendBody } from "./contracts.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 
@@ -70,6 +72,11 @@ const gigs: FastifyPluginAsyncTypebox = async (app) => {
     );
     return views.map((v, i) => ({ ...v, vendorId: docs[i]!.vendorId.toHexString() }));
   }
+  async function freelancer(id: string) {
+    const doc = await db().businesses.findOne({ _id: new ObjectId(id), module: "gigs" });
+    if (!doc?.freelancer) throw new AppError("NOT_FOUND", "Freelancer not found.");
+    return doc;
+  }
   async function order(id: string) {
     const o = await db().gigOrders.findOne({ _id: new ObjectId(id) });
     if (!o) throw new AppError("NOT_FOUND", "Order not found.");
@@ -104,11 +111,47 @@ const gigs: FastifyPluginAsyncTypebox = async (app) => {
       preHandler: requireRuxstar("businesses.view"),
       schema: { tags: ["ruxstar"], summary: "One freelancer", params: IdParams, response: { 200: ConsoleFreelancerOne, ...Errors }, security },
     },
-    async (request) => {
-      const doc = await db().businesses.findOne({ _id: new ObjectId(request.params.id), module: "gigs" });
-      if (!doc?.freelancer) throw new AppError("NOT_FOUND", "Freelancer not found.");
-      return ok(request, (await freelancerViews([doc]))[0]!);
+    async (request) => ok(request, (await freelancerViews([await freelancer(request.params.id)]))[0]!),
+  );
+
+  async function hold(request: FastifyRequest, id: string, held: boolean, reason: string | null) {
+    await holdBusiness(app, request, await freelancer(id), held, reason);
+    return ok(request, (await freelancerViews([await freelancer(id)]))[0]!);
+  }
+
+  app.post(
+    "/gigs/freelancers/:id/suspend",
+    {
+      preHandler: [requireRuxstar("businesses.manage"), idempotent],
+      schema: {
+        tags: ["ruxstar"],
+        summary: "Put a freelancer on hold",
+        description:
+          "The business hold (POST /v1/ruxstar/businesses/{id}/suspend): their page and gigs leave Ruxstar, and they can't sell, change their profile or act on orders. " +
+          "They're told why. Audited.",
+        params: IdParams,
+        body: SuspendBody,
+        response: { 200: ConsoleFreelancerOne, ...Errors },
+        security,
+      },
     },
+    async (request) => hold(request, request.params.id, true, request.body.reason.trim()),
+  );
+
+  app.post(
+    "/gigs/freelancers/:id/restore",
+    {
+      preHandler: [requireRuxstar("businesses.manage"), idempotent],
+      schema: {
+        tags: ["ruxstar"],
+        summary: "Lift a hold on a freelancer",
+        description: "As POST /v1/ruxstar/businesses/{id}/restore: they come back as they were. Audited.",
+        params: IdParams,
+        response: { 200: ConsoleFreelancerOne, ...Errors },
+        security,
+      },
+    },
+    async (request) => hold(request, request.params.id, false, null),
   );
 
   app.get(

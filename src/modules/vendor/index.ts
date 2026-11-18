@@ -91,7 +91,8 @@ const vendor: FastifyPluginAsyncTypebox = async (app) => {
         tags: ["vendor"],
         summary: "Categories, types, states and cities, and print products to choose from",
         description:
-          "No sign-in needed. Each category is one module, with whether it is live and taking new businesses. The Ruxstar console reads it for labels.",
+          "No sign-in needed. Each category is one module, with whether it is live and taking new businesses. The Ruxstar console reads it for labels. " +
+          "Freelancers (`gigs`) isn't made here: its profiles start with POST /v1/gigs/me, so leave it out of Add a business.",
         response: { 200: Catalog, ...Errors },
         security: signedInOrNot,
       },

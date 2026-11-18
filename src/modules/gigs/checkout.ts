@@ -48,6 +48,8 @@ function linkValid(key: Uint8Array, id: string, exp: number, token: string): boo
 }
 
 const fileName = (name: string) => name.replace(/[^\w.\- ]/g, "_").slice(0, 120) || "file";
+/** Only these open in the browser without `download`; anything else, and everything with it, downloads. Never HTML or SVG. */
+const INLINE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"]);
 
 /** The page customers pay for freelance orders on, and the file downloads. Outside /v1, like print's: the signed token stands in for sign-in. */
 const gigsCheckout: FastifyPluginAsyncTypebox = async (app) => {
@@ -129,7 +131,7 @@ const gigsCheckout: FastifyPluginAsyncTypebox = async (app) => {
   app.get(
     "/gig-files/:id",
     {
-      schema: { hide: true, params: Params, querystring: Strict({ exp: Type.Integer(), t: Type.String({ maxLength: 100 }) }) },
+      schema: { hide: true, params: Params, querystring: Strict({ exp: Type.Integer(), t: Type.String({ maxLength: 100 }), download: Type.Optional(Type.Literal("1")) }) },
       config: { rateLimit: { max: 60, timeWindow: 60_000 } },
     },
     async (request, reply) => {
@@ -139,10 +141,11 @@ const gigsCheckout: FastifyPluginAsyncTypebox = async (app) => {
       if (!file) throw new AppError("NOT_FOUND", "This file was deleted.");
       const data = await app.printFiles.read(file.key).catch(() => null);
       if (!data) throw new AppError("NOT_FOUND", "This file was deleted.");
+      const inline = !request.query.download && INLINE_TYPES.has(file.contentType);
       return reply
         .headers({ "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox" })
         .header("Content-Type", file.contentType)
-        .header("Content-Disposition", `attachment; filename="${fileName(file.name)}"`)
+        .header("Content-Disposition", `${inline ? "inline" : "attachment"}; filename="${fileName(file.name)}"`)
         .send(data);
     },
   );

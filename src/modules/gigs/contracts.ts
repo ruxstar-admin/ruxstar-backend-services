@@ -3,6 +3,7 @@ import { DateTime, Envelope, ListEnvelope, ObjectIdString, PageQuery, Paise, Str
 import { AppliedCoupon, Offer } from "../coupons/contracts.js";
 import { InvoiceRefs } from "../invoices/contracts.js";
 import { Rating, ReviewEligibility } from "../reviews/contracts.js";
+import { QuoteCard } from "../social/chat-contracts.js";
 import { ANSWER_MAX, MAX_FILES, MAX_GIG_PHOTOS, MAX_LINKS, MAX_PORTFOLIO, MAX_QUESTIONS } from "./rules.js";
 
 const Nullable = <T extends TSchema>(schema: T, options?: { description: string }) => Type.Union([schema, Type.Null()], options);
@@ -34,6 +35,7 @@ const OrderStatus = Type.Union(
       "`disputed`: a problem was reported and Ruxstar decides. `completed`: the freelancer is paid",
   },
 );
+const Actor = Type.Union([Type.Literal("customer"), Type.Literal("vendor"), Type.Literal("staff"), Type.Literal("system")], { description: "`vendor` is the freelancer" });
 const ReturnTo = Type.String({
   maxLength: 500,
   description: "Where the checkout page sends the customer afterwards: this site, or the app's own link. `order=<id>` is added.",
@@ -61,6 +63,18 @@ export const GigsRulesView = Strict({
   platformFee: Paise,
   live: Type.Boolean(),
   signupsOpen: Type.Boolean({ description: "New freelancers can start" }),
+  limits: Strict(
+    {
+      portfolio: Type.Integer({ description: "Photos and links on a profile, together" }),
+      gigPhotos: Type.Integer(),
+      questions: Type.Integer({ description: "On one gig" }),
+      files: Type.Integer({ description: "On one order or one delivery" }),
+      links: Type.Integer({ description: "In one delivery" }),
+      answer: Type.Integer({ description: "Characters in one answer to a gig's question" }),
+      extensions: Type.Array(Type.String(), { description: "The kinds of file that can be uploaded, by the name's extension" }),
+    },
+    { description: "Fixed by Ruxstar; not settings" },
+  ),
 });
 export const GigsRulesOne = Envelope(GigsRulesView);
 
@@ -68,6 +82,8 @@ export const GigsRulesOne = Envelope(GigsRulesView);
 
 const FreelancerRef = Strict({
   businessId: ObjectIdString,
+  userId: ObjectIdString,
+  username: Nullable(Type.String(), { description: "With `userId`, opens a 1:1 chat with them" }),
   name: Type.String(),
   headline: Type.String(),
   city: Nullable(Type.String()),
@@ -282,7 +298,13 @@ export const GigOrder = Strict({
   category: Type.String(),
   gigId: Nullable(ObjectIdString, { description: "Null for a custom offer" }),
   quoteId: Nullable(ObjectIdString),
-  freelancer: Strict({ businessId: ObjectIdString, name: Type.String() }),
+  freelancer: Strict({
+    businessId: ObjectIdString,
+    userId: ObjectIdString,
+    username: Nullable(Type.String(), { description: "With `userId`, opens a 1:1 chat with them" }),
+    name: Type.String(),
+    avatarUrl: Nullable(Type.String()),
+  }),
   customer: Strict({ id: ObjectIdString, name: Type.String() }),
   package: Strict({ tier: Nullable(Tier), name: Type.String(), description: Type.String(), deliveryDays: Type.Integer(), revisions: Type.Integer() }),
   answers: Type.Array(Strict({ question: Type.String(), answer: Type.String() })),
@@ -293,6 +315,7 @@ export const GigOrder = Strict({
   share: Nullable(Paise, { description: "The freelancer's and the console's view: what the freelancer gets once it completes, after commission and part refunds" }),
   refunds: Type.Array(Refund),
   payBy: Nullable(DateTime, { description: "Unpaid, it is cancelled after this" }),
+  paidAt: Nullable(DateTime),
   acceptBy: Nullable(DateTime, { description: "Paid, the freelancer must accept by then or it is refunded" }),
   acceptedAt: Nullable(DateTime),
   dueAt: Nullable(DateTime),
@@ -309,14 +332,14 @@ export const GigOrder = Strict({
       decision: Nullable(Strict({ outcome: Type.Union([Type.Literal("full"), Type.Literal("part"), Type.Literal("none")]), amount: Paise, note: Type.String(), at: DateTime })),
     }),
   ),
-  cancellation: Nullable(
-    Strict({ by: Type.Union([Type.Literal("customer"), Type.Literal("vendor"), Type.Literal("staff"), Type.Literal("system")]), reason: Type.String(), at: DateTime }),
-  ),
+  cancellation: Nullable(Strict({ by: Actor, reason: Type.String(), at: DateTime })),
+  timeline: Type.Array(Strict({ status: OrderStatus, at: DateTime, by: Actor }), { description: "Every change of status, oldest first" }),
   filesDeleted: Type.Boolean({ description: "Files go a set number of days after it ends; the order and messages stay" }),
   can: Strict({
     pay: Type.Boolean(),
     cancel: Type.Boolean({ description: "Customer: before it's accepted, or once late. Freelancer: until it completes or a problem is reported" }),
     accept: Type.Boolean(),
+    decline: Type.Boolean({ description: "Freelancer: a paid order waiting to be accepted can be turned down" }),
     deliver: Type.Boolean(),
     approve: Type.Boolean(),
     revise: Type.Boolean(),
@@ -372,14 +395,17 @@ export const OffersOne = Envelope(
   }),
 );
 export const QuoteOne = Envelope(
-  Strict({
-    id: ObjectIdString,
-    status: Type.Union([Type.Literal("open"), Type.Literal("withdrawn"), Type.Literal("expired"), Type.Literal("paid")]),
-    chatId: ObjectIdString,
-    orderId: Nullable(ObjectIdString),
-    withdrawnAt: Nullable(DateTime),
-  }),
+  Strict(
+    {
+      ...QuoteCard.properties,
+      chatId: ObjectIdString,
+      orderId: Nullable(ObjectIdString, { description: "Once it's paid" }),
+      withdrawnAt: Nullable(DateTime),
+    },
+    { description: "Everything the offer's card in the chat shows, and where it stands" },
+  ),
 );
+export const QuoteOffersQuery = Strict({ code: OffersQuery.properties.code });
 
 // The console.
 
@@ -388,7 +414,7 @@ export const ConsoleFreelancer = Strict({
   ownerId: ObjectIdString,
   status: Type.Union([Type.Literal("draft"), Type.Literal("live")]),
   verified: Type.Boolean(),
-  suspended: Type.Boolean({ description: "Held with POST /v1/ruxstar/businesses/{id}/suspend" }),
+  suspended: Type.Boolean({ description: "On hold: POST /v1/ruxstar/gigs/freelancers/{id}/suspend and /restore, the same as the business hold" }),
   gigs: Type.Integer(),
   orders: Type.Integer({ description: "Paid orders" }),
   createdAt: DateTime,

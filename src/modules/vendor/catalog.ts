@@ -8,6 +8,8 @@ export const CATEGORIES: readonly { module: BusinessModule; label: string; descr
   { module: "stays", label: "PG & hostel stays", description: "Rooms and beds by the month" },
   { module: "turf", label: "Sports & turf", description: "Grounds and courts booked by the slot" },
   { module: "shop", label: "Local shops", description: "Sell products in your city, delivered or picked up" },
+  // Listed for its state and labels only: freelancers start at POST /v1/gigs/me, and POST /v1/vendor/businesses refuses it.
+  { module: "gigs", label: "Freelancers", description: "Design, editing, writing and other work sold as fixed packages" },
 ];
 
 export const BUSINESS_TYPES = [

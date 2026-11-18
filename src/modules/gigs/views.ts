@@ -40,6 +40,8 @@ function cardOf(g: WithId<GigDoc>, business: BusinessDoc | undefined, owner: Own
     fastestDays: Math.min(...g.packages.map((p) => p.deliveryDays)),
     freelancer: {
       businessId: g.businessId.toHexString(),
+      userId: g.vendorId.toHexString(),
+      username: owner?.username ?? null,
       name: business?.name ?? g.businessName,
       headline: business?.freelancer?.headline ?? "",
       city: business?.freelancer?.city ?? null,
@@ -171,7 +173,10 @@ export async function orderViews(app: FastifyInstance, db: Database, request: Re
   if (!orders.length) return [];
   const link = gigFileLinks(app, request);
   const now = new Date();
-  const reviews = role === "customer" ? await eligibility(db, orders.map((o) => gigReviewable(o, now.getTime()))) : new Map();
+  const [reviews, owners] = await Promise.all([
+    role === "customer" ? eligibility(db, orders.map((o) => gigReviewable(o, now.getTime()))) : new Map(),
+    ownersOf(db, [...new Map(orders.map((o) => [o.vendorId.toHexString(), o.vendorId])).values()]),
+  ]);
   const fileView = (o: GigOrderDoc) => (f: GigFileRef) => ({
     id: f.id.toHexString(),
     name: f.name,
@@ -184,6 +189,7 @@ export async function orderViews(app: FastifyInstance, db: Database, request: Re
     const customer = role === "customer";
     const freelancer = role === "freelancer";
     const late = o.status === "in_progress" && !!o.dueAt && o.dueAt <= now && o.deliveries.length === 0;
+    const owner = owners.get(o.vendorId.toHexString());
     return {
       id: o._id.toHexString(),
       orderNo: o.orderNo,
@@ -193,7 +199,13 @@ export async function orderViews(app: FastifyInstance, db: Database, request: Re
       category: o.category,
       gigId: o.gigId?.toHexString() ?? null,
       quoteId: o.quoteId?.toHexString() ?? null,
-      freelancer: { businessId: o.businessId.toHexString(), name: o.businessName },
+      freelancer: {
+        businessId: o.businessId.toHexString(),
+        userId: o.vendorId.toHexString(),
+        username: owner?.username ?? null,
+        name: o.businessName,
+        avatarUrl: avatarOf(owner),
+      },
       customer: { id: o.customerId.toHexString(), name: o.customerName },
       package: o.package,
       answers: o.answers.map((a) => ({ question: a.question, answer: a.answer })),
@@ -204,6 +216,7 @@ export async function orderViews(app: FastifyInstance, db: Database, request: Re
       share: customer ? null : vendorLeftOf(o),
       refunds: o.refunds.map((r) => ({ kind: r.kind, amount: r.amount, status: r.status, reason: r.reason, at: r.at.toISOString() })),
       payBy: o.status === "awaiting_payment" ? iso(o.holdUntil) : null,
+      paidAt: iso(o.payment.paidAt),
       acceptBy: o.status === "paid" ? iso(o.acceptBy) : null,
       acceptedAt: iso(o.acceptedAt),
       dueAt: iso(o.dueAt),
@@ -230,11 +243,13 @@ export async function orderViews(app: FastifyInstance, db: Database, request: Re
           }
         : null,
       cancellation: o.cancellation ? { by: o.cancellation.by, reason: o.cancellation.reason, at: o.cancellation.at.toISOString() } : null,
+      timeline: o.timeline.map((t) => ({ status: t.status, at: t.at.toISOString(), by: t.by })),
       filesDeleted: Boolean(o.filesDeletedAt),
       can: {
         pay: customer && o.status === "awaiting_payment",
         cancel: customer ? customerCanCancel(o, now) : freelancer && ["paid", "in_progress", "delivered"].includes(o.status),
         accept: freelancer && o.status === "paid",
+        decline: freelancer && o.status === "paid",
         deliver: freelancer && o.status === "in_progress",
         approve: customer && o.status === "delivered",
         revise: customer && o.status === "delivered" && o.revisionsUsed < o.package.revisions,

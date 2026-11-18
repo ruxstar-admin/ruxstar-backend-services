@@ -15,7 +15,7 @@ import { gigsSettings, MAX_UPLOAD_MB, MB } from "./rules.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
 
-/** What can be uploaded, by extension, and the type it is served as. Pages and scripts aren't on it; everything downloads. */
+/** What can be uploaded, by extension, and the type it is served as. Pages and scripts aren't on it; only images and PDFs open in the browser. */
 const TYPES: Record<string, string> = {
   pdf: "application/pdf",
   jpg: "image/jpeg",

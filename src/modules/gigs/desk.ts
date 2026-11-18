@@ -12,7 +12,7 @@ import { idempotent } from "../../platform/idempotency.js";
 import { findPage } from "../../platform/pagination.js";
 import { DeliverBody, DeskOrdersQuery, GigOrderList, GigOrderOne, IdParams, QuoteOne, VendorCancelBody } from "./contracts.js";
 import { acceptOrder, cancelOrder, deliverOrder, type By } from "./orders.js";
-import { quoteStatus, touchQuote } from "./quotes.js";
+import { quoteStatus, quoteView, touchQuote } from "./quotes.js";
 import { orderViews } from "./views.js";
 
 const security: Record<string, string[]>[] = [{ bearer: [] }, { cookie: [] }];
@@ -157,13 +157,7 @@ const desk: FastifyPluginAsyncTypebox = async (app) => {
       const database = db();
       const q = await database.gigQuotes.findOne({ _id: new ObjectId(request.params.id), vendorId: request.auth!.userId });
       if (!q) throw new AppError("NOT_FOUND", "Offer not found.");
-      const view = (d: typeof q) => ({
-        id: d._id.toHexString(),
-        status: quoteStatus(d),
-        chatId: d.conversationId.toHexString(),
-        orderId: d.orderId?.toHexString() ?? null,
-        withdrawnAt: d.withdrawnAt?.toISOString() ?? null,
-      });
+      const view = (d: typeof q) => quoteView(d, request.auth!.userId);
       if (q.status === "withdrawn") return ok(request, view(q));
       const status = quoteStatus(q);
       if (status !== "open") throw new AppError("CONFLICT", status === "paid" ? "This offer is paid for, so it can't be withdrawn. Cancel the order instead." : "This offer has expired already.");
