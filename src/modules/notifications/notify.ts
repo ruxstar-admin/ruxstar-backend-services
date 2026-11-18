@@ -112,11 +112,14 @@ export async function notifyPostRemoved(
   }
 }
 
-/** Tells a vendor the Ruxstar team put one of their businesses on hold, or lifted it. Logged, never thrown. */
+/**
+ * Tells a vendor the Ruxstar team put one of their businesses on hold, or lifted it. A freelancer's opens their Freelancing
+ * home, which many freelancers can reach without the vendor portal. Logged, never thrown.
+ */
 export async function notifyBusinessHold(
   db: Database,
   log: FastifyBaseLogger,
-  event: { to: ObjectId; moderator: ObjectId; businessId: ObjectId; name: string; held: boolean; reason: string | null },
+  event: { to: ObjectId; moderator: ObjectId; businessId: ObjectId; name: string; held: boolean; reason: string | null; freelance?: boolean },
 ): Promise<void> {
   try {
     await save(db, {
@@ -126,7 +129,7 @@ export async function notifyBusinessHold(
       actorId: event.moderator,
       title: event.held ? `${clip(event.name, 40)} is on hold` : `${clip(event.name, 40)} is back`,
       body: event.held ? clip(event.reason ?? "Contact support to continue.", 140) : "Customers can see it again.",
-      link: { screen: "business", id: event.businessId.toHexString() },
+      link: { screen: event.freelance ? "freelance" : "business", id: event.businessId.toHexString() },
       readAt: null,
       createdAt: new Date(),
     });

@@ -111,6 +111,7 @@ const manage: FastifyPluginAsyncTypebox = async (app) => {
       status: doc.status,
       verified: isVerified,
       suspended: Boolean(doc.suspension),
+      hold: doc.suspension ? { reason: doc.suspension.reason, at: doc.suspension.at.toISOString() } : null,
       gigs: { total, live, max: settings.maxGigs },
       createdAt: doc.createdAt.toISOString(),
     });

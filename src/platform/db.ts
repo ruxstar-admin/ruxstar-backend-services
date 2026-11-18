@@ -544,7 +544,8 @@ export interface NotificationDoc {
    * `stay_order` a customer's reservation, and `vendor_property` a property's bed board for its owner or team. `store` opens a
    * local shop's page, `store_product` one of its products, `store_order` a customer's order, and `vendor_store_order` the same
    * order at the shop's desk. `gig` opens a gig's page, `gig_order` a customer's freelance order, `vendor_gig_order` the same
-   * order for the freelancer, and `chat` a chat (a custom offer in it).
+   * order for the freelancer, `freelance` the freelancer's own Freelancing home (its id is the business), and `chat` a chat
+   * (a custom offer in it).
    */
   link: {
     screen:
@@ -582,7 +583,8 @@ export interface NotificationDoc {
       | "vendor_store_order"
       | "gig"
       | "gig_order"
-      | "vendor_gig_order";
+      | "vendor_gig_order"
+      | "freelance";
     id: string;
   };
   readAt: Date | null;

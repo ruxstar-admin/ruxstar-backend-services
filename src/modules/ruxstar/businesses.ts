@@ -56,7 +56,7 @@ export async function holdBusiness(app: FastifyInstance, request: FastifyRequest
       session,
     );
   });
-  await notifyBusinessHold(database, app.log, { to: doc.ownerId, moderator: request.auth!.userId, businessId: doc._id, name: doc.name, held, reason });
+  await notifyBusinessHold(database, app.log, { to: doc.ownerId, moderator: request.auth!.userId, businessId: doc._id, name: doc.name, held, reason, freelance: doc.module === "gigs" });
 }
 
 /** Every vendor's businesses, for the Ruxstar team. Holding one hides it from customers and stops its vendor changing it. */

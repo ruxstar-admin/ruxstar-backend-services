@@ -166,6 +166,7 @@ export const MyProfile = Strict({
   status: Type.Union([Type.Literal("draft"), Type.Literal("live")], { description: "`live` once a gig is published" }),
   verified: Type.Boolean({ description: "Base verification is done; publishing gigs and sending offers need it" }),
   suspended: Type.Boolean({ description: "Ruxstar is holding the profile: nothing can be sold" }),
+  hold: Nullable(Strict({ reason: Type.String(), at: DateTime }), { description: "Why and since when Ruxstar is holding the profile, while `suspended`" }),
   gigs: Strict({ total: Type.Integer(), live: Type.Integer(), max: Type.Integer() }),
   createdAt: DateTime,
 });

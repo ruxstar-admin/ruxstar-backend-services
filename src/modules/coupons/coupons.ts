@@ -373,14 +373,16 @@ async function modulesOf(db: Database, businessIds: ObjectId[]): Promise<Switcha
 /** Modules whose orders take coupons. A new module adds itself here once its checkout calls `checkCode`, `redeem` and `giveBack`. */
 export const COUPON_MODULES: SwitchableModule[] = ["pod", "events", "coaching", "turf", "stays", "shop", "gigs"];
 
-/** A vendor's own businesses that take coupons, by id, for the coupon's `businessIds`. */
-export async function vendorShops(db: Database, vendorId: ObjectId, ids: string[]): Promise<ObjectId[]> {
+/** A vendor's own businesses that take coupons, by id, for the coupon's `businessIds`. `freelanceOnly` allows only freelancer ones. */
+export async function vendorShops(db: Database, vendorId: ObjectId, ids: string[], freelanceOnly = false): Promise<ObjectId[]> {
   const objectIds = ids.map((id) => new ObjectId(id));
+  const modules = freelanceOnly ? ["gigs"] : COUPON_MODULES;
   const found = await db.businesses
-    .find({ _id: { $in: objectIds }, ownerId: vendorId, module: { $in: COUPON_MODULES as BusinessDoc["module"][] } }, { projection: { _id: 1 } })
+    .find({ _id: { $in: objectIds }, ownerId: vendorId, module: { $in: modules as BusinessDoc["module"][] } }, { projection: { _id: 1 } })
     .toArray();
+  const message = freelanceOnly ? "Pick one of your freelancer profiles." : "Pick one of your print shops, events, coaching, turf, stays, local shop or freelancer businesses.";
   ids.forEach((id, i) => {
-    if (!found.some((b) => b._id.toHexString() === id)) throw invalid(`body/businessIds/${i}`, "Pick one of your print shops, events, coaching, turf, stays, local shop or freelancer businesses.");
+    if (!found.some((b) => b._id.toHexString() === id)) throw invalid(`body/businessIds/${i}`, message);
   });
   return objectIds;
 }

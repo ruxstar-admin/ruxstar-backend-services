@@ -18,8 +18,8 @@ export async function requireVendor(request: FastifyRequest): Promise<void> {
 }
 
 /**
- * Earnings, withdrawals and GST documents: vendors, and freelancers, who only do base verification and so aren't vendors.
- * Everyone sees only their own; nothing else under /v1/vendor opens to freelancers.
+ * Earnings, withdrawals, GST documents and coupons: vendors, and freelancers, who only do base verification and so aren't
+ * vendors. Everyone sees only their own; nothing else under /v1/vendor opens to freelancers.
  */
 export async function requireEarner(request: FastifyRequest): Promise<void> {
   await requireAuth(request);
